@@ -1,0 +1,41 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<osm version='0.6' upload='true' generator='JOSM'>
+  <node id='-9560' action='modify' visible='true' lat='46.54905318129' lon='6.61885467392' />
+  <node id='-9557' action='modify' visible='true' lat='46.54914817574' lon='6.6164215954' />
+  <node id='-9526' action='modify' visible='true' lat='46.5408648806' lon='6.61805666592' />
+  <node id='-9523' action='modify' visible='true' lat='46.54097512781' lon='6.61552107047' />
+  <node id='-9519' action='modify' visible='true' lat='46.54176492504' lon='6.61815125809' />
+  <node id='-9517' action='modify' visible='true' lat='46.54189143612' lon='6.61561303507' />
+  <node id='-9511' action='modify' visible='true' lat='46.54202952415' lon='6.6181755469' />
+  <node id='-9506' action='modify' visible='true' lat='46.54216948145' lon='6.61565089601' />
+  <way id='-9558' action='modify' visible='true'>
+    <nd ref='-9557' />
+    <nd ref='-9506' />
+    <nd ref='-9511' />
+    <nd ref='-9560' />
+    <nd ref='-9557' />
+    <tag k='altitude_high' v='621' />
+    <tag k='altitude_low' v='608' />
+    <tag k='cell_size' v='6' />
+    <tag k='profile' v='parabolic' />
+  </way>
+  <way id='-9524' action='modify' visible='true'>
+    <nd ref='-9523' />
+    <nd ref='-9517' />
+    <nd ref='-9519' />
+    <nd ref='-9526' />
+    <nd ref='-9523' />
+    <tag k='altitude_high' v='609' />
+    <tag k='altitude_low' v='608' />
+    <tag k='cell_size' v='6' />
+    <tag k='profile' v='spline' />
+  </way>
+  <way id='-9518' action='modify' visible='true'>
+    <nd ref='-9506' />
+    <nd ref='-9517' />
+    <nd ref='-9519' />
+    <nd ref='-9511' />
+    <nd ref='-9506' />
+    <tag k='altitude' v='608' />
+  </way>
+</osm>

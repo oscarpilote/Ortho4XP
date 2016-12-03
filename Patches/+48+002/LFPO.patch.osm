@@ -1,0 +1,75 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<osm version='0.6' upload='true' generator='JOSM'>
+  <node id='-74' action='modify' visible='true' lat='48.71630847219' lon='2.31005056277' />
+  <node id='-72' action='modify' visible='true' lat='48.72165799474' lon='2.31220843679' />
+  <node id='-70' action='modify' visible='true' lat='48.72623052267' lon='2.32548263153' />
+  <node id='-68' action='modify' visible='true' lat='48.72804216402' lon='2.33417951773' />
+  <node id='-66' action='modify' visible='true' lat='48.72899109297' lon='2.33476802883' />
+  <node id='-64' action='modify' visible='true' lat='48.73257098188' lon='2.333787177' />
+  <node id='-62' action='modify' visible='true' lat='48.73459803486' lon='2.33601044115' />
+  <node id='-60' action='modify' visible='true' lat='48.73498618462' lon='2.33882221639' />
+  <node id='-58' action='modify' visible='true' lat='48.73494305702' lon='2.34130704102' />
+  <node id='-56' action='modify' visible='true' lat='48.73697001436' lon='2.34771527296' />
+  <node id='-54' action='modify' visible='true' lat='48.73843627298' lon='2.34967697661' />
+  <node id='-52' action='modify' visible='true' lat='48.73830689894' lon='2.35758918136' />
+  <node id='-50' action='modify' visible='true' lat='48.73905618564' lon='2.36541964845' />
+  <node id='-48' action='modify' visible='true' lat='48.74411391688' lon='2.36482996098' />
+  <node id='-46' action='modify' visible='true' lat='48.74473207387' lon='2.36994791439' />
+  <node id='-44' action='modify' visible='true' lat='48.74507702647' lon='2.38511842266' />
+  <node id='-42' action='modify' visible='true' lat='48.74080807138' lon='2.38675317571' />
+  <node id='-40' action='modify' visible='true' lat='48.74024747458' lon='2.39146126448' />
+  <node id='-38' action='modify' visible='true' lat='48.73787564973' lon='2.39283445704' />
+  <node id='-36' action='modify' visible='true' lat='48.73748752228' lon='2.39983120008' />
+  <node id='-34' action='modify' visible='true' lat='48.73386485492' lon='2.40336226666' />
+  <node id='-32' action='modify' visible='true' lat='48.73192403288' lon='2.40728567397' />
+  <node id='-30' action='modify' visible='true' lat='48.72394431067' lon='2.40754723446' />
+  <node id='-28' action='modify' visible='true' lat='48.72070892741' lon='2.40094283215' />
+  <node id='-26' action='modify' visible='true' lat='48.71833618075' lon='2.38721090656' />
+  <node id='-24' action='modify' visible='true' lat='48.7162221849' lon='2.31515099227' />
+  <node id='-22' action='modify' visible='true' lat='48.72053636779' lon='2.3406531398' />
+  <node id='-20' action='modify' visible='true' lat='48.71911272834' lon='2.34326874467' />
+  <node id='-18' action='modify' visible='true' lat='48.71544559269' lon='2.34202633236' />
+  <node id='-16' action='modify' visible='true' lat='48.71453955329' lon='2.34464193723' />
+  <node id='-14' action='modify' visible='true' lat='48.71963042008' lon='2.37158266744' />
+  <node id='-12' action='modify' visible='true' lat='48.71492785789' lon='2.37354437109' />
+  <node id='-10' action='modify' visible='true' lat='48.71251169169' lon='2.38001799316' />
+  <node id='-8' action='modify' visible='true' lat='48.71566131395' lon='2.38518381278' />
+  <way id='-76' action='modify' visible='true'>
+    <nd ref='-26' />
+    <nd ref='-8' />
+    <nd ref='-10' />
+    <nd ref='-12' />
+    <nd ref='-14' />
+    <nd ref='-16' />
+    <nd ref='-18' />
+    <nd ref='-20' />
+    <nd ref='-22' />
+    <nd ref='-24' />
+    <nd ref='-74' />
+    <nd ref='-72' />
+    <nd ref='-70' />
+    <nd ref='-68' />
+    <nd ref='-66' />
+    <nd ref='-64' />
+    <nd ref='-62' />
+    <nd ref='-60' />
+    <nd ref='-58' />
+    <nd ref='-56' />
+    <nd ref='-54' />
+    <nd ref='-52' />
+    <nd ref='-50' />
+    <nd ref='-48' />
+    <nd ref='-46' />
+    <nd ref='-44' />
+    <nd ref='-42' />
+    <nd ref='-40' />
+    <nd ref='-38' />
+    <nd ref='-36' />
+    <nd ref='-34' />
+    <nd ref='-32' />
+    <nd ref='-30' />
+    <nd ref='-28' />
+    <nd ref='-26' />
+    <tag k='altitude' v='86' />
+  </way>
+</osm>

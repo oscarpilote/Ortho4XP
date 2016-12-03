@@ -1,0 +1,15 @@
+ (define (blurX filename 
+                radius 
+                filenameout)
+   (let* ((image (car (gimp-file-load RUN-NONINTERACTIVE filename filename)))
+          (drawable (car (gimp-image-get-active-layer image))))
+     (gimp-by-color-select drawable '(255 255 255) 10 2 TRUE FALSE 0 FALSE)
+     (gimp-selection-grow image (/ radius 2))
+     (gimp-edit-fill drawable 1)
+     (gimp-selection-none image)
+     (plug-in-gauss-rle2 RUN-NONINTERACTIVE image drawable radius radius)
+     (gimp-levels drawable 0 0 255 1.5 0 148)
+     (plug-in-gauss-rle2 RUN-NONINTERACTIVE image drawable (/ radius 8) (/ radius 8))
+     (set! drawable (car (gimp-image-get-active-layer image)))
+     (gimp-file-save RUN-NONINTERACTIVE image drawable filenameout filenameout)
+     (gimp-image-delete image)))
