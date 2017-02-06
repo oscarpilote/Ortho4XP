@@ -1,7 +1,7 @@
 #!/usr/bin/env python3                                                       
 ##############################################################################
 # Ortho4XP : A base mesh creation tool for the X-Plane 10 flight simulator.  #
-# Version  : 1.16 released August 20th 2016                                  #
+# Version  : 1.17 released September 6th 2016                                #
 # Copyright 2016 Oscar Pilote                                                #
 # Thanks to all that have contributed to improvement of the code.            #
 ##############################################################################
@@ -23,15 +23,33 @@
 #                                                                            #
 ##############################################################################
 
-version=' 1.16'
+version=' 1.17'
 
+import os
+import sys
+
+try:
+    import encodings.idna
+except:
+    pass
+	
+if getattr(sys,'frozen',False):
+    Ortho4XP_dir        = '..'
+else:
+    Ortho4XP_dir        = '.'
+
+try:
+    sys.path.append(os.getcwd()+'/'+Ortho4XP_dir+'/bin/Modules')
+except:
+    pass
+	
+import requests
+
+import threading,subprocess,time,gc,shutil,io
 from math import *
 import array,numpy
-import os,sys,threading,subprocess,time,gc
-import overpy
-import requests
+
 import random
-import pickle
 import collections
 import struct
 import hashlib
@@ -49,50 +67,74 @@ try:
 except:
     gdal_loaded = False
 
-try:
-    exec(open('Carnet_d_adresses.py').read())
-except:
-    print("The file Carnet_d_adresses.py does not follow the syntactic rules.")
-    sys.exit()
+	
+# The following are initialisation of the variables, they are then superseded by your Ortho4XP.cfg file but are here
+# in case your config file misses some of then (evolution, edit, ...).  Do not modify them here but use your
+# config file instead.
 
-# The following parameters are put here rather than in the config file 
-# because most of users will never modify them.
 
-Ortho4XP_dir        = '.'
-meshzl              = 19    # The maximum ZL which the mesh will support
-hmin                = 20    # Smallest triangle side-length
-hmax                = 2000  # Largest triangle side-length
+# Things that can be changed in the graphical interface
+build_dir           = "default"     
+default_website     = 'BI'
+default_zl          = 16
+sea_texture_params  = []       # example ['GO2',16], if you wish to use a different provider for the orthos over the sea (zonephoto tiles of french britany were done with this option)
+min_area            =  0.01                                                            
+curvature_tol       = 1
+no_small_angles     = False
 smallest_angle      = 5     # called min_angle in the graphical interface
-water_smoothing     = 2     # increase if you find the rivers are not smooth enough
-tile_has_water_airport=False# Put to True if an airport with a water boundary does not turn flat correctly
-do_not_flatten_these_list=[]# Those airport won't be flattened, icao code needed, like = ['LFPG','LFMN'] 
-masks_width         = 16    # default one
-sea_texture_params  = []    # e.g. ['GO2',16] will use this provider and ZL for the triangles over the sea
-keep_old_pre_mask   = False
-complex_masks       = False # is set to True the build_masks process will be longer (because mesh from all nearby tiles will be used), but will not "suffer" from boundary effects
-use_masks_for_inland= False # if you want inland water to be treated like sea water (transparency based on a mask rather than fixed)
+skip_downloads      = False
+skip_converts       = False
+check_tms_response  = True  # Available as a checkbox in the interface, with it set to True some providers will lead to a dead loop of missed requests if data is not available. On the other hand with it set to False you may end up some times with a few corrupted textures with some white squares. 
+verbose_output      = True
+clean_tmp_files     = True
+clean_unused_dds_and_ter_files = False
+complex_masks       = False   # is set to True the build_masks process will be longer (because mesh from all nearby tiles will be used), but will not "suffer" from boundary effects
+use_masks_for_inland= False   # if you want inland water to be treated like sea water (transparency based on a mask rather than fixed)
+masks_width         = 8       # one unit is approximately 10m
+ratio_water         = 0.2      
+default_sniff_dir   = ''
+
+#Things that are not in the interface
+water_overlay       = True
+water_option        = 3            # 1 = X-Plane, 2 = Photoreal only, 3 = Mixed 
+sea_equiv           = []           # e.g. ['Étang de Berre','Estuaire de la Gironde','Lac Léman']
+do_not_flatten_these_list  = []    # e.g. ['LFPG','LFMN'] , these will be kept as computed from the elevation file (and probably a bit bumpy)
+tile_has_water_airport     = False # Put to True if an airport with a water boundary does not turn flat correctly
+# NOTE that 'convert' from imagemagick is needed for the next color correction !!!
+contrast_adjust       = {} # example {'BI':0,'FR':5,'IT':5}                                                       
+brightness_adjust     = {} # example {'BI':0,'FR':-5,'IT':5}                                                     
+saturation_adjust     = {} # example {'BI':0,'FR':10,'IT':10}                                                      
+full_color_correction = {} # example {'CH':' -channel R -level 0%,100%,1.05 -channel B -level 0%,100%,0.97 '}
+use_gimp=False
+gimp_cmd="gimp "
+Custom_scenery_dir=""
+meshzl                      = 19    # The maximum ZL which the mesh will support (you can put a lower number if you do not need such zl)
+hmin                        = 20    # Smallest triangle side-length
+hmax                        = 2000  # Largest triangle side-length
+water_smoothing             = 2     # increase if you find the rivers are not smooth enough
+keep_old_pre_mask           = False # If set to True, then old unblured masks (whole_tile.png) are used directly without being regenerated before the bluring is made  (speed increase if set to True)
 use_additional_water_shader = False # remainder of a test, which was not that succesful
-use_decal_on_terrain = False # if you want to use decal on top of the orthophoto, they can look good at small altitude
-dds_or_png          = 'dds'
-full_color_correction={}
-contrast_adjust={}
-brightness_adjust={}
-saturation_adjust={}
-check_tms_response  = False # Available as a checkbox in the interface, with it set to True some providers will lead to a dead loop of missed requests if data is not available. On the other hand with it set to False you may end up some times with a few corrupted textures with some white squares.
+use_decal_on_terrain        = False # if you want to use decal on top of the orthophoto, they can look good at small altitude
 use_bing_for_non_existent_data = False # when using providers with local coverage only, if you ask for a zone not covered then Bing will be used there instead
-tricky_provider_hack= 70000 # The minimum size a wms2048 image should be to be accepted (trying to avoid missed cached with white squares) 
+overpass_server_list={"1":"http://api.openstreetmap.fr/oapi/interpreter", "2":"http://overpass-api.de/api","3":"http://overpass.osm.rambler.ru/cgi/"}
+overpass_server_choice="1"
+keep_old_pre_mask   = False
+use_additional_water_shader = False # remainder of a test, which was not that succesful
+use_decal_on_terrain = False        # if you want to use decal on top of the orthophoto, they can look good at small altitude
+dds_or_png          = 'dds'
+tricky_provider_hack= 70000         # The minimum size a wms2048 image should be to be accepted (trying to avoid missed cached with white squares) 
 wms_timeout         = 60
 max_convert_slots   = 4     # Trying to use multi_core to convert jpegs into dds, adapt to your cpu capabilities
-max_montage_slots   = 4     # Same for montage
 pools_max_points    = 65536 # do not change this !
 normal_map_strength = 0.3   # shading due to slope is normally already present in an orthophoto, so 0 is orthophoto shade only and 1 is full additional shade
-verbose_output      = True
 shutdown_timer      = 60    # Time in seconds to close program / shutdown computer after completition
 shutd_msg_interval  = 15    # Shutdown message display interval
 
+
+
+
 # Will be used as global variables
 download_to_do_list=[]
-montage_to_do_list=[]
 convert_to_do_list=[]
 busy_slots_mont=0
 busy_slots_conv=0
@@ -104,13 +146,11 @@ if 'dar' in sys.platform:
     delete_cmd      = "rm "
     rename_cmd      = "mv "
     unzip_cmd       = "7z "
-    montage_cmd     = "montage "  
     convert_cmd     = "convert " 
     convert_cmd_bis = Ortho4XP_dir+dir_sep+"Utils"+dir_sep+"nvcompress"+dir_sep+"nvcompress-mac-nocuda.app -bc1 " 
     gimp_cmd        = "gimp "
-    showme_cmd      = Ortho4XP_dir+"/Utils/showme.app "
     devnull_rdir    = " >/dev/null 2>&1"
-    use_gimp        = True
+    use_gimp        = False
     # --> mth
     shutdown_cmd    = 'sudo shutdown -h now'
     # <-- mth
@@ -123,16 +163,15 @@ elif 'win' in sys.platform:
     dir_sep         = '\\'
     Triangle4XP_cmd = Ortho4XP_dir+dir_sep+"Utils"+dir_sep+"Triangle4XP.exe "
     copy_cmd        = "copy "
-    delete_cmd      = "del "	
+    delete_cmd      = "del "
     rename_cmd      = "move "
     unzip_cmd       = Ortho4XP_dir+dir_sep+"Utils"+dir_sep+"7z.exe "
-    montage_cmd     = "montage "  
     convert_cmd     = "convert " 
     convert_cmd_bis = Ortho4XP_dir+dir_sep+"Utils"+dir_sep+"nvcompress"+dir_sep+"nvcompress.exe -bc1 " 
     gimp_cmd        = "c:\\Program Files\\GIMP 2\\bin\\gimp-console-2.8.exe "
     showme_cmd      = Ortho4XP_dir+"/Utils/showme.exe "
     devnull_rdir    = " > nul  2>&1"
-    use_gimp        = True
+    use_gimp        = False
      # --> mth
     shutdown_cmd    = 'shutdown /s /f /t 0'
     # <-- mth
@@ -144,13 +183,11 @@ else:
     copy_cmd        = "cp "
     rename_cmd      = "mv "
     unzip_cmd       = "7z "
-    montage_cmd     = "montage "  
     convert_cmd     = "convert " 
     convert_cmd_bis     = "nvcompress -fast -bc1a " 
     gimp_cmd        = "gimp "
-    showme_cmd      = Ortho4XP_dir+"/Utils/showme "
     devnull_rdir    = " >/dev/null 2>&1 "
-    use_gimp        = True
+    use_gimp        = False
     # --> mth
     shutdown_cmd    = 'sudo shutdown -h now'
     # <-- mth
@@ -162,7 +199,15 @@ else:
 dico_edge_markers   = {'outer':'1','inner':'1','coastline':'2',\
                        'tileboundary':'3','orthogrid':'3',\
                        'airport':'4','runway':'5','patch':'6'}
-dico_tri_markers    = {'water':'1','sea':'2','sea_equiv':'3'}  
+dico_tri_markers    = {'water':'1','sea':'2','sea_equiv':'3'} 
+
+try:
+    exec(open(Ortho4XP_dir+dir_sep+'Carnet_d_adresses.py').read())
+except:
+    print("The file Carnet_d_adresses.py does not follow the syntactic rules.")
+    time.sleep(5)
+    sys.exit()
+ 
 
 ##############################################################################
 # Minimalist error messages.                                                 #
@@ -202,10 +247,10 @@ def build_poly_file(lat0,lon0,option,build_dir):
     t1=time.time()
     if not os.path.exists(build_dir):
         os.makedirs(build_dir)
-    if not os.path.exists(build_dir+dir_sep+"OSM"):
-        os.makedirs(build_dir+dir_sep+"OSM")
     strlat='{:+.0f}'.format(lat0).zfill(3)
     strlon='{:+.0f}'.format(lon0).zfill(4)
+    if not os.path.exists(Ortho4XP_dir+dir_sep+"OSM_data"+dir_sep+strlat+strlon):
+        os.makedirs(Ortho4XP_dir+dir_sep+"OSM_data"+dir_sep+strlat+strlon)
     poly_file     =  build_dir+dir_sep+'Data'+strlat+strlon+'.poly'
     airport_file  =  build_dir+dir_sep+'Data'+strlat+strlon+'.apt'
     patch_dir     =  Ortho4XP_dir+dir_sep+'Patches'+dir_sep+strlat+strlon
@@ -254,9 +299,9 @@ def build_poly_file(lat0,lon0,option,build_dir):
         except:
             pass
         subtags=tag.split('"')
-        osm_filename=build_dir+dir_sep+"OSM"+dir_sep+strlat+strlon+'_'+subtags[0][0:-1]+'_'+\
+        osm_filename=Ortho4XP_dir+dir_sep+"OSM_data"+dir_sep+strlat+strlon+dir_sep+strlat+strlon+'_'+subtags[0][0:-1]+'_'+\
                 subtags[1]+'_'+subtags[3]+'.osm'
-        osm_errors_filename=build_dir+dir_sep+"OSM"+dir_sep+strlat+strlon+'_'+subtags[0][0:-1]+'_'+\
+        osm_errors_filename=Ortho4XP_dir+dir_sep+"OSM_data"+dir_sep+strlat+strlon+dir_sep+strlat+strlon+'_'+subtags[0][0:-1]+'_'+\
                 subtags[1]+'_'+subtags[3]+'_detected_errors.txt'
         if not os.path.isfile(osm_filename):
             print("    Obtaining OSM data for "+tag)
@@ -312,7 +357,7 @@ def build_poly_file(lat0,lon0,option,build_dir):
                         altitude='unknown'
                     if (wayid in dicosmw_icao):
                         if (dicosmw_icao[wayid] in sloped_airports_list) or (dicosmw_icao[wayid] in do_not_flatten_these_list):
-                            print("          I will not flatten "+dicosmw_icao[wayid]+ " airport.")	
+                            print("          I will not flatten "+dicosmw_icao[wayid]+ " airport.")
                             keep_that_one=False
                     if keep_that_one==True:
                         keep_way(way,lat0,lon0,1,'airport',dico_nodes,\
@@ -704,6 +749,7 @@ def build_poly_file(lat0,lon0,option,build_dir):
                 'sec.')
     print('_____________________________________________________________'+\
             '____________________________________')
+    
     return 
 #############################################################################
 
@@ -1565,24 +1611,30 @@ def load_altitude_matrix(lat,lon,filename='None'):
             print("   No elevation file found, I download it from viewfinderpanorama (J. de Ferranti)")
             deferranti_nbr=str(31+lon//6)
             alphabet=list('ABCDEFGHIJKLMNOPQRSTUVWXYZ')
-            deferranti_letter=alphabet[abs(lat)//4]
+            deferranti_letter=alphabet[lat//4] if lat>=0 else alphabet[(-1-lat)//4]
             if lat<0:
                 deferranti_letter='S'+deferranti_letter
             s=requests.Session()
             dem_download_ok = False
-            while dem_download_ok != True:
+            tentative=0
+            while dem_download_ok != True and tentative<10:
                 url="http://viewfinderpanoramas.org/dem3/"+deferranti_letter+deferranti_nbr+".zip"
                 r=s.get(url)
                 if ('Response [20' in str(r)):
                     print("   Done. The zip archive will now be extracted in the Elevation_data dir.") 
                     dem_download_ok=True
                 else:
+                    tentative+=1 
                     print("      Viewfinderpanorama server was busy, new tentative...")
+                    time.sleep(1)
+            if tentative==10:
+                return 'error'
             zipfile=open(Ortho4XP_dir+dir_sep+"tmp"+dir_sep+deferranti_letter+deferranti_nbr+".zip",'wb')
             zipfile.write(r.content)
             zipfile.close()
             os.system(unzip_cmd+' e -y -o'+Ortho4XP_dir+dir_sep+'Elevation_data'+' "'+\
               Ortho4XP_dir+dir_sep+'tmp'+dir_sep+deferranti_letter+deferranti_nbr+'.zip"')
+            os.system(delete_cmd+' '+Ortho4XP_dir+dir_sep+'tmp'+dir_sep+deferranti_letter+deferranti_nbr+'.zip')
             filename=filename_viewfinderpanorama
             #usage('dem_files',do_i_quit=False) 
             #return 'error'
@@ -2042,6 +2094,16 @@ def wgs84_to_gtile(lat,lon,zoomlevel):
 ##############################################################################
 
 ##############################################################################
+def wgs84_to_pix(lat,lon,zoomlevel):                                          
+    half_meridian=pi*6378137
+    rat_x=lon/180           
+    rat_y=log(tan((90+lat)*pi/360))/pi
+    pix_x=round((rat_x+1)*(2**(zoomlevel+7)))
+    pix_y=round((1-rat_y)*(2**(zoomlevel+7)))
+    return [pix_x,pix_y]
+##############################################################################
+
+##############################################################################
 def gtile_to_wgs84(til_x,til_y,zoomlevel):
     """
     Returns the latitude and longitude of the top left corner of the tile 
@@ -2050,6 +2112,15 @@ def gtile_to_wgs84(til_x,til_y,zoomlevel):
     """
     rat_x=(til_x/(2**(zoomlevel-1))-1)
     rat_y=(1-til_y/(2**(zoomlevel-1)))
+    lon=rat_x*180
+    lat=360/pi*atan(exp(pi*rat_y))-90
+    return [lat,lon]
+##############################################################################
+
+##############################################################################
+def pix_to_wgs84(pix_x,pix_y,zoomlevel):
+    rat_x=(pix_x/(2**(zoomlevel+7))-1)
+    rat_y=(1-pix_y/(2**(zoomlevel+7)))
     lon=rat_x*180
     lat=360/pi*atan(exp(pi*rat_y))-90
     return [lat,lon]
@@ -2140,62 +2211,31 @@ def st_coord(lat,lon,tex_x,tex_y,zoomlevel,website):
     """
     ST coordinates of a point in a texture
     """
-    if website=='SE2':
-        [latmax,lonmin]=gtile_to_wgs84(tex_x,tex_y,zoomlevel)
-        [latmin,lonmax]=gtile_to_wgs84(tex_x+16,tex_y+16,zoomlevel)
-        [ulx,uly]=pyproj.transform(epsg4326,epsg3006,lonmin,latmax)
-        [urx,ury]=pyproj.transform(epsg4326,epsg3006,lonmax,latmax)
-        [llx,lly]=pyproj.transform(epsg4326,epsg3006,lonmin,latmin)
-        [lrx,lry]=pyproj.transform(epsg4326,epsg3006,lonmax,latmin)
-        minx=min(ulx,llx)
-        maxx=max(urx,lrx)
-        miny=min(lly,lry)
-        maxy=max(uly,ury)
-        deltax=maxx-minx
-        deltay=maxy-miny
-        [x,y]=pyproj.transform(epsg4326,epsg3006,lon,lat)
-        s=(x-minx)/deltax
-        t=(y-miny)/deltay
+    if website not in st_proj_coord_dict: # hence in epsg:4326
+        ratio_x=lon/180           
+        ratio_y=log(tan((90+lat)*pi/360))/pi
+        mult=2**(zoomlevel-5)
+        s=(ratio_x+1)*mult-(tex_x//16)
+        t=1-((1-ratio_y)*mult-tex_y//16)
         s = s if s>=0 else 0
         s = s if s<=1 else 1
         t = t if t>=0 else 0
         t = t if t<=1 else 1
         return [s,t]
-    elif website=='NO':
+    else:
         [latmax,lonmin]=gtile_to_wgs84(tex_x,tex_y,zoomlevel)
         [latmin,lonmax]=gtile_to_wgs84(tex_x+16,tex_y+16,zoomlevel)
-        [ulx,uly]=pyproj.transform(epsg4326,epsg32632,lonmin,latmax)
-        [urx,ury]=pyproj.transform(epsg4326,epsg32632,lonmax,latmax)
-        [llx,lly]=pyproj.transform(epsg4326,epsg32632,lonmin,latmin)
-        [lrx,lry]=pyproj.transform(epsg4326,epsg32632,lonmax,latmin)
+        [ulx,uly]=pyproj.transform(epsg['4326'],epsg[st_proj_coord_dict[website]],lonmin,latmax)
+        [urx,ury]=pyproj.transform(epsg['4326'],epsg[st_proj_coord_dict[website]],lonmax,latmax)
+        [llx,lly]=pyproj.transform(epsg['4326'],epsg[st_proj_coord_dict[website]],lonmin,latmin)
+        [lrx,lry]=pyproj.transform(epsg['4326'],epsg[st_proj_coord_dict[website]],lonmax,latmin)
         minx=min(ulx,llx)
         maxx=max(urx,lrx)
         miny=min(lly,lry)
         maxy=max(uly,ury)
         deltax=maxx-minx
         deltay=maxy-miny
-        [x,y]=pyproj.transform(epsg4326,epsg32632,lon,lat)
-        s=(x-minx)/deltax
-        t=(y-miny)/deltay
-        s = s if s>=0 else 0
-        s = s if s<=1 else 1
-        t = t if t>=0 else 0
-        t = t if t<=1 else 1
-        return [s,t]
-    elif website=='GE':
-        [latmax,lonmin]=gtile_to_wgs84(tex_x,tex_y,zoomlevel)
-        [latmin,lonmax]=gtile_to_wgs84(tex_x+16,tex_y+16,zoomlevel)
-        [ulx,uly]=pyproj.transform(epsg4326,epsg2056,lonmin,latmax)
-        [urx,ury]=pyproj.transform(epsg4326,epsg2056,lonmax,latmax)
-        [llx,lly]=pyproj.transform(epsg4326,epsg2056,lonmin,latmin)
-        [lrx,lry]=pyproj.transform(epsg4326,epsg2056,lonmax,latmin)
-        minx=min(ulx,llx)
-        maxx=max(urx,lrx)
-        miny=min(lly,lry)
-        maxy=max(uly,ury)
-        deltax=maxx-minx
-        deltay=maxy-miny
-        [x,y]=pyproj.transform(epsg4326,epsg2056,lon,lat)
+        [x,y]=pyproj.transform(epsg['4326'],epsg[st_proj_coord_dict[website]],lon,lat)
         s=(x-minx)/deltax
         t=(y-miny)/deltay
         s = s if s>=0 else 0
@@ -2214,17 +2254,6 @@ def st_coord(lat,lon,tex_x,tex_y,zoomlevel,website):
     #    t = t if t>=0 else 0
     #    t = t if t<=1 else 1
     #    return [s,t]
-    else: #if website in px256_list+wms2048_list:
-        ratio_x=lon/180           
-        ratio_y=log(tan((90+lat)*pi/360))/pi
-        mult=2**(zoomlevel-5)
-        s=(ratio_x+1)*mult-(tex_x//16)
-        t=1-((1-ratio_y)*mult-tex_y//16)
-        s = s if s>=0 else 0
-        s = s if s<=1 else 1
-        t = t if t>=0 else 0
-        t = t if t<=1 else 1
-        return [s,t]
 ##############################################################################
 
 ##############################################################################
@@ -2256,19 +2285,23 @@ def attribute_texture(lat1,lon1,lat2,lon2,lat3,lon3,ortho_list,tri_type):
 #  The master procedure to download pieces of what will become a 4K texture.
 #  The process depend on the provider.
 ##############################################################################
-def download_texture(til_x_left,til_y_top,zoomlevel,website):
+
+
+
+def build_jpeg_ortho(strlat,strlon,til_x_left,til_y_top,zoomlevel,website):
+    big_image=Image.new('RGB',(4096,4096)) 
     jobs=[]
     if website in px256_list:
         for til_y in range(til_y_top,til_y_top+16):
-            fargs=[til_x_left,til_y_top,til_y,zoomlevel,website]
-            connection_thread=threading.Thread(target=obtain_texture_row,\
+            fargs=[til_x_left,til_y_top,til_y,zoomlevel,website,big_image]
+            connection_thread=threading.Thread(target=obtain_jpeg_row,\
                           args=fargs)
             jobs.append(connection_thread)
     elif website in wms2048_list:
         for monty in [0,1]:
             for montx in [0,1]:
-                fargs=[til_x_left,til_y_top,zoomlevel,website,montx,monty]
-                connection_thread=threading.Thread(target=obtain_wms_image,\
+                fargs=[til_x_left,til_y_top,zoomlevel,website,montx,monty,big_image]
+                connection_thread=threading.Thread(target=obtain_wms_part,\
                         args=fargs)
                 jobs.append(connection_thread)
     else:
@@ -2278,12 +2311,18 @@ def download_texture(til_x_left,til_y_top,zoomlevel,website):
         j.start()
     for j in jobs:
         j.join()
+    [file_dir,file_name,file_ext]=\
+            filename_from_attributes(strlat,strlon,til_x_left,til_y_top,\
+                                          zoomlevel,website)
+    if not os.path.exists(file_dir):
+        os.makedirs(file_dir)
+    big_image.save(file_dir+file_name+file_ext)
     return
 
 
-def obtain_texture_row(til_x_left,til_y_top,til_y,zoomlevel,website):
+def obtain_jpeg_row(til_x_left,til_y_top,til_y,zoomlevel,website,big_image):
     """
-    Obtain 8 or 16 gtiles in a row, http transactions take time so better 
+    Obtain 16 gtiles in a row, http transactions take time so better 
     stay in line for a few consecutive tiles. We shall thread these calls in 
     the next function.
     """
@@ -2303,7 +2342,9 @@ def obtain_texture_row(til_x_left,til_y_top,til_y,zoomlevel,website):
                         print("Presumably a missed cache or non existent data, will try again in 1sec...")
                         print("(Leave check_response unchecked if you want to bypass this)")
                         #print(r.headers)
-                        time.sleep(1)
+                        #print(r)
+                        #print(r.content)
+                        time.sleep(0.1)
             except requests.exceptions.RequestException as e:   
                 print(e)
                 print("We will try again in 1sec...")
@@ -2314,30 +2355,26 @@ def obtain_texture_row(til_x_left,til_y_top,til_y,zoomlevel,website):
                 except:
                     pass
                 time.sleep(1)
-        filename=Ortho4XP_dir+dir_sep+"tmp"+dir_sep+"image-"+str(til_x_left)+\
-                 "-"+str(til_y_top)+"-"+str(til_y-til_y_top).zfill(2)+"-"+\
-                 str(til_x-til_x_left).zfill(2)+".jpg"
-        file=open(filename,"wb")
         if ('Response [20' in str(r)):
-            file.write(r.content)
+            small_image=Image.open(io.BytesIO(r.content))
+            big_image.paste(small_image,((til_x-til_x_left)*256,(til_y-til_y_top)*256))
         else:
-            os.system(copy_cmd+' "'+Ortho4XP_dir+dir_sep+'Utils'+dir_sep+\
-                      'white.jpg'+'" "'+filename+'" '+devnull_rdir) 
-        file.close()
+            small_image=Image.open(Ortho4XP_dir+dir_sep+'Utils'+dir_sep+\
+                      'white.jpg')
+            big_image.paste(small_image,((til_x-til_x_left)*256,(til_y-til_y_top)*256))
     return
 ##############################################################################
+
 
 
 ##############################################################################
 # Obtain a piece of texture from a wms 
 ##############################################################################
-def obtain_wms_image(til_x_left,til_y_top,zoomlevel,website,montx,monty):
+def obtain_wms_part(til_x_left,til_y_top,zoomlevel,website,montx,monty,big_image):
     til_x=til_x_left+montx*8
     til_y=til_y_top+monty*8
     [url,fake_headers]=http_requests_form(til_x,til_y,zoomlevel,website)
     file_ext=".jpg" 
-    filename=Ortho4XP_dir+dir_sep+"tmp"+dir_sep+"image-"+str(til_x_left)+\
-             "-"+str(til_y_top)+"-"+str(monty)+"-"+str(montx)+file_ext
     successful_download=False
     tentatives=0
     while successful_download==False:
@@ -2347,9 +2384,8 @@ def obtain_wms_image(til_x_left,til_y_top,zoomlevel,website,montx,monty):
             if ('Response [20' in str(r)):
                 if 'image' in r.headers['Content-Type']:
                     if len(r.content)>=tricky_provider_hack or tentatives>=5:
-                        file=open(filename,"wb")
-                        file.write(r.content)
-                        file.close()
+                        small_image=Image.open(io.BytesIO(r.content))
+                        big_image.paste(small_image,(montx*2048,monty*2048))
                         successful_download=True
                     else:
                         tentatives+=1
@@ -2368,8 +2404,10 @@ def obtain_wms_image(til_x_left,til_y_top,zoomlevel,website,montx,monty):
                     time.sleep(2)
             else:
                 print("Server said no data : ", r," , using white square instead")
-                os.system(copy_cmd+' "'+Ortho4XP_dir+dir_sep+'Utils'+dir_sep+\
-                      'white2048.jpg'+'" "'+filename+'" '+devnull_rdir) 
+                small_image=Image.open(Ortho4XP_dir+dir_sep+'Utils'+dir_sep+\
+                      'white2048.jpg')
+                big_image.paste(small_image,(montx*2048,monty*2048))
+                successful_download=True
                 successful_download=True
         except requests.exceptions.RequestException as e:    
             print(e)
@@ -2386,69 +2424,15 @@ def obtain_wms_image(til_x_left,til_y_top,zoomlevel,website,montx,monty):
     return
 ##############################################################################
 
-##############################################################################
-def montage_texture(strlat,strlon,til_x_left,til_y_top,zoomlevel,website):
-    global convert_to_do_list,busy_slots_mont
-    busy_slots_mont+=1
-    #print("Busy montage slots : "+str(busy_slots_mont))
-    [file_dir,file_name,file_ext]=\
-            filename_from_attributes(strlat,strlon,til_x_left,til_y_top,\
-                                          zoomlevel,website)
-    if not os.path.exists(file_dir):
-        os.makedirs(file_dir)
-    if website in px256_list:
-        cmd_mont=montage_cmd+' -tile 16x16 -geometry 256x256+0+0 '+\
-                 Ortho4XP_dir+dir_sep+'tmp'+dir_sep+'image-'+\
-                 str(til_x_left)+'-'+str(til_y_top)+'-*.jpg'+' "'+\
-                 file_dir+file_name+file_ext+'" ' +devnull_rdir
-        os.system(cmd_mont)
-    elif website in wms2048_list:
-        cmd_mont=montage_cmd+' -tile 2x2 -geometry 2048x2048+0+0 '+\
-                 Ortho4XP_dir+dir_sep+'tmp'+dir_sep+'image-'+\
-                 str(til_x_left)+'-'+str(til_y_top)+'-*'+file_ext+' "'+\
-                 file_dir+file_name+file_ext+'" '
-        os.system(cmd_mont)  
-    os.system(delete_cmd+' '+Ortho4XP_dir+dir_sep+'tmp'+\
-              dir_sep+'image-'+str(til_x_left)+'-' +str(til_y_top)+\
-              '-*'+file_ext+devnull_rdir)
-    if convert_to_do_list!='':
-        convert_to_do_list.append([til_x_left,til_y_top,zoomlevel,website])
-    busy_slots_mont-=1
-    return
-##############################################################################
-        
-##############################################################################
-def build_texture(strlat,strlon,til_x_left,til_y_top,zoomlevel,website):
-    [file_dir,file_name,file_ext]=\
-            filename_from_attributes(strlat,strlon,til_x_left,til_y_top,\
-                                            zoomlevel,website)
-    if os.path.isfile(file_dir+file_name+file_ext) != True:
-        if verbose_output==True:
-            print("   Downloading missing orthophoto "+\
-                file_name+file_ext+".")
-        download_texture(til_x_left,til_y_top,zoomlevel,website)
-        try:
-            if application.red_flag.get()==1:
-                print("Download process interrupted.")
-                return
-        except:
-                pass
-        montage_texture(strlat,strlon,til_x_left,til_y_top,zoomlevel,website)
-    else:
-        if verbose_output==True:
-            print("   The orthophoto "+file_name+file_ext+" is already present.")
-    return 
-##############################################################################
-
 ###############################################################################
 def build_texture_region(latmin,latmax,lonmin,lonmax,zoomlevel,website):
-    [til_xmin,til_ymin]=wgs84_to_texture(latmax,lonmin,zoomlevel,website)
-    [til_xmax,til_ymax]=wgs84_to_texture(latmin,lonmax,zoomlevel,website)
-    print("Number of tiles to download (at most) : "+\
-           str(((til_ymax-til_ymin)/16+1)*((til_xmax-til_xmin)/16+1)))
-    for til_y_top in range(til_ymin,til_ymax+1,16):
-        for til_x_left in range(til_xmin,til_xmax+1,16):
-            build_texture('XXX','YYY',til_x_left,til_y_top,zoomlevel,website)
+    #[til_xmin,til_ymin]=wgs84_to_texture(latmax,lonmin,zoomlevel,website)
+    #[til_xmax,til_ymax]=wgs84_to_texture(latmin,lonmax,zoomlevel,website)
+    #print("Number of tiles to download (at most) : "+\
+    #       str(((til_ymax-til_ymin)/16+1)*((til_xmax-til_xmin)/16+1)))
+    #for til_y_top in range(til_ymin,til_ymax+1,16):
+    #    for til_x_left in range(til_xmin,til_xmax+1,16):
+    #        build_texture('XXX','YYY',til_x_left,til_y_top,zoomlevel,website)
     return   
 ###############################################################################
 
@@ -2465,6 +2449,9 @@ def create_tile_preview(latmin,lonmin,zoomlevel,website):
     if os.path.isfile(filepreview) != True:
         [til_x_min,til_y_min]=wgs84_to_gtile(latmin+1,lonmin,zoomlevel)
         [til_x_max,til_y_max]=wgs84_to_gtile(latmin,lonmin+1,zoomlevel)
+        nx=til_x_max-til_x_min+1
+        ny=til_y_max-til_y_min+1
+        big_image=Image.new('RGB',(256*nx,256*ny))
         s=requests.Session()
         total_x=(til_x_max+1-til_x_min)
         for til_x in range(til_x_min,til_x_max+1):
@@ -2477,31 +2464,60 @@ def create_tile_preview(latmin,lonmin,zoomlevel,website):
                         successful_download=True
                     except:
                         #print("Connexion avortée par le serveur, nouvelle tentative dans 1sec")
-                        time.sleep(1)
-                filename=Ortho4XP_dir+dir_sep+'Previews'+dir_sep+'image-'\
-                         +str(til_y-til_y_min).zfill(3)+'-'+\
-                          str(til_x-til_x_min).zfill(3)+'.jpg'
-                file=open(filename,"wb")
+                        time.sleep(0.01)
                 if ('Response [20' in str(r)):
-                    file.write(r.content)
+                    small_image=Image.open(io.BytesIO(r.content))
+                    big_image.paste(small_image,((til_x-til_x_min)*256,(til_y-til_y_min)*256))
                 else:
-                    os.system(copy_cmd+' "'+Ortho4XP_dir+dir_sep+'Utils'+\
-                                    dir_sep+'white.jpg'+'" "'+filename+'" '+devnull_rdir) 
-                file.close()
+                    small_image=Image.open(Ortho4XP_dir+dir_sep+'Utils'+dir_sep+\
+                      'white.jpg')
+                    big_image.paste(small_image,((til_x-til_x_min)*256,(til_y-til_y_min)*256))
             #try:
             application.preview_window.progress_preview.set(int(100*(til_x+1-til_x_min)/total_x))
             #except:
             #    pass
-        nx=til_x_max-til_x_min+1
-        ny=til_y_max-til_y_min+1
-        os.system(montage_cmd+' -tile '+str(nx)+'x'+str(ny)+\
-                  ' -geometry 256x256+0+0 "'+Ortho4XP_dir+dir_sep+\
-                  'Previews'+dir_sep+'image-*.jpg'+'" "'+filepreview+'" '+devnull_rdir)
-        os.system(delete_cmd+' '+Ortho4XP_dir+dir_sep+'Previews'+\
-                   dir_sep+'image-*.jpg '+devnull_rdir)
+        big_image.save(filepreview)
         return
 ##############################################################################
 
+###############################################################################
+def create_vignette(tilx0,tily0,tilx1,tily1,zoomlevel,website,vignette_name):
+        big_image=Image.new('RGB',(tilx1-tilx0)*256,(tily1-tily0)*256)
+        s=requests.Session()
+        for til_x in range(tilx0,tilx1):
+            for til_y in range(tily0,tily1):
+                successful_download=False
+                while successful_download==False:
+                    try:
+                        [url,fake_headers]=http_requests_form(til_x,til_y,zoomlevel,website)
+                        r=s.get(url, headers=fake_headers)
+                        successful_download=True
+                    except:
+                        #print("Connexion avortée par le serveur, nouvelle tentative dans 1sec")
+                        time.sleep(0.01)
+                if ('Response [20' in str(r)):
+                    small_image=Image.open(io.BytesIO(r.content))
+                    big_image.paste(small_image,((til_x-tilx0)*256,(til_y-tily0)*256))
+                else:
+                    small_image=Image.open(Ortho4XP_dir+dir_sep+'Utils'+dir_sep+\
+                      'white.jpg')
+                    big_image.paste(small_image,((til_x-tilx0)*256,(til_y-tily0)*256))
+        big_image.save(vignette_name)
+        return
+##############################################################################
+
+###############################################################################
+def create_vignettes(zoomlevel,website):
+        nbr_pieces=2**(zoomlevel-3)
+        for nx in range(0,nbr_pieces):
+            for ny in range(0,nbr_pieces):
+               vignette_name=Ortho4XP_dir+dir_sep+"Previews"+dir_sep+"Earth"+\
+                  dir_sep+"Earth2_ZL"+str(zoomlevel)+"_"+str(nx)+'_'+str(ny)+'.jpg'
+               tilx0=nx*8
+               tily0=ny*8
+               create_vignette(tilx0,tily0,tilx0+8,tily0+8,zoomlevel,website,vignette_name) 
+        return
+##############################################################################
 
 ##############################################################################
 # Les fichiers .ter de X-Plane (ici la version pour les zones non immergées).
@@ -2603,14 +2619,11 @@ def which_mask(layer,strlat,strlon):
         mask_file=mask_file_gen
     else:
         return 'None'
-    mask_tmp=Ortho4XP_dir+dir_sep+'Masks'+dir_sep+'test_mask.png'
-    os.system(convert_cmd+' "'+mask_file+'" '+'-crop '+\
-              str(int(4096/factor))+'x'+str(int(4096/factor))+'+'+\
-               str(int(rx*4096/factor))+'+'+str(int(ry*4096/factor))+' +repage "'+\
-                mask_tmp+'" '+devnull_rdir)
-    check_black_cmd=convert_cmd+' '+mask_tmp+' -format "%[mean]" info:'
-    mean=subprocess.check_output(check_black_cmd, shell=True)
-    if "b'0" in str(mean):   # check when imagemagick is updated if not broken
+    big_img=Image.open(mask_file)
+    x0=int(rx*4096/factor)
+    y0=int(ry*4096/factor)
+    small_img=big_img.crop((x0,y0,x0+4096//factor,y0+4096//factor))
+    if not small_img.getbbox():
         return 'None'
     else:
         return [mask_file,factor,rx,ry]
@@ -2663,12 +2676,12 @@ def convert_texture(file_dir,file_name,website):
 #  Le séquenceur de la phase de téléchargement des textures.
 ##############################################################################
 def download_textures(strlat,strlon):
-    global download_to_do_list,montage_to_do_list,convert_to_do_list
+    global download_to_do_list,convert_to_do_list
     finished = False
     nbr_done=0
     nbr_done_or_in=0
     while finished != True:
-        if download_to_do_list == [] or len(montage_to_do_list)>=20:
+        if download_to_do_list == []:
             time.sleep(0.1)
             try:
                 if application.red_flag.get()==1:
@@ -2684,10 +2697,10 @@ def download_textures(strlat,strlon):
                 if verbose_output==True:
                     print("   Downloading missing orthophoto "+\
                       file_name+file_ext)
-                download_texture(*texture)
+                build_jpeg_ortho(strlat,strlon,*texture)
                 nbr_done+=1
                 nbr_done_or_in+=1
-                montage_to_do_list.append(texture)
+                convert_to_do_list.append(texture)
             else:
                 nbr_done_or_in+=1
                 if verbose_output==True:
@@ -2711,59 +2724,10 @@ def download_textures(strlat,strlon):
             if nbr_done >= 1:
                 print("  Download of textures completed."+\
                       "                      ")
-            montage_to_do_list.append('finished')
-    return
-##############################################################################
-
-##############################################################################
-#  Le séquenceur de la phase de montage des vignettes en textures.
-##############################################################################
-def montage_textures(strlat,strlon):
-    global montage_to_do_list,convert_to_do_list,busy_slots_mont
-    busy_slots_mont=0
-    nbr_done=0
-    finished = False
-    while finished != True:
-        if montage_to_do_list == [] or busy_slots_mont >= max_montage_slots:
-            time.sleep(0.1)
-            try:
-                if application.red_flag.get()==1:
-                    print("Mounting process interrupted.")
-                    return
-            except:
-                pass
-        elif montage_to_do_list[0] != 'finished':
-            texture=montage_to_do_list.pop(0)
-            fargs_mont_text=[strlat,strlon]+texture 
-            threading.Thread(target=montage_texture,args=fargs_mont_text).start()
-            #busy_slots_mont+=1
-            #montage_texture(strlat,strlon,*texture)
-            nbr_done+=1
-            #convert_to_do_list.append(texture)
-            try:
-                application.progress_mont.set(int(100*nbr_done/(nbr_done+len(montage_to_do_list)))) 
-                if application.red_flag.get()==1:
-                    print("Mounting process interrupted.")
-                    return
-            except:
-                pass
-        else:
-            finished=True
-            if nbr_done >= 1:
-                print("  Waiting for all montage threads to finish.")
-                while busy_slots_mont > 0:
-                    print("  ...")
-                    time.sleep(3)
-                try:
-                    application.progress_mont.set(100) 
-                except:
-                    pass
-                print("  Mounting of textures completed."+\
-                      "                             ")
-            time.sleep(1)
             convert_to_do_list.append('finished')
     return
 ##############################################################################
+
 
 ##############################################################################
 #  Le séquenceur de la phase de conversion jpeg -> dds.
@@ -3532,9 +3496,8 @@ def point_params(lat,lon,lat0,lon0,pools_params,pool_cols,pool_rows):
 ##############################################################################
 
 def build_tile(lat,lon,build_dir,mesh_filename,clean_tmp_files):
-    global download_to_do_list,montage_to_do_list,convert_to_do_list
+    global download_to_do_list,convert_to_do_list
     download_to_do_list=[]
-    montage_to_do_list=[]
     convert_to_do_list=[]
     t3=time.time()
     strlat='{:+.0f}'.format(lat).zfill(3)
@@ -3549,15 +3512,12 @@ def build_tile(lat,lon,build_dir,mesh_filename,clean_tmp_files):
     build_dsf_thread=threading.Thread(target=build_dsf,args=fargs_dsf)
     fargs_down=[strlat,strlon]
     download_thread=threading.Thread(target=download_textures,args=fargs_down)
-    fargs_mont=[strlat,strlon]
-    montage_thread=threading.Thread(target=montage_textures,args=fargs_mont)
     fargs_conv=[strlat,strlon]
     convert_thread=threading.Thread(target=convert_textures,args=fargs_conv)
     try:
         application.red_flag.set(0)
         application.progress_attr.set(0) 
         application.progress_down.set(0) 
-        application.progress_mont.set(0) 
         application.progress_conv.set(0) 
     except:
         pass
@@ -3566,13 +3526,11 @@ def build_tile(lat,lon,build_dir,mesh_filename,clean_tmp_files):
     #build_dsf_thread.join()
     if skip_downloads != True:
         download_thread.start()
-        montage_thread.start()
         if skip_converts != True:
             convert_thread.start()
     build_dsf_thread.join()
     if skip_downloads != True:
         download_thread.join()
-        montage_thread.join()
         if skip_converts != True:
             convert_thread.join()
     if clean_unused_dds_and_ter_files==True:
@@ -3822,8 +3780,27 @@ def build_masks(lat,lon,build_dir,mesh_filename_list):
                 except:
                     pass
             f_mesh.close()
-        masks_im.save(masks_dir+dir_sep+'whole_tile.png')
-    if use_gimp==True:
+    masks_im.save(masks_dir+dir_sep+'whole_tile.png')
+    del(masks_im)
+    if not use_gimp:
+        print(" Blur of size masks_width applied to the binary mask...")		
+        masks_im=Image.open(masks_dir+dir_sep+'whole_tile.png').convert("L")
+        img_array=numpy.array(masks_im,dtype=numpy.uint8)
+        #kernel=numpy.ones(int(masks_width))/int(masks_width)
+        kernel=numpy.array(range(1,2*masks_width))
+        kernel[masks_width:]=range(masks_width-1,0,-1)
+        kernel=kernel/masks_width**2
+        for i in range(0,len(img_array)):
+            img_array[i]=numpy.convolve(img_array[i],kernel,'same')
+        img_array=img_array.transpose() 
+        for i in range(0,len(img_array)):
+            img_array[i]=numpy.convolve(img_array[i],kernel,'same')
+        img_array=img_array.transpose()
+        img_array=2*numpy.minimum(img_array,127) #*numpy.ones(img_array.shape)) 
+        img_array=numpy.array(img_array,dtype=numpy.uint8)
+        masks_im=Image.fromarray(img_array)
+        masks_im.save(masks_dir+dir_sep+'whole_tile_blured.png')
+    else: #use_gimp
         print(" Gaussian blur and level adjustment applied to the binary mask with Gimp...")
         if ('dar' in sys.platform) or ('win' not in sys.platform):   # Mac and Linux
             os.system(gimp_cmd+" -i -c -b '(blurX "+' "'+masks_dir+dir_sep+\
@@ -3832,8 +3809,8 @@ def build_masks(lat,lon,build_dir,mesh_filename_list):
         else: # Windows specific
             tmpf=open('batchgimp.bat','w')
             tmpcmd='"'+gimp_cmd+'" '+\
-                   '-i -c -b "(blurX \\\".\\\\Masks\\\\'+strlat+strlon+'\\\\whole_tile.png\\\" '+\
-                   str(masks_width)+' \\\".\\\\Masks\\\\'+strlat+strlon+'\\\\whole_tile_blured.png\\\")"'+\
+                   '-i -c -b "(blurX \\\"'+Ortho4XP_dir+'\\\\Masks\\\\'+strlat+strlon+'\\\\whole_tile.png\\\" '+\
+                   str(masks_width)+' \\\"'+Ortho4XP_dir+'\\\\Masks\\\\'+strlat+strlon+'\\\\whole_tile_blured.png\\\")"'+\
                    ' -b "(gimp-quit 0)"'
             tmpf.write(tmpcmd)
             tmpf.close()
@@ -3845,94 +3822,6 @@ def build_masks(lat,lon,build_dir,mesh_filename_list):
             print("\nGimp is either not present on your system, or didn't configure its")
             print("access command correctly, or it has no access to the blurX script-fu.")
             print("Check in the manual for testing instructions.")
-            print("\nFailure.")
-            print('_____________________________________________________________'+\
-            '____________________________________')
-            try:
-                application.progress_attr.set(0)
-            except:
-                pass
-            return
-    else:
-        print(" Gaussian blur and level adjustment applied to the binary mask with Netpbm and Imagemagick...")
-        os.system(netpbm_bin_dir+dir_sep+'pngtopnm '+' "'+masks_dir+dir_sep+'whole_tile.png"' +\
-                  ' > '+' "'+masks_dir+dir_sep+'whole_tile.pnm"')
-        os.system(netpbm_bin_dir+dir_sep+'pamdice '+'-outstem='+masks_dir+dir_sep+'tile_part -width='+str(nx*2048+2*masks_width)+' -height='+\
-                  str(ny*2048+2*masks_width)+' -hoverlap='+str(4*masks_width)+\
-                  ' -voverlap='+str(4*masks_width)+' "'+masks_dir+dir_sep+'whole_tile.pnm"')
-        for i in range(0,2):
-            for j in range(0,2):
-                # from rawbit to png 
-                os.system(netpbm_bin_dir+dir_sep+'pnmtopng '+' "'+masks_dir+dir_sep+'tile_part_'+str(i)+'_'+str(j)+'.pbm" '+\
-                  ' > '+ ' "'+masks_dir+dir_sep+'tile_part_'+str(i)+'_'+str(j)+'.png" ')
-                # blur
-                os.system(convert_cmd+' "'+masks_dir+dir_sep+'tile_part_'+str(i)+'_'+str(j)+'.png" '+\
-                  '-blur 0x'+str(masks_width)+' "'+masks_dir+dir_sep+'tile_blured_part_'+str(i)+\
-                  '_'+str(j)+'.png" ')
-                # back from png to pgm
-                os.system(netpbm_bin_dir+dir_sep+'pngtopam '+' "'+masks_dir+dir_sep+\
-                        'tile_blured_part_'+str(i)+'_'+str(j)+'.png" '+\
-                  ' > '+ ' "'+masks_dir+dir_sep+'tile_blured_part_'+str(i)+'_'+str(j)+'.pnm" ')
-                try:
-                    application.progress_attr.set(50+10*i+5*j+5)
-                    if application.red_flag.get()==1:
-                        print("Masks construction process interrupted.")
-                        return
-                except:
-                    pass
-        os.system(netpbm_bin_dir+dir_sep+'pamcut '+'-left=0 -top=0 -width='+str(nx*2048)+\
-                   ' -height='+str(ny*2048)+\
-                   ' "'+masks_dir+dir_sep+'tile_blured_part_0_0.pnm" ' + '  > '+\
-                   ' "'+masks_dir+dir_sep+'tile_blured_part_0_0_2.pnm" ')
-        os.system(netpbm_bin_dir+dir_sep+'pgmtopgm'+' < "'+masks_dir+dir_sep+\
-                'tile_blured_part_0_0_2.pnm" '+' > '+\
-                   ' "'+masks_dir+dir_sep+'tile_blured_part_0_0.pgm" ')
-        os.system(netpbm_bin_dir+dir_sep+'pamcut '+'-left='+str(2*masks_width)+\
-                  ' -top=0 -width='+str(nx*2048)+' -height='+str(ny*2048)+\
-                ' "'+masks_dir+dir_sep+'tile_blured_part_0_1.pnm" ' + '  > '+\
-                ' "'+masks_dir+dir_sep+'tile_blured_part_0_1_2.pnm" ')
-        os.system(netpbm_bin_dir+dir_sep+'pgmtopgm'+' < "'+masks_dir+dir_sep+\
-                'tile_blured_part_0_1_2.pnm" '+' > '+\
-                   ' "'+masks_dir+dir_sep+'tile_blured_part_0_1.pgm" ')
-        os.system(netpbm_bin_dir+dir_sep+'pamcut '+'-left=0 -top='+str(2*masks_width)+\
-                ' -width='+str(nx*2048)+' -height='+str(ny*2048)+\
-                ' "'+masks_dir+dir_sep+'tile_blured_part_1_0.pnm" ' + '  > '+\
-                ' "'+masks_dir+dir_sep+'tile_blured_part_1_0_2.pnm" ')
-        os.system(netpbm_bin_dir+dir_sep+'pgmtopgm'+' < "'+masks_dir+dir_sep+\
-                'tile_blured_part_1_0_2.pnm" '+' > '+\
-                   ' "'+masks_dir+dir_sep+'tile_blured_part_1_0.pgm" ')
-        os.system(netpbm_bin_dir+dir_sep+'pamcut '+'-left='+str(2*masks_width)+\
-                ' -top='+str(2*masks_width)+' -width='+str(nx*2048)+' -height='+str(ny*2048)+\
-                ' "'+masks_dir+dir_sep+'tile_blured_part_1_1.pnm" ' + '  > '+\
-                ' "'+masks_dir+dir_sep+'tile_blured_part_1_1_2.pnm" ')
-        os.system(netpbm_bin_dir+dir_sep+'pgmtopgm'+' < "'+masks_dir+dir_sep+\
-                'tile_blured_part_1_1_2.pnm" '+' > '+\
-                   ' "'+masks_dir+dir_sep+'tile_blured_part_1_1.pgm" ')
-        os.system(netpbm_bin_dir+dir_sep+'pamundice '+'-across=2 -down=2 '+' "'+masks_dir+\
-                  dir_sep+'tile_blured_part_%1d_%1a.pgm"'+\
-                  ' > '+' "'+masks_dir+dir_sep+'whole_tile_blured.pgm"')
-        try:
-            application.progress_attr.set(80)
-            if application.red_flag.get()==1:
-                print("Masks construction process interrupted.")
-                return
-        except:
-            pass
-        os.system(netpbm_bin_dir+dir_sep+'pnmnorm '+' -bvalue=0 -wvalue=140 ' +' "'+\
-                masks_dir+dir_sep+'whole_tile_blured.pgm" '+\
-                ' > '+' "'+masks_dir+dir_sep+'whole_tile_blured_leveled.pgm" ')
-        os.system(netpbm_bin_dir+dir_sep+'pnmtopng '+' "'+masks_dir+dir_sep+'whole_tile_blured_leveled.pgm"' +' > '+\
-                ' "'+masks_dir+dir_sep+'whole_tile_blured.png"')
-        os.system(convert_cmd+' "'+masks_dir+dir_sep+'whole_tile_blured.png" '+\
-                  '-level 0,60% "'+masks_dir+dir_sep+'whole_tile_blured.png"')
-        os.system(delete_cmd+' '+masks_dir+dir_sep+'tile*.* '+ devnull_rdir)
-        os.system(delete_cmd+' '+masks_dir+dir_sep+'*.pgm' + devnull_rdir)
-        os.system(delete_cmd+' '+masks_dir+dir_sep+'*.pnm' + devnull_rdir)
-        try:
-            masks_im=Image.open(masks_dir+dir_sep+'whole_tile_blured.png')
-        except:
-            print("\nImagemagick and/or Netpbm can't be reached or were not compiled with the")
-            print("required functionalities.")
             print("\nFailure.")
             print('_____________________________________________________________'+\
             '____________________________________')
@@ -3974,6 +3863,81 @@ def build_masks(lat,lon,build_dir,mesh_filename_list):
     print('_____________________________________________________________'+\
             '____________________________________')
     return
+
+
+##############################################################################
+def build_tile_list(tile_list,build_dir_option,zoomlevel,website):
+    global ortho_list,build_dir
+    nbr_tiles=len(tile_list)
+    n=1
+    for tile in tile_list:
+        [lat,lon]=tile
+        strlat='{:+.0f}'.format(lat).zfill(3)
+        strlon='{:+.0f}'.format(lon).zfill(4)
+        if build_dir_option=='':
+            build_dir=Ortho4XP_dir+dir_sep+'Tiles'+dir_sep+'zOrtho4XP_'+strlat+strlon
+        else:
+            if build_dir_option[-1]=='/':
+                build_dir=build_dir_option[:-1]+dir_sep+'zOrtho4XP_'+strlat+strlon
+            else:
+                build_dir=build_dir_option
+        application.lat.set(lat)
+        application.lon.set(lon)
+        print("\nTile "+str(n)+" / "+str(nbr_tiles))
+        print("\nStep 1 : Building OSM and patch data for tile "+strlat+strlon+" : ")
+        print("--------\n")
+        build_poly_file(lat,lon,water_option,build_dir)
+        print("\nTile "+str(n)+" / "+str(nbr_tiles))
+        print("\nStep 2 : Building mesh for tile "+strlat+strlon+" : ")
+        print("--------\n")
+        build_mesh(lat,lon,build_dir)
+        ortho_list=[]
+        if website!='None':
+            ortho_list.append([[lat,lon,lat,lon+1,lat+1,lon+1,lat+1,lon,lat,lon],\
+                    str(zoomlevel),str(website)])
+        application.write_cfg()
+        print("\nTile "+str(n)+" / "+str(nbr_tiles))
+        print("\nStep 3 : Building Tile "+strlat+strlon+" : ")
+        print("--------\n")
+        #build_masks(lat,lon,build_dir,mesh_filename_list)
+        mesh_filename = build_dir+dir_sep+'Data'+strlat+strlon+".mesh"
+        build_tile(lat,lon,build_dir,mesh_filename,clean_tmp_files)
+        n+=1
+
+     # --> mth
+    try:
+        comp_func = application.comp_func.get()
+        print('\n')
+        shutdown=True
+        if comp_func=='Exit program':
+            for i in range(0, shutdown_timer-1):
+                if application.red_flag.get()==1:
+                    shutdown=False
+                    print('\nExit timer interrupted.')
+                    break;
+                if i % shutd_msg_interval == 0:
+                    print('Closing program in '+str(shutdown_timer-i)+' seconds ...')
+                time.sleep(1)
+            if shutdown==True:
+                print('\nClosing program now ...')
+                application.quit()
+        elif comp_func=='Shutdown computer':
+            for i in range(0, shutdown_timer-1):
+                if application.red_flag.get()==1:
+                    shutdown=False
+                    print('\nShutdown timer interrupted.')
+                    break;
+                if i % shutd_msg_interval == 0:
+                    print('Shutting down computer in '+str(shutdown_timer-i)+' seconds ...')
+                time.sleep(1)
+            if shutdown==True:
+                print('\nShutting down computer now ...')
+                os.system(shutdown_cmd)
+    except:
+        pass
+    # <-- mth
+    return
+##############################################################################
 
 
 ##############################################################################
@@ -4050,6 +4014,351 @@ def clean_temporary_files(build_dir,steps):
                     os.remove(os.path.join(build_dir,f))
     return
 ##############################################################################
+
+
+
+
+
+##############################################################################
+class Earth_Preview_window(Toplevel):
+    
+    dico_tiles_todo={}
+    dico_tiles_done={}
+    dico_custom_scenery={}
+    dico_old_stuff={}
+    earthzl=6 
+    resolution=2**earthzl*256
+    nx0=0
+    ny0=0
+    
+    def __init__(self):
+        Toplevel.__init__(self)
+        self.title('Tiles collection')
+        toplevel = self.winfo_toplevel()
+        try:
+        # On MS Windows one can set the "zoomed" state.
+            toplevel.wm_state('zoomed')
+        except:
+            w = self.winfo_screenwidth()
+            h = self.winfo_screenheight() - 60
+            geom_string = "%dx%d+0+0" % (w,h)
+            toplevel.wm_geometry(geom_string) 
+        self.columnconfigure(1,weight=1)
+        self.rowconfigure(0,weight=1)
+    
+        # Constants/Variable
+
+        self.latlon         = StringVar()
+    
+        # Frames
+        self.frame_left   =  Frame(self, border=4, relief=RIDGE,bg='light green')
+        self.frame_right  =  Frame(self, border=4, relief=RIDGE,bg='light green')
+
+        # Frames properties
+        self.frame_right.rowconfigure(0,weight=1)
+        self.frame_right.columnconfigure(0,weight=1)
+    
+        # Frames placement
+        self.frame_left.grid(row=0,column=0,sticky=N+S+W+E)
+        self.frame_right.grid(row=0,rowspan=60,column=1,sticky=N+S+W+E)
+
+        # Widgets
+        self.infotop        =  Label(self.frame_left,text="Four buttons below apply\nto active lat/lon only",bg="light green")
+        self.deltile_btn      =  Button(self.frame_left,text='  Delete Tile   ',command=self.delete_tile)
+        self.delosm_btn       =  Button(self.frame_left,text='  Delete OSM    ',command=self.delete_osm)
+        self.delortho_btn     =  Button(self.frame_left,text='  Delete Ortho  ',command=self.delete_ortho)
+        self.delall_btn       =  Button(self.frame_left,text='  Delete All    ',command=self.delete_all)
+        self.infomid          =  Label(self.frame_left,text="Old stuff = data no longer\ncorresponding to\nexisting tile",bg="light green")
+        self.toggle_old_btn   =  Button(self.frame_left,text='Toggle old stuff',command=self.toggle_old_stuff)
+        self.infomid2          =  Label(self.frame_left,text="Build multiple tiles at once\nwith (limited) common config",bg="light green")
+        self.build_btn        =  Button(self.frame_left,text='  Batch Build   ',command=self.batch_build)
+        self.exit_btn         =  Button(self.frame_left,text='      Exit      ',command=self.destroy)
+        self.shortcuts        =  Label(self.frame_left,text="Shortcuts :\n-------------------\nClick+hold=move map\nDouble-click=select active lat/lon\nShift+click=add for batch build\nR-click= link in Custom Scenery\n\nActive lat/lon\n---------------------",bg="light green")
+        self.latlon_entry     =  Entry(self.frame_left,width=8,bg="white",fg="blue",textvariable=self.latlon)
+        self.canvas           =  Canvas(self.frame_right,bd=0)
+
+        # Placement of Widgets
+        self.shortcuts.grid(row=13,column=0,padx=5,pady=5,sticky=N+S+E+W)
+        self.latlon_entry.grid(row=14,column=0,padx=5,pady=5,sticky=N+S)
+        self.infotop.grid(row=15,column=0,padx=5,pady=5,sticky=N+S+E+W)
+        self.deltile_btn.grid(row=16,column=0,padx=5,pady=5,sticky=N+S+E+W)
+        self.delosm_btn.grid(row=17,column=0,padx=5,pady=5,sticky=N+S+E+W)
+        self.delortho_btn.grid(row=18,column=0,padx=5,pady=5,sticky=N+S+E+W)
+        self.delall_btn.grid(row=19,column=0,padx=5,pady=5,sticky=N+S+E+W)
+        self.infomid.grid(row=20,column=0,padx=5,pady=5,sticky=N+S+E+W)
+        self.toggle_old_btn.grid(row=21,column=0,padx=5,pady=5,sticky=N+S+E+W)
+        self.infomid2.grid(row=22,column=0,padx=5,pady=5,sticky=N+S+E+W)
+        self.build_btn.grid(row=23,column=0,padx=5,pady=5,sticky=N+S+E+W)
+        self.exit_btn.grid(row=24,column=0,padx=5,pady=5,sticky=N+S+E+W)
+        self.canvas.grid(row=0,column=0,sticky=N+S+E+W)     
+        
+        self.init_canvas()
+        self.preview_existing_tiles()
+        
+    def init_canvas(self):
+        self.canvas.config(scrollregion=(1,1,2**self.earthzl*256-1,2**self.earthzl*256-1)) #self.canvas.bbox(ALL))
+        self.canvas.xview_moveto(0.45)
+        self.canvas.yview_moveto(0.3)
+        x0=self.canvas.canvasx(0)
+        y0=self.canvas.canvasy(0)
+        self.nx0=int((8*x0)//self.resolution)
+        self.ny0=int((8*y0)//self.resolution)
+        self.canvas.bind("<ButtonPress-1>", self.scroll_start)
+        self.canvas.bind("<B1-Motion>", self.scroll_move)
+        self.canvas.bind("<Double-Button-1>",self.select_tile)
+        self.canvas.bind("<Shift-ButtonPress-1>",self.add_tile)
+        self.canvas.bind("<ButtonPress-3>",self.toggle_to_custom)
+        self.canvas.focus_set()
+        self.draw_canvas(self.nx0,self.ny0) 
+        return
+
+    def preview_existing_tiles(self):
+        if not self.dico_tiles_done=={}:
+            for tile in self.dico_tiles_done:
+                self.canvas.delete(self.dico_tiles_done[tile])
+            self.dico_tiles_done={}
+        for dirname in os.listdir(Ortho4XP_dir+dir_sep+"Tiles"):
+            if "zOrtho4XP_" in dirname:
+                try:
+                    strlat=dirname[-7:-4]
+                    strlon=dirname[-4:]
+                    lat=int(strlat)
+                    lon=int(strlon)
+                    strlatround='{:+.0f}'.format(floor(lat/10)*10).zfill(3)
+                    strlonround='{:+.0f}'.format(floor(lon/10)*10).zfill(4)
+                except:
+                    continue                     
+                [x0,y0]=wgs84_to_pix(lat+1,lon,self.earthzl)
+                [x1,y1]=wgs84_to_pix(lat,lon+1,self.earthzl)
+                if os.path.isfile(Ortho4XP_dir+dir_sep+'Tiles'+dir_sep+dirname+dir_sep+"Earth nav data"+dir_sep+strlatround+strlonround+dir_sep+strlat+strlon+'.dsf'):
+                    self.dico_tiles_done[str(lat)+'_'+str(lon)]=self.canvas.create_rectangle(x0,y0,x1,y1,fill='blue',stipple='gray12')
+                    link=Custom_scenery_dir+dir_sep+'zOrtho4XP_'+strlat+strlon
+                    if os.path.isdir(link):
+                        self.canvas.itemconfig(self.dico_tiles_done[str(lat)+'_'+str(lon)],stipple='gray50')
+        return
+
+         
+
+    def toggle_old_stuff(self):
+        if not self.dico_old_stuff=={}:
+            for tile in self.dico_old_stuff:
+                self.canvas.delete(self.dico_old_stuff[tile])
+            self.dico_old_stuff={}
+            return    
+        for dirname in os.listdir(Ortho4XP_dir+dir_sep+"Tiles"): 
+            if "zOrtho4XP_" in dirname:
+                try:
+                    strlat=dirname[-7:-4]
+                    strlon=dirname[-4:]
+                    lat=int(strlat)
+                    lon=int(strlon)
+                    strlatround='{:+.0f}'.format(floor(lat/10)*10).zfill(3)
+                    strlonround='{:+.0f}'.format(floor(lon/10)*10).zfill(4)
+                except:
+                    continue                     
+                [x0,y0]=wgs84_to_pix(lat+1,lon,self.earthzl)
+                [x1,y1]=wgs84_to_pix(lat,lon+1,self.earthzl)
+                if str(lat)+'_'+str(lon) not in self.dico_tiles_done:
+                    self.dico_old_stuff[str(lat)+'_'+str(lon)]=self.canvas.create_rectangle(x0,y0,x1,y1,outline='red')
+        for dirname in os.listdir(Ortho4XP_dir+dir_sep+"Orthophotos"):
+            try:
+                strlat=dirname[0:3]
+                strlon=dirname[3:]
+                lat=int(strlat)
+                lon=int(strlon)
+            except:
+                continue
+            [x0,y0]=wgs84_to_pix(lat+1,lon,self.earthzl)
+            [x1,y1]=wgs84_to_pix(lat,lon+1,self.earthzl)
+            if str(lat)+'_'+str(lon) not in self.dico_tiles_done and str(lat)+'_'+str(lon) not in self.dico_old_stuff:
+               self.dico_old_stuff[str(lat)+'_'+str(lon)]=self.canvas.create_rectangle(x0,y0,x1,y1,outline='red')
+        for dirname in os.listdir(Ortho4XP_dir+dir_sep+"OSM_data"):
+            try:
+                strlat=dirname[0:3]
+                strlon=dirname[3:]
+                lat=int(strlat)
+                lon=int(strlon)
+            except:
+                continue
+            [x0,y0]=wgs84_to_pix(lat+1,lon,self.earthzl)
+            [x1,y1]=wgs84_to_pix(lat,lon+1,self.earthzl)
+            if str(lat)+'_'+str(lon) not in self.dico_tiles_done and str(lat)+'_'+str(lon) not in self.dico_old_stuff:
+               self.dico_old_stuff[str(lat)+'_'+str(lon)]=self.canvas.create_rectangle(x0,y0,x1,y1,outline='red')
+        return  
+
+    def delete_tile(self):
+        try:
+            strlat='{:+.0f}'.format(float(self.active_lat)).zfill(3)
+            strlon='{:+.0f}'.format(float(self.active_lon)).zfill(4)
+            shutil.rmtree(Ortho4XP_dir+dir_sep+"Tiles"+dir_sep+"zOrtho4XP_"+strlat+strlon)
+        except:
+            pass
+        self.preview_existing_tiles()
+        self.toggle_old_stuff()
+        self.toggle_old_stuff()
+        return
+
+    def delete_osm(self):
+        try:
+            strlat='{:+.0f}'.format(float(self.active_lat)).zfill(3)
+            strlon='{:+.0f}'.format(float(self.active_lon)).zfill(4)
+            shutil.rmtree(Ortho4XP_dir+dir_sep+"OSM_data"+dir_sep+strlat+strlon)
+        except:
+            pass
+        self.preview_existing_tiles()
+        self.toggle_old_stuff()
+        self.toggle_old_stuff()
+        return
+    
+    def delete_ortho(self):
+        try:
+            strlat='{:+.0f}'.format(float(self.active_lat)).zfill(3)
+            strlon='{:+.0f}'.format(float(self.active_lon)).zfill(4)
+            shutil.rmtree(Ortho4XP_dir+dir_sep+"Orthophotos"+dir_sep+strlat+strlon)
+        except:
+            pass
+        self.preview_existing_tiles()
+        self.toggle_old_stuff()
+        self.toggle_old_stuff()
+        return
+
+    def delete_all(self):
+        self.delete_tile()
+        self.delete_osm()
+        self.delete_ortho()
+        return
+    
+    def select_tile(self,event):
+        x=self.canvas.canvasx(event.x)
+        y=self.canvas.canvasy(event.y)
+        [lat,lon]=pix_to_wgs84(x,y,self.earthzl)
+        lat=floor(lat)
+        lon=floor(lon)
+        self.active_lat=lat
+        self.active_lon=lon
+        strlat='{:+.0f}'.format(float(lat)).zfill(3)
+        strlon='{:+.0f}'.format(float(lon)).zfill(4)
+        self.latlon.set(strlat+strlon)        
+        try:
+            self.canvas.delete(self.active_tile)
+        except:
+            pass
+        [x0,y0]=wgs84_to_pix(lat+1,lon,self.earthzl)
+        [x1,y1]=wgs84_to_pix(lat,lon+1,self.earthzl)
+        self.active_tile=self.canvas.create_rectangle(x0,y0,x1,y1,fill='',outline='yellow',width=3)
+        if str(lat)+'_'+str(lon) in self.dico_tiles_done:
+            application.lat.set(lat)
+            application.lon.set(lon)
+            application.read_cfg()
+        else:
+            application.lat.set(lat)
+            application.lon.set(lon)
+            application.zone_list=[]
+        return
+    
+    def toggle_to_custom(self,event):
+        x=self.canvas.canvasx(event.x)
+        y=self.canvas.canvasy(event.y)
+        [lat,lon]=pix_to_wgs84(x,y,self.earthzl)
+        lat=floor(lat)
+        lon=floor(lon)
+        strlat='{:+.0f}'.format(float(lat)).zfill(3)
+        strlon='{:+.0f}'.format(float(lon)).zfill(4)
+        if str(lat)+'_'+str(lon) not in self.dico_tiles_done:
+            return
+        link=Custom_scenery_dir+dir_sep+'zOrtho4XP_'+strlat+strlon
+        target=os.getcwd()+dir_sep+'Tiles'+dir_sep+'zOrtho4XP_'+strlat+strlon
+        if os.path.isdir(link):
+            os.remove(link)
+            self.preview_existing_tiles()
+            return 
+        if ('dar' in sys.platform) or ('win' not in sys.platform): # Mac and Linux
+            os.system("ln -s "+' "'+target+'" "'+link+'"')
+        else:
+            os.system('MKLINK /J "'+link+'" "'+target+'"')
+        self.preview_existing_tiles()
+        return 
+
+
+    def add_tile(self,event):
+        x=self.canvas.canvasx(event.x)
+        y=self.canvas.canvasy(event.y)
+        [lat,lon]=pix_to_wgs84(x,y,self.earthzl)
+        lat=floor(lat)
+        lon=floor(lon)
+        if str(lat)+'_'+str(lon) not in self.dico_tiles_todo:
+            #application.lat.set(lat)
+            #application.lon.set(lon)
+            [x0,y0]=wgs84_to_pix(lat+1,lon,self.earthzl)
+            [x1,y1]=wgs84_to_pix(lat,lon+1,self.earthzl)
+            self.dico_tiles_todo[str(lat)+'_'+str(lon)]=self.canvas.create_rectangle(x0,y0,x1,y1,fill='red',stipple='gray12') 
+        else:
+            self.canvas.delete(self.dico_tiles_todo[str(lat)+'_'+str(lon)]) 
+            self.dico_tiles_todo.pop(str(lat)+'_'+str(lon),None)
+        return
+
+    def batch_build(self):
+            tile_list=[]
+            for tile in self.dico_tiles_todo:
+                [stlat,stlon]=tile.split('_')
+                lat=int(stlat)
+                lon=int(stlon)
+                tile_list.append([lat,lon])
+            application.build_tile_list_ifc(tile_list) 
+            return
+
+    def scroll_start(self,event):
+        self.canvas.scan_mark(event.x, event.y)
+        return
+
+    def scroll_move(self,event):
+        self.canvas.scan_dragto(event.x, event.y, gain=1)
+        self.redraw_canvas()
+        return
+
+    def redraw_canvas(self):
+        x0=self.canvas.canvasx(0)
+        y0=self.canvas.canvasy(0)
+        nx0=int((8*x0)//self.resolution)
+        ny0=int((8*y0)//self.resolution)
+        if nx0==self.nx0 and ny0==self.ny0:
+            return
+        else:
+           self.nx0=nx0
+           self.ny0=ny0 
+           self.canvas.delete(self.canv_imgNW)
+           self.canvas.delete(self.canv_imgNE)
+           self.canvas.delete(self.canv_imgSW)
+           self.canvas.delete(self.canv_imgSE)
+           self.draw_canvas(nx0,ny0)
+           return 
+      
+    def draw_canvas(self,nx0,ny0):
+           fileprefix=Ortho4XP_dir+dir_sep+"Previews"+dir_sep+"Earth"+dir_sep+"Earth2_ZL"+str(self.earthzl)+"_"
+           filepreviewNW=fileprefix+str(nx0)+'_'+str(ny0)+".jpg"
+           self.imageNW=Image.open(filepreviewNW)
+           self.photoNW=ImageTk.PhotoImage(self.imageNW)
+           self.canv_imgNW=self.canvas.create_image(nx0*2**self.earthzl*256/8,ny0*2**self.earthzl*256/8,anchor=NW,image=self.photoNW)
+           self.canvas.tag_lower(self.canv_imgNW)
+           if nx0<2**(self.earthzl-3)-1:
+              filepreviewNE=fileprefix+str(nx0+1)+'_'+str(ny0)+".jpg"
+              self.imageNE=Image.open(filepreviewNE)
+              self.photoNE=ImageTk.PhotoImage(self.imageNE)
+              self.canv_imgNE=self.canvas.create_image((nx0+1)*2**self.earthzl*256/8,ny0*2**self.earthzl*256/8,anchor=NW,image=self.photoNE)
+              self.canvas.tag_lower(self.canv_imgNE)
+           if ny0<2**(self.earthzl-3)-1:
+              filepreviewSW=fileprefix+str(nx0)+'_'+str(ny0+1)+".jpg"
+              self.imageSW=Image.open(filepreviewSW)
+              self.photoSW=ImageTk.PhotoImage(self.imageSW)
+              self.canv_imgSW=self.canvas.create_image(nx0*2**self.earthzl*256/8,(ny0+1)*2**self.earthzl*256/8,anchor=NW,image=self.photoSW)
+              self.canvas.tag_lower(self.canv_imgSW)
+           if nx0<2**(self.earthzl-3)-1 and ny0<2**(self.earthzl-3)-1:
+              filepreviewSE=fileprefix+str(nx0+1)+'_'+str(ny0+1)+".jpg"
+              self.imageSE=Image.open(filepreviewSE)
+              self.photoSE=ImageTk.PhotoImage(self.imageSE)
+              self.canv_imgSE=self.canvas.create_image((nx0+1)*2**self.earthzl*256/8,(ny0+1)*2**self.earthzl*256/8,anchor=NW,image=self.photoSE)
+              self.canvas.tag_lower(self.canv_imgSE)
+           return         
 
 ##############################################################################
 class Preview_window(Toplevel):
@@ -4158,6 +4467,7 @@ class Preview_window(Toplevel):
         self.exit_btn         =  Button(self.frame_left,text='   Abandon   ',command=self.destroy)
         self.title_gbsize     =  Label(self.frame_left,anchor=W,text="Approx. Add. Size : ",bg="light green") 
         self.gbsize           =  Entry(self.frame_left,width=6,bg="white",fg="blue",textvariable=self.gb)
+        self.shortcuts        =  Label(self.frame_left,text="\nShift+click to add polygons",bg="light green")
         self.canvas           =  Canvas(self.frame_right,bd=0)
 
         # Placement of Widgets
@@ -4176,12 +4486,13 @@ class Preview_window(Toplevel):
         self.B17.grid(row=12,column=0,padx=5,pady=0,sticky=N+S+E+W) 
         self.B18.grid(row=13,column=0,padx=5,pady=0,sticky=N+S+E+W) 
         self.B19.grid(row=14,column=0,padx=5,pady=0,sticky=N+S+E+W)
+        self.title_gbsize.grid(row=15,column=0,padx=5,pady=10,sticky=W)
+        self.gbsize.grid(row=15,column=0,padx=5,pady=10,sticky=E)
         self.save_zone_btn.grid(row=16,column=0,padx=5,pady=5,sticky=N+S+E+W)
         self.del_zone_btn.grid(row=17,column=0,padx=5,pady=5,sticky=N+S+E+W)
         self.save_zones_btn.grid(row=18,column=0,padx=5,pady=5,sticky=N+S+E+W)
         self.exit_btn.grid(row=19,column=0,padx=5,pady=0,sticky=N+S+E+W)
-        self.title_gbsize.grid(row=15,column=0,padx=5,pady=10,sticky=W)
-        self.gbsize.grid(row=15,column=0,padx=5,pady=10,sticky=E)
+        self.shortcuts.grid(row=20,column=0,padx=5,pady=0,sticky=N+S+E+W)
         self.canvas.grid(row=0,column=0,sticky=N+S+E+W)     
         
         
@@ -4433,10 +4744,14 @@ class Ortho4XP_Graphical(Tk):
         self.mw.set(32)
         self.zl_choice=StringVar()
         self.zl_choice.set('16')
+        self.zlsea_choice=StringVar()
+        self.zlsea_choice.set('')
         self.c_tms_r         = IntVar()
         self.c_tms_r.set(0)
         self.map_choice      = StringVar()
         self.map_choice.set('BI')
+        self.seamap_choice      = StringVar()
+        self.seamap_choice.set('')
         self.progress_attr   = IntVar()
         self.progress_attr.set(0)
         self.progress_down   = IntVar()
@@ -4491,6 +4806,8 @@ class Ortho4XP_Graphical(Tk):
               'fieldbackground': 'white','foreground': 'blue','background': 'white'}}})
         combostyle.theme_use('combostyle') 
         # Widgets
+        self.earth_btn        =  Button(self.frame_left, text='Earth tile map',\
+                                 command=self.earth_preview)
         self.label_tc         =  Label(self.frame_left,anchor=W,text="Tile coordinates",\
                                    fg = "light green",bg = "dark green",\
                                    font = "Helvetica 16 bold italic")
@@ -4511,6 +4828,12 @@ class Ortho4XP_Graphical(Tk):
                                     values=self.map_list,state='readonly',width=6)
         self.title_zl         =  Label(self.frame_left,anchor=W,text="  Base zoomlevel  :",bg="light green")
         self.zl_combo         =  ttk.Combobox(self.frame_left,textvariable=self.zl_choice,\
+                                    values=self.zl_list,state='readonly',width=3)
+        self.title_seasrc     =  Label(self.frame_left,anchor=W,text="Sea source  :",bg="light green") 
+        self.seamap_combo        =  ttk.Combobox(self.frame_left,textvariable=self.seamap_choice,\
+                                    values=['']+self.map_list,state='readonly',width=6)
+        self.title_zlsea         =  Label(self.frame_left,anchor=W,text="  Sea zoomlevel  :",bg="light green")
+        self.zlsea_combo         =  ttk.Combobox(self.frame_left,textvariable=self.zlsea_choice,\
                                     values=self.zl_list,state='readonly',width=3)
         self.preview_btn      =  Button(self.frame_left, text='Choose custom zoomlevel',command=self.preview_tile)
         #self.title_water      =  Label(self.frame_left,anchor=W,text="Water type  :",bg="light green")
@@ -4571,7 +4894,7 @@ class Ortho4XP_Graphical(Tk):
                                     anchor=W,variable=self.sniff,command=self.choose_sniff_dir,bg="light green",\
                                     activebackground="light green",highlightthickness=0)                    
         self.sniff_dir_entry  =  Entry(self.frame_left,width=30,bg="white",fg="blue",textvariable=self.sniff_dir)
-        self.sniff_btn        =  Button(self.frame_left,text='Build overlay',command=self.build_overlay_ifc)
+        self.sniff_btn        =  Button(self.frame_left,text='(Build overlay)',command=self.build_overlay_ifc)
         self.check_response   =  Checkbutton(self.frame_left,text="Check against white textures ",\
                                     anchor=W,variable=self.c_tms_r,command=self.set_c_tms_r,bg="light green",\
                                     activebackground="light green",highlightthickness=0)                    
@@ -4604,71 +4927,76 @@ class Ortho4XP_Graphical(Tk):
         # <-- mth
         self.std_out          =  Text(self.frame_right)
         # Placement of Widgets
-        self.label_tc.grid(row=0,column=0,columnspan=6,sticky=W+E)
-        self.title_lat.grid(row=1,column=0, padx=5, pady=5,sticky=E+W)
-        self.latitude.grid(row=1,column=1, padx=5, pady=5,sticky=W)
-        self.title_lon.grid(row=1,column=2, padx=5, pady=5,sticky=E+W) 
-        self.longitude.grid(row=1,column=3, padx=5, pady=5,sticky=W)
-        self.build_dir_check.grid(row=2,column=0,columnspan=2, pady=5,sticky=N+S+E+W) 
-        self.build_dir_entry.grid(row=2,column=2,columnspan=4, padx=5, pady=5,sticky=W+E)
-        self.label_zl.grid(row=3,column=0,columnspan=6,sticky=W+E)
-        self.title_src.grid(row=4,column=0,sticky=E+W,padx=5,pady=5)
-        self.map_combo.grid(row=4,column=1,padx=5,pady=5,sticky=W)
-        self.title_zl.grid(row=4,column=2,sticky=N+S+E+W,padx=5,pady=5)
-        self.zl_combo.grid(row=4,column=3,columnspan=1,padx=5,pady=5,sticky=W)
-        self.preview_btn.grid(row=4,column=4, columnspan=2,padx=5, pady=5,sticky=N+S+W+E)
+        self.earth_btn.grid(row=0,column=0,columnspan=6,padx=5,pady=5,sticky=N+S+E+W)
+        self.label_tc.grid(row=1,column=0,columnspan=6,sticky=W+E)
+        self.title_lat.grid(row=2,column=0, padx=5, pady=5,sticky=E+W)
+        self.latitude.grid(row=2,column=1, padx=5, pady=5,sticky=W)
+        self.title_lon.grid(row=2,column=2, padx=5, pady=5,sticky=E+W) 
+        self.longitude.grid(row=2,column=3, padx=5, pady=5,sticky=W)
+        self.build_dir_check.grid(row=3,column=0,columnspan=2, pady=5,sticky=N+S+E+W) 
+        self.build_dir_entry.grid(row=3,column=2,columnspan=4, padx=5, pady=5,sticky=W+E)
+        self.label_zl.grid(row=4,column=0,columnspan=6,sticky=W+E)
+        self.title_src.grid(row=5,column=0,sticky=E+W,padx=5,pady=5)
+        self.map_combo.grid(row=5,column=1,padx=5,pady=5,sticky=W)
+        self.title_zl.grid(row=5,column=2,sticky=N+S+E+W,padx=5,pady=5)
+        self.zl_combo.grid(row=5,column=3,columnspan=1,padx=5,pady=5,sticky=W)
+        self.title_seasrc.grid(row=6,column=0,sticky=E+W,padx=5,pady=5)
+        self.seamap_combo.grid(row=6,column=1,padx=5,pady=5,sticky=W)
+        self.title_zlsea.grid(row=6,column=2,sticky=N+S+E+W,padx=5,pady=5)
+        self.zlsea_combo.grid(row=6,column=3,columnspan=1,padx=5,pady=5,sticky=W)
+        self.preview_btn.grid(row=5,column=4, columnspan=2,padx=5, pady=5,sticky=N+S+W+E)
         #self.title_water.grid(row=5,column=0,columnspan=1, padx=5,pady=5,sticky=N+S+E+W)
         #self.watertype1.grid(row=5,column=1,columnspan=2, pady=5,sticky=N+S+W)
         #self.watertype2.grid(row=6,column=1,columnspan=2, pady=5,sticky=N+S+W)
         #self.watertype3.grid(row=7,column=1,columnspan=2, pady=5,sticky=N+S+W)
-        self.label_osm.grid(row=5,column=0,columnspan=6,sticky=W+E)
-        self.title_min_area.grid(row=6,column=0, padx=5, pady=5,sticky=W+E) 
-        self.min_area.grid(row=6,column=1, padx=5, pady=5,sticky=W)
-        self.del_osm_btn.grid(row=6,column=2, columnspan=2, pady=5,sticky=N+S+W)
-        self.get_osm_btn.grid(row=6,column=4, columnspan=2,padx=5, pady=5,sticky=N+S+W+E)
-        self.label_bm.grid(row=7,column=0,columnspan=6,sticky=W+E)
-        self.title_curv_tol.grid(row=8,column=0, padx=5, pady=5,sticky=W+E) 
-        self.curv_tol.grid(row=8,column=1, padx=5, pady=5,sticky=W)
-        self.min_angle_check.grid(row=8,column=2, padx=5, pady=5,sticky=W)
-        self.min_angle.grid(row=8,column=3, padx=5, pady=5,sticky=W)
-        self.build_mesh_btn.grid(row=8,column=4, columnspan=2,padx=5, pady=5,sticky=N+S+W+E)
-        self.custom_dem_check.grid(row=9,column=0,columnspan=2, padx=5, pady=5,sticky=W)
-        self.custom_dem_entry.grid(row=9,column=2,columnspan=4, padx=5, pady=5,sticky=N+S+E+W)
-        self.label_dsf.grid(row=10,column=0,columnspan=6,sticky=W+E)
-        self.skipdown_check.grid(row=11,column=0,columnspan=2, pady=5,sticky=N+S+E+W)
-        self.skipconv_check.grid(row=11,column=2,columnspan=1, pady=5,sticky=N+S+E+W)
-        self.check_response.grid(row=11,column=3,columnspan=3,sticky=W)
-        self.verbose_check.grid(row=12,column=0,columnspan=2, pady=5,sticky=N+S+W)
-        self.cleantmp_check.grid(row=12,column=2,columnspan=1, pady=5,sticky=N+S+W)
-        self.cleanddster_check.grid(row=12,column=3,columnspan=2, pady=5,sticky=N+S+W)
-        self.complexmasks_check.grid(row=13,column=0,columnspan=2, pady=5,sticky=N+S+W)
-        self.masksinland_check.grid(row=13,column=2,columnspan=1, pady=5,sticky=N+S+W)
-        self.title_masks_width.grid(row=14,column=0, padx=5, pady=5,sticky=W+E) 
-        self.masks_width_e.grid(row=14,column=1, padx=5, pady=5,sticky=W)
-        self.title_ratio_water.grid(row=14,column=2,columnspan=1, padx=5, pady=5,sticky=W) 
-        self.ratio_water_entry.grid(row=14,column=3, padx=5, pady=5,sticky=W)
-        self.build_masks_btn.grid(row=14,column=4,columnspan=2,padx=5,pady=5,sticky=N+S+W+E)
-        self.build_tile_btn.grid(row=15,rowspan=3,column=4,columnspan=2,padx=5,sticky=N+S+W+E)
+        self.label_osm.grid(row=7,column=0,columnspan=6,sticky=W+E)
+        self.title_min_area.grid(row=8,column=0, padx=5, pady=5,sticky=W+E) 
+        self.min_area.grid(row=8,column=1, padx=5, pady=5,sticky=W)
+        self.del_osm_btn.grid(row=8,column=2, columnspan=2, pady=5,sticky=N+S+W)
+        self.get_osm_btn.grid(row=8,column=4, columnspan=2,padx=5, pady=5,sticky=N+S+W+E)
+        self.label_bm.grid(row=9,column=0,columnspan=6,sticky=W+E)
+        self.title_curv_tol.grid(row=10,column=0, padx=5, pady=5,sticky=W+E) 
+        self.curv_tol.grid(row=10,column=1, padx=5, pady=5,sticky=W)
+        self.min_angle_check.grid(row=10,column=2, padx=5, pady=5,sticky=W)
+        self.min_angle.grid(row=10,column=3, padx=5, pady=5,sticky=W)
+        self.build_mesh_btn.grid(row=10,column=4, columnspan=2,padx=5, pady=5,sticky=N+S+W+E)
+        self.custom_dem_check.grid(row=11,column=0,columnspan=2, padx=5, pady=5,sticky=W)
+        self.custom_dem_entry.grid(row=11,column=2,columnspan=4, padx=5, pady=5,sticky=N+S+E+W)
+        self.label_dsf.grid(row=12,column=0,columnspan=6,sticky=W+E)
+        self.skipdown_check.grid(row=13,column=0,columnspan=2, pady=5,sticky=N+S+E+W)
+        self.skipconv_check.grid(row=13,column=2,columnspan=1, pady=5,sticky=N+S+E+W)
+        self.check_response.grid(row=13,column=3,columnspan=3,sticky=W)
+        self.verbose_check.grid(row=14,column=0,columnspan=2, pady=5,sticky=N+S+W)
+        self.cleantmp_check.grid(row=14,column=2,columnspan=1, pady=5,sticky=N+S+W)
+        self.cleanddster_check.grid(row=14,column=3,columnspan=2, pady=5,sticky=N+S+W)
+        self.complexmasks_check.grid(row=15,column=0,columnspan=2, pady=5,sticky=N+S+W)
+        self.masksinland_check.grid(row=15,column=2,columnspan=1, pady=5,sticky=N+S+W)
+        self.title_masks_width.grid(row=16,column=0, padx=5, pady=5,sticky=W+E) 
+        self.masks_width_e.grid(row=16,column=1, padx=5, pady=5,sticky=W)
+        self.title_ratio_water.grid(row=16,column=2,columnspan=1, padx=5, pady=5,sticky=W) 
+        self.ratio_water_entry.grid(row=16,column=3, padx=5, pady=5,sticky=W)
+        self.build_masks_btn.grid(row=16,column=4,columnspan=2,padx=5,pady=5,sticky=N+S+W+E)
+        self.build_tile_btn.grid(row=17,rowspan=3,column=4,columnspan=2,padx=5,sticky=N+S+W+E)
         self.read_cfg_btn.grid(row=0,column=0,padx=5, pady=5,sticky=N+S+W+E)
         self.write_cfg_btn.grid(row=0,column=1,padx=5, pady=5,sticky=N+S+W+E)
         self.kill_proc_btn.grid(row=0,column=2,padx=5,pady=5,sticky=N+S+W+E)
         self.exit_btn.grid(row=0,column=3, padx=5, pady=5,sticky=N+S+W+E)
-        self.title_progress_a.grid(row=15,column=0,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
-        self.progressbar_attr.grid(row=15,column=2,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
-        self.title_progress_d.grid(row=16,column=0,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
-        self.progressbar_down.grid(row=16,column=2,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
+        self.title_progress_a.grid(row=17,column=0,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
+        self.progressbar_attr.grid(row=17,column=2,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
+        self.title_progress_d.grid(row=18,column=0,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
+        self.progressbar_down.grid(row=18,column=2,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
         #self.title_progress_m.grid(row=20,column=0,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
         #self.progressbar_mont.grid(row=20,column=2,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
-        self.title_progress_c.grid(row=17,column=0,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
-        self.progressbar_conv.grid(row=17,column=2,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
+        self.title_progress_c.grid(row=19,column=0,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
+        self.progressbar_conv.grid(row=19,column=2,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
         # --> mth
-        self.title_comp_func.grid(row=18,column=0,columnspan=2,padx=5,pady=5,sticky=E+W)
-        self.comp_func_combo.grid(row=18,column=2,columnspan=2,padx=5,pady=5,sticky=E+W)
+        self.title_comp_func.grid(row=20,column=0,columnspan=2,padx=5,pady=5,sticky=E+W)
+        self.comp_func_combo.grid(row=20,column=2,columnspan=2,padx=5,pady=5,sticky=E+W)
         # <-- mth
-        self.label_overlay.grid(row=19,column=0,columnspan=6,sticky=W+E)
-        self.sniff_check.grid(row=20,column=0,columnspan=2, pady=5,sticky=N+S+E+W)
-        self.sniff_dir_entry.grid(row=20,column=2,columnspan=3, padx=5, pady=5,sticky=N+S+E+W)
-        self.sniff_btn.grid(row=20,column=5,columnspan=1, padx=5, pady=5,sticky=N+S+E+W)
+        self.label_overlay.grid(row=21,column=0,columnspan=6,sticky=W+E)
+        self.sniff_check.grid(row=22,column=0,columnspan=2, pady=5,sticky=N+S+E+W)
+        self.sniff_dir_entry.grid(row=22,column=2,columnspan=3, padx=5, pady=5,sticky=N+S+E+W)
+        self.sniff_btn.grid(row=22,column=5,columnspan=1, padx=5, pady=5,sticky=N+S+E+W)
         self.std_out.grid(row=0,column=0,padx=5,pady=5,sticky=N+S+E+W)
         # read default choices from config file 
         try:
@@ -4762,14 +5090,14 @@ class Ortho4XP_Graphical(Tk):
         global build_dir,water_option,ratio_water,min_area,curvature_tol,\
                no_small_angles,smallest_angle,default_website,default_zl,\
                skip_downloads,skip_converts,verbose_output,clean_tmp_files,\
-               dds_or_png,check_tms_response,complex_masks,use_masks_for_inland,zone_list
+               dds_or_png,check_tms_response,complex_masks,use_masks_for_inland,zone_list,sea_texture_params
         [lat,lon]=self.load_latlon()
         if lat=='error':
             return
         strlat='{:+.0f}'.format(lat).zfill(3)
         strlon='{:+.0f}'.format(lon).zfill(4)
         if self.build_dir_entry.get()=='':
-            build_dir=Ortho4XP_dir+dir_sep+'zOrtho4XP_'+strlat+strlon
+            build_dir=Ortho4XP_dir+dir_sep+'Tiles'+dir_sep+'zOrtho4XP_'+strlat+strlon
         else:
             build_dir=self.build_dir_entry.get()
             if build_dir[-1]=='/':
@@ -4796,8 +5124,8 @@ class Ortho4XP_Graphical(Tk):
             self.skipc.set(skip_converts)
             self.cleantmp.set(clean_tmp_files)
             self.cleanddster.set(clean_unused_dds_and_ter_files)
-            self.complexmasks(complex_masks)
-            self.masksinland(use_masks_for_inland)
+            self.complexmasks.set(complex_masks)
+            self.masksinland.set(use_masks_for_inland)
             self.verbose.set(verbose_output)
             if check_tms_response==True:
                 self.c_tms_r.set(1)
@@ -4805,12 +5133,20 @@ class Ortho4XP_Graphical(Tk):
                 self.c_tms_r.set(0)
             try:
                 self.map_choice.set(default_website)
+                if sea_texture_params==[]:
+                    self.seamap_choice.set('')
+                else:
+                    self.seamap_choice.set(sea_texture_params[0])
             except:
                 print("\nFailure : your default provider is no longer present in your address book.")
                 print('_____________________________________________________________'+\
                    '____________________________________')
                 return
             self.zl_choice.set(default_zl)
+            if sea_texture_params==[]:
+                self.zlsea_choice.set('')
+            else:
+                self.zlsea_choice.set(sea_texture_params[1])
             self.mw.set(masks_width)
         except:
             print("\nWARNING : the main config file is incomplete or does not follow the syntax,")
@@ -4823,11 +5159,11 @@ class Ortho4XP_Graphical(Tk):
         global zone_list
         [lat,lon]=self.load_latlon()
         if lat=='error':
-            return
+           return
         strlat='{:+.0f}'.format(lat).zfill(3)
         strlon='{:+.0f}'.format(lon).zfill(4)
         if self.build_dir_entry.get()=='':
-            build_dir=Ortho4XP_dir+dir_sep+'zOrtho4XP_'+strlat+strlon
+            build_dir=Ortho4XP_dir+dir_sep+'Tiles'+dir_sep+'zOrtho4XP_'+strlat+strlon
         else:
             build_dir=self.build_dir_entry.get()
             if build_dir[-1]=='/':
@@ -4889,6 +5225,10 @@ class Ortho4XP_Graphical(Tk):
             fbuild.write("smallest_angle="+str(smallest_angle)+"\n")
         fbuild.write("default_website='"+str(self.map_choice.get())+"'\n") 
         fbuild.write("default_zl="+str(self.zl_choice.get())+"\n") 
+        if sea_texture_params != []:
+            fbuild.write("sea_texture_params=['"+str(self.seamap_choice.get())+"',"+str(self.zlsea_choice.get())+"]\n")
+        else:
+            fbuild.write("sea_texture_params=[]\n")
         fbuild.write("zone_list=[]\n")
         for zone in zone_list:
             fbuild.write("zone_list.append("+str(zone)+")\n")
@@ -4919,28 +5259,23 @@ class Ortho4XP_Graphical(Tk):
         [lat,lon]=self.load_latlon()
         if lat=='error':
             return
-        self.preview_window=Preview_window(lat,lon)
+        self.preview_window=Preview_window(lat,lon) 
+        return
+    
+    def earth_preview(self):
+        self.earth_window=Earth_Preview_window()
         return
     
     def purge_osm(self):
-        global build_dir
         [lat,lon]=self.load_latlon()
         if lat=='error':
             return
         strlat='{:+.0f}'.format(lat).zfill(3)
         strlon='{:+.0f}'.format(lon).zfill(4)
-        if self.build_dir_entry.get()=='':
-            build_dir=Ortho4XP_dir+dir_sep+'zOrtho4XP_'+strlat+strlon
-        else:
-            build_dir=self.build_dir_entry.get()
-            if build_dir[-1]=='/':
-                build_dir=build_dir[:-1]+dir_sep+'zOrtho4XP_'+strlat+strlon
+        osm_dir=Ortho4XP_dir+dir_sep+'OSM_data'+dir_sep+strlat+strlon
         try:
-            for f in os.listdir(build_dir):
-                if 'OSM_' in f:
-                    os.remove(os.path.join(build_dir,f))
+            shutil.rmtree(osm_dir)
         except:
-            print("\nFailure : Custom build_dir seems non existing.")
             print('_____________________________________________________________'+\
             '____________________________________')
         return
@@ -4965,7 +5300,7 @@ class Ortho4XP_Graphical(Tk):
         strlat='{:+.0f}'.format(lat).zfill(3)
         strlon='{:+.0f}'.format(lon).zfill(4)
         if self.build_dir_entry.get()=='':
-            build_dir=Ortho4XP_dir+dir_sep+'zOrtho4XP_'+strlat+strlon
+            build_dir=Ortho4XP_dir+dir_sep+'Tiles'+dir_sep+'zOrtho4XP_'+strlat+strlon
         else:
             build_dir=self.build_dir_entry.get()
             if build_dir[-1]=='/':
@@ -4985,8 +5320,37 @@ class Ortho4XP_Graphical(Tk):
             return
         strlat='{:+.0f}'.format(lat).zfill(3)
         strlon='{:+.0f}'.format(lon).zfill(4)
+        try:
+            curvature_tol=float(self.curv_tol.get())
+            if curvature_tol < 0.01 or curvature_tol>100:
+                print('\nFailure : curvature_tol exceeds limits.')
+                print('_____________________________________________________________'+\
+                '____________________________________')
+                return
+        except:
+            print('\nFailure : curvature_tol wrongly encoded.')
+            print('_____________________________________________________________'+\
+                '____________________________________')
+            return
+        if self.minangc.get()==0:
+            no_small_angles=False
+        else:
+            no_small_angles=True
+        if no_small_angles==True:
+            try:
+                smallest_angle=int(self.minang.get())
+            except:
+                print('\nFailure : minimum angle wrongly encoded.')
+                print('_____________________________________________________________'+\
+                '____________________________________')
+                return
+            if (smallest_angle<0) or (smallest_angle>30):
+                print('\nFailure : minimum angle larger than 30° not allowed.')
+                print('_____________________________________________________________'+\
+                '____________________________________')
+                return
         if self.build_dir_entry.get()=='':
-            build_dir=Ortho4XP_dir+dir_sep+'zOrtho4XP_'+strlat+strlon
+            build_dir=Ortho4XP_dir+dir_sep+'Tiles'+dir_sep+'zOrtho4XP_'+strlat+strlon
         else:
             build_dir=self.build_dir_entry.get()
             if build_dir[-1]=='/':
@@ -5052,30 +5416,18 @@ class Ortho4XP_Graphical(Tk):
     
     def build_tile_ifc(self):
         global lat,lon,build_dir,skip_downloads,skip_converts,verbose_output,\
-                clean_tmp_files,dds_or_png,water_overlay,ratio_water,use_masks_for_inland,ortho_list,zone_list
+                clean_tmp_files,dds_or_png,water_overlay,ratio_water,use_masks_for_inland,ortho_list,zone_list,sea_texture_params
         [lat,lon]=self.load_latlon()
         if lat=='error':
             return
         strlat='{:+.0f}'.format(lat).zfill(3)
         strlon='{:+.0f}'.format(lon).zfill(4)
         if self.build_dir_entry.get()=='':
-            build_dir=Ortho4XP_dir+dir_sep+'zOrtho4XP_'+strlat+strlon
+            build_dir=Ortho4XP_dir+dir_sep+'Tiles'+dir_sep+'zOrtho4XP_'+strlat+strlon
         else:
             build_dir=self.build_dir_entry.get()
             if build_dir[-1]=='/':
                 build_dir=build_dir[:-1]+dir_sep+'zOrtho4XP_'+strlat+strlon
-        if self.skipd.get()==1:
-            skip_downloads=True
-        else:
-            skip_downloads=False
-        if self.skipc.get()==1:
-            skip_converts=True
-        else:
-            skip_converts=False
-        if self.verbose.get()==1:
-            verbose_output=True
-        else:
-            verbose_output=False
         mesh_filename = build_dir+dir_sep+'Data'+strlat+strlon+".mesh"
         if os.path.isfile(mesh_filename)!=True:
             print("You must first construct the mesh !")
@@ -5092,6 +5444,10 @@ class Ortho4XP_Graphical(Tk):
         self.set_cleantmp()
         website=self.map_choice.get()
         zoomlevel=self.zl_choice.get()
+        if self.seamap_choice.get() != '': 
+           sea_texture_params=[self.seamap_choice.get(),int(self.zlsea_choice.get())]
+        else:
+           sea_texture_params=[]
         ortho_list=zone_list[:]
         if website!='None':
             ortho_list.append([[lat,lon,lat,lon+1,lat+1,lon+1,lat+1,lon,lat,lon],\
@@ -5113,7 +5469,7 @@ class Ortho4XP_Graphical(Tk):
         strlat='{:+.0f}'.format(lat).zfill(3)
         strlon='{:+.0f}'.format(lon).zfill(4)
         if self.build_dir_entry.get()=='':
-            build_dir=Ortho4XP_dir+dir_sep+'zOrtho4XP_'+strlat+strlon
+            build_dir=Ortho4XP_dir+dir_sep+'Tiles'+dir_sep+'zOrtho4XP_'+strlat+strlon
         else:
             build_dir=self.build_dir_entry.get()
             if build_dir[-1]=='/':
@@ -5156,15 +5512,85 @@ class Ortho4XP_Graphical(Tk):
         build_masks_thread.start()
         return
 
+    def build_tile_list_ifc(self,tile_list):
+        global skip_downloads,skip_converts,verbose_output,min_area,no_small_angles,smallest_angle,curvature_tol,\
+                clean_tmp_files,dds_or_png,water_overlay,ratio_water,use_masks_for_inland,ortho_list
+        if self.water_type.get()==1:
+            water_overlay=False
+        else:
+            water_overlay=True
+            try:
+                ratio_water=float(self.ratio_water_entry.get())
+            except:
+                print("The ratio_water parameter is wrongly encoded.")
+                return
+        try:
+            min_area=float(self.min_area.get())
+        except:
+            print('\nFailure : parameter min_area wrongly encoded.')
+            print('_____________________________________________________________'+\
+            '____________________________________')
+            return
+        if (min_area<0):
+            print('\nFailure : parameter min_area exceeds limits.')
+            print('_____________________________________________________________'+\
+            '____________________________________')
+            return
+        try:
+            curvature_tol=float(self.curv_tol.get())
+            if curvature_tol < 0.01 or curvature_tol>100:
+                print('\nFailure : curvature_tol exceeds limits.')
+                print('_____________________________________________________________'+\
+                '____________________________________')
+                return
+        except:
+            print('\nFailure : curvature_tol wrongly encoded.')
+            print('_____________________________________________________________'+\
+                '____________________________________')
+            return
+        if self.minangc.get()==0:
+            no_small_angles=False
+        else:
+            no_small_angles=True
+        if no_small_angles==True:
+            try:
+                smallest_angle=int(self.minang.get())
+            except:
+                print('\nFailure : minimum angle wrongly encoded.')
+                print('_____________________________________________________________'+\
+                '____________________________________')
+                return
+            if (smallest_angle<0) or (smallest_angle>30):
+                print('\nFailure : minimum angle larger than 30° not allowed.')
+                print('_____________________________________________________________'+\
+                '____________________________________')
+                return
+        website=self.map_choice.get()
+        zoomlevel=self.zl_choice.get()
+        build_dir_option=self.build_dir_entry.get()
+        fargs_build_tile_list=[tile_list,build_dir_option,zoomlevel,website]
+        build_tile_list_thread=threading.Thread(target=build_tile_list,\
+                args=fargs_build_tile_list)
+        build_tile_list_thread.start()
+        return
+
     def set_skip_downloads(self):
+        global skip_downloads,skip_converts
         if self.skipd.get()==1:
             self.skipc.set(1)
+            skip_downloads=True
+            skip_converts=True
+        else:
+            skip_downloads=False  
         return
     
     def set_skip_converts(self):
+        global skip_downloads, skip_converts
         if self.skipc.get()==0:
+            skip_converts=False
             if self.skipd.get()==1:
                 self.skipc.set(1)
+                skip_converts=True
         return
     
     def set_c_tms_r(self):
@@ -5176,6 +5602,7 @@ class Ortho4XP_Graphical(Tk):
         return
 
     def set_verbose_output(self):
+        global verbose_output 
         if self.verbose.get()==0:
             verbose_output=False
         else:
@@ -5231,6 +5658,10 @@ if __name__ == '__main__':
         ortho_list=[]
         zone_list=[]
         exec(open(Ortho4XP_dir+dir_sep+'Ortho4XP.cfg').read())
+        if not os.path.exists(Ortho4XP_dir+dir_sep+'OSM_data'):
+            os.makedirs(Ortho4XP_dir+dir_sep+'OSM_data')
+        if not os.path.exists(Ortho4XP_dir+dir_sep+'Tiles'):
+            os.makedirs(Ortho4XP_dir+dir_sep+'Tiles')
         os.system(delete_cmd+" "+Ortho4XP_dir+dir_sep+"tmp"+dir_sep+"*.jpg "+devnull_rdir)
         os.system(delete_cmd+" "+Ortho4XP_dir+dir_sep+"tmp"+dir_sep+"*.png "+devnull_rdir)
         application = Ortho4XP_Graphical()
@@ -5265,7 +5696,7 @@ if __name__ == '__main__':
     except:
         usage('adresses')
     if build_dir=="default":
-        build_dir=Ortho4XP_dir+dir_sep+'zOrtho4XP_'+strlat+strlon
+        build_dir=Ortho4XP_dir+dir_sep+'Tiles'+dir_sep+'zOrtho4XP_'+strlat+strlon
     print("\nStep 1 : Building OSM and patch data for tile "+strlat+strlon+" : ")
     print("--------\n")
     build_poly_file(lat,lon,water_option,build_dir)
@@ -5288,7 +5719,7 @@ if __name__ == '__main__':
                 if os.path.isfile(closemesh_filename):
                     mesh_filename_list.append(closemesh_filename)
     # [Thanks to Simheaven] fix for missing folder textures
-    build_dir=Ortho4XP_dir+dir_sep+'zOrtho4XP_'+strlat+strlon
+    build_dir=Ortho4XP_dir+dir_sep+'Tiles'+dir_sep+'zOrtho4XP_'+strlat+strlon
     if not os.path.exists(build_dir+dir_sep+"textures"):
         os.makedirs(build_dir+dir_sep+"textures")
     build_masks(lat,lon,build_dir,mesh_filename_list)
