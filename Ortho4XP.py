@@ -1,7 +1,7 @@
 #!/usr/bin/env python3                                                       
 ##############################################################################
 # Ortho4XP : A base mesh creation tool for the X-Plane 10 flight simulator.  #
-# Version  : 1.17 released September 6th 2016                                #
+# Version  : 1.18 released September 10th 2016                               #
 # Copyright 2016 Oscar Pilote                                                #
 # Thanks to all that have contributed to improvement of the code.            #
 ##############################################################################
@@ -23,7 +23,7 @@
 #                                                                            #
 ##############################################################################
 
-version=' 1.17'
+version=' 1.18'
 
 import os
 import sys
@@ -108,6 +108,7 @@ full_color_correction = {} # example {'CH':' -channel R -level 0%,100%,1.05 -cha
 use_gimp=False
 gimp_cmd="gimp "
 Custom_scenery_dir=""
+custom_scenery_prefix=""            # links in custom scenery will be of the form "custom_scenery_prefix"+zOrtho4XP_blablabla 
 meshzl                      = 19    # The maximum ZL which the mesh will support (you can put a lower number if you do not need such zl)
 hmin                        = 20    # Smallest triangle side-length
 hmax                        = 2000  # Largest triangle side-length
@@ -116,7 +117,7 @@ keep_old_pre_mask           = False # If set to True, then old unblured masks (w
 use_additional_water_shader = False # remainder of a test, which was not that succesful
 use_decal_on_terrain        = False # if you want to use decal on top of the orthophoto, they can look good at small altitude
 use_bing_for_non_existent_data = False # when using providers with local coverage only, if you ask for a zone not covered then Bing will be used there instead
-overpass_server_list={"1":"http://api.openstreetmap.fr/oapi/interpreter", "2":"http://overpass-api.de/api","3":"http://overpass.osm.rambler.ru/cgi/"}
+overpass_server_list={"1":"http://api.openstreetmap.fr/oapi/interpreter", "2":"http://overpass-api.de/api/interpreter","3":"http://overpass.osm.rambler.ru/cgi/interpreter"}
 overpass_server_choice="1"
 keep_old_pre_mask   = False
 use_additional_water_shader = False # remainder of a test, which was not that succesful
@@ -224,7 +225,7 @@ def usage(reason,do_i_quit=True):
               "Your connection may be unavailable or the Overpass server\n"+\
               "may be unreachable.") 
     elif reason=='dem_files':
-        print("I could not fin the elevation data file, or it was broken.") 
+        print("!!!I could not fin the elevation data file, or it was broken.\n!!!I go on with all zero elevation (perhaps a tile full of sea ?)") 
     elif reason=='adresses':
         print("The file Carnet_d_adresses.py does not follow the syntactic"+\
               " rules.")
@@ -237,6 +238,7 @@ def usage(reason,do_i_quit=True):
             sys.exit()
     return
 ##############################################################################
+
 
 
 ##############################################################################
@@ -363,7 +365,7 @@ def build_poly_file(lat0,lon0,option,build_dir):
                         keep_way(way,lat0,lon0,1,'airport',dico_nodes,\
                                 dico_edges)
                         flat_airport_seeds.append([way,\
-                                pick_point(way,side,lat0,lon0),altitude])
+                                pick_point_check(way,side,lat0,lon0),altitude])
                 else:
                     print("One of the airports within the tile is not correctly closed \n"+\
                           "on Openstreetmap ! Close to coordinates " + str(way[0]))
@@ -381,7 +383,7 @@ def build_poly_file(lat0,lon0,option,build_dir):
                 if (relid in dicosmr_icao) and (relid in dicosmr_name):
                     print("       * "+dicosmr_icao[relid]+" "+dicosmr_name[relid])
                 elif (relid in dicosmr_icao):
-                    print("       * "+idcosmr_icao[relid])
+                    print("       * "+dicosmr_icao[relid])
                 elif relid in dicosmr_name:
                         print("       *      "+dicosmr_name[relid])
                 if (relid in dicosmr_ele):
@@ -425,10 +427,16 @@ def build_poly_file(lat0,lon0,option,build_dir):
                         else:
                             sea_seeds+=pick_points_safe(way,'right',lat0,lon0)
         elif ('way["natural"="water"]' in tag) or ('way["waterway"="riverbank"]' in tag) or ('way["waterway"="dock"]' in tag) :
+            efile=open(osm_errors_filename,'w')
+            osm_errors_found=False
             for wayid in dicosmw:
+                #print(wayid)
                 way=dicosmw[wayid]
-                if strcode(way[0]) == strcode(way[-1]) and \
-                        touches_region(way,lat0,lat0+1,lon0,lon0+1)==True:
+                if strcode(way[0]) != strcode(way[-1]):
+                    osm_errors_found=True
+                    efile.write("Way id="+str(wayid)+" was not treated because it is not closed.\n")
+                    continue
+                if touches_region(way,lat0,lat0+1,lon0,lon0+1):
                     signed_area=area(way)
                     # Keep only sufficiently large water pieces. 1 deg^2 is
                     # very roughly equal to 10000 km^2
@@ -439,7 +447,8 @@ def build_poly_file(lat0,lon0,option,build_dir):
                             side='right'
                         keep_way(way,lat0,lon0,1,'outer',dico_nodes,\
                                 dico_edges)
-                        point=pick_point_check(way,side,lat0,lon0)
+                        points_checked=pick_points_safe(way,side,lat0,lon0,check=True)
+                        #print(points_checked)
                         sea_way=False
                         try:
                             if dicosmw_name[wayid] in sea_equiv:
@@ -448,9 +457,14 @@ def build_poly_file(lat0,lon0,option,build_dir):
                         except:
                             pass    
                         if sea_way!=True:
-                            water_seeds.append(point)
+                            water_seeds+=points_checked
                         else:
-                            sea_equiv_seeds.append(point)
+                            sea_equiv_seeds+=points_checked
+            efile.close()
+            if osm_errors_found:
+                print("     !!!Some OSM errors were detected!!!\n        They are listed in "+str(osm_errors_filename))
+            else:
+                os.remove(osm_errors_filename)
         elif 'rel[' in tag:
             for relid in dicosmr:
                 sea_rel=False
@@ -472,11 +486,11 @@ def build_poly_file(lat0,lon0,option,build_dir):
                             side='right'
                         keep_way(waypts,lat0,lon0,1,'outer',dico_nodes,\
                                         dico_edges)
-                        point=pick_point_check(waypts,side,lat0,lon0)
+                        points_checked=pick_points_safe(waypts,side,lat0,lon0,check=True)
                         if sea_rel!=True:
-                            water_seeds.append(point)
+                            water_seeds+=points_checked
                         else:
-                            sea_equiv_seeds.append(point)
+                            sea_equiv_seeds+=points_checked
     treated_nodes=len(dico_nodes)-init_nodes
     init_nodes=len(dico_nodes)
     if treated_nodes>0:
@@ -680,7 +694,10 @@ def build_poly_file(lat0,lon0,option,build_dir):
                 len(flat_airport_seeds)+len(flat_patch_seeds)+\
                 len(sloped_patch_seeds)
     if total_seeds==0:
-        water_seeds.append([1000,1000])
+        if sea_texture_params=='':
+            water_seeds.append([1000,1000])
+        else:
+            sea_seeds.append([lon0+0.5,lat0+0.5])
         total_seeds=1
     f.write('\n'+str(total_seeds)+' 1\n')
     idx=1
@@ -770,7 +787,8 @@ def osmway_to_dicos(osm_filename):
         separator='"'
     while not finished_with_file==True:
         items=pfile.readline().split(separator)
-        if items[0]=='  <node id=':
+        #if items[0]=='  <node id=':
+        if '<node id=' in items[0]:
             id=items[1]
             for j in range(0,len(items)):
                 if items[j]==' lat=':
@@ -780,19 +798,25 @@ def osmway_to_dicos(osm_filename):
             #slat=items[3]
             #slon=items[5]
             dicosmn[id]=[slat,slon]
-        elif items[0]=='  <way id=':
+        #elif items[0]=='  <way id=':
+        elif '<way id=' in items[0]:
             in_way=True
             wayid=items[1]
             dicosmw[wayid]=[]  
-        elif items[0]=='    <nd ref=':
+        #elif items[0]=='    <nd ref=':
+        elif '<nd ref=' in items[0]:
             dicosmw[wayid].append(dicosmn[items[1]])
-        elif items[0]=='    <tag k=' and in_way and items[1]=='name':
+        #elif items[0]=='    <tag k=' and in_way and items[1]=='name':
+        elif '<tag k=' in items[0] and in_way and items[1]=='name':
             dicosmw_name[wayid]=items[3]
-        elif items[0]=='    <tag k=' and in_way and items[1]=='icao':
+        #elif items[0]=='    <tag k=' and in_way and items[1]=='icao':
+        elif '<tag k=' in items[0] and in_way and items[1]=='icao':
             dicosmw_icao[wayid]=items[3]
-        elif items[0]=='    <tag k=' and in_way and items[1]=='ele':
+        #elif items[0]=='    <tag k=' and in_way and items[1]=='ele':
+        elif '<tag k=' in items[0] and in_way and items[1]=='ele':
             dicosmw_ele[wayid]=items[3]
-        elif items[0]=='</osm>\n':
+        #elif items[0]=='</osm>\n':
+        elif '</osm>' in items[0]:
             finished_with_file=True
     pfile.close()
     print("     A total of "+str(len(dicosmn))+" node(s) and "+str(len(dicosmw))+" way(s).")
@@ -822,7 +846,8 @@ def osmrel_to_dicos(osm_filename,osm_errors_filename):
         separator='"'
     while not finished_with_file==True:
         items=pfile.readline().split(separator)
-        if items[0]=='  <node id=':
+        #if items[0]=='  <node id=':
+        if '<node id=' in items[0]:
             id=items[1]
             for j in range(0,len(items)):
                 if items[j]==' lat=':
@@ -830,21 +855,25 @@ def osmrel_to_dicos(osm_filename,osm_errors_filename):
                 elif items[j]==' lon=':
                     slon=items[j+1]
             dicosmn[id]=[slat,slon]
-        elif items[0]=='  <way id=':
+        #elif items[0]=='  <way id=':
+        elif '<way id=' in items[0]:
             wayid=items[1]
             dicosmw[wayid]=[]  
-        elif items[0]=='    <nd ref=':
+        #elif items[0]=='    <nd ref=':
+        elif '<nd ref=' in items[0]:
             dicosmw[wayid].append(items[1])
-        elif items[0]=='  <relation id=':
+        #elif items[0]=='  <relation id=':
+        elif '<relation id=' in items[0]:
             relid=items[1]
             in_rel=True
             dicosmr[relid]=[]
             dicosmrinner[relid]=[]
             dicosmrouter[relid]=[]
             dicoendpt={}
-        elif items[0]=='    <member type=':
+        #elif items[0]=='    <member type=':
+        elif '<member type=' in items[0]:
             if items[1]!='way':
-                efile.write("Relation id="+str(relid)+"contains member "+items[1]+" which was not treated because it is not a way.\n")
+                efile.write("Relation id="+str(relid)+" contains member "+items[1]+" which was not treated because it is not a way.\n")
                 osm_errors_found=True
                 continue
             role=items[5]
@@ -875,13 +904,17 @@ def osmrel_to_dicos(osm_filename,osm_errors_filename):
                 osm_errors_found=True
                 continue
             dicosmr[relid].append(items[3]) 
-        elif items[0]=='    <tag k=' and in_rel and items[1]=='name':
+        #elif items[0]=='    <tag k=' and in_rel and items[1]=='name':
+        elif '<tag k=' in items[0] and in_rel and items[1]=='name':
             dicosmr_name[relid]=items[3]
-        elif items[0]=='    <tag k=' and in_rel and items[1]=='icao':
+        #elif items[0]=='    <tag k=' and in_rel and items[1]=='icao':
+        elif '<tag k=' in items[0] and in_rel and items[1]=='icao':
             dicosmr_icao[relid]=items[3]
-        elif items[0]=='    <tag k=' and in_rel and items[1]=='ele':
+        #elif items[0]=='    <tag k=' and in_rel and items[1]=='ele':
+        elif '<tag k=' in items[0] and in_rel and items[1]=='ele':
             dicosmr_ele[relid]=items[3]
-        elif items[0]=='  </relation>\n':
+        #elif items[0]=='  </relation>\n':
+        elif '</relation>' in items[0]:
             bad_rel=False
             for endpt in dicoendpt:
                 if len(dicoendpt[endpt])!=2:
@@ -922,7 +955,8 @@ def osmrel_to_dicos(osm_filename,osm_errors_filename):
                 dicosmrouter[relid].append(waypts)
                 dicoendpt.pop(endptinit,'None')
             dicoendpt={}
-        elif items[0]=='</osm>\n':
+        #elif items[0]=='</osm>\n':
+        elif '</osm>' in items[0]:
             finished_with_file=True
     pfile.close()
     efile.close()
@@ -933,7 +967,6 @@ def osmrel_to_dicos(osm_filename,osm_errors_filename):
         os.remove(osm_errors_filename)
     return [dicosmr,dicosmrinner,dicosmrouter,dicosmr_name,dicosmr_icao,dicosmr_ele]
 ##############################################################################
-
 
 #############################################################################
 def strcode(node):
@@ -1506,7 +1539,7 @@ def pick_point_check(way,side,lat0,lon0):
    
 
 #############################################################################
-def pick_points_safe(way,side,lat0,lon0):
+def pick_points_safe(way,side,lat0,lon0,check=False):
    if side=='left':
        sign=1
    elif side=='right':
@@ -1519,7 +1552,7 @@ def pick_points_safe(way,side,lat0,lon0):
        y1=float(way[i][0])
        x2=float(way[i+1][1])
        y2=float(way[i+1][0])
-       l=sqrt((x2-x1)**2+(y2-y1)**2)
+       l=abs(x2-x1)+abs(y2-y1)
        if l<dmin:
           continue    
        x2in= (x2>lon0) and (x2<lon0+1) and (y2>lat0) and (y2<lat0+1) 
@@ -1539,8 +1572,22 @@ def pick_points_safe(way,side,lat0,lon0):
           dperp=0.0000001
           x=0.99*x2+0.01*x1+(y1-y2)/l*dperp*sign
           y=0.99*y2+0.01*y1+(x2-x1)/l*dperp*sign
-          return_list.append([x,y])	   
-   return return_list
+          return_list.append([x,y])
+   if return_list==[]:
+       return [[1000,1000]]
+   if check:
+       polygon=[]
+       checked_return_list=[]
+       for node in way:
+           polygon+=[float(node[1]),float(node[0])]
+       for point in return_list:
+           if point_in_polygon(point,polygon):
+               checked_return_list.append(point)
+           else:
+               checked_return_list.append([1000,1000])
+       return checked_return_list        
+   else:
+       return return_list
 #############################################################################
 
 
@@ -1628,7 +1675,7 @@ def load_altitude_matrix(lat,lon,filename='None'):
                     print("      Viewfinderpanorama server was busy, new tentative...")
                     time.sleep(1)
             if tentative==10:
-                return 'error'
+                return [numpy.zeros([1201,1201],dtype=numpy.float32),1201]
             zipfile=open(Ortho4XP_dir+dir_sep+"tmp"+dir_sep+deferranti_letter+deferranti_nbr+".zip",'wb')
             zipfile.write(r.content)
             zipfile.close()
@@ -1648,45 +1695,9 @@ def load_altitude_matrix(lat,lon,filename='None'):
             f.close()
         except:
             usage('dem_files',do_i_quit=False) 
-            return 'error'
+            return [numpy.zeros([1201,1201],dtype=numpy.float32),1201]
         alt.byteswap()
         alt=numpy.asarray(alt,dtype=numpy.float32).reshape((ndem,ndem)) 
-        if alt.min()==-32768:
-            print("")
-            print("WARNING : The elevation file "+filename+" has no data zones, ")
-            if ndem==1201 and os.path.isfile(filename_srtm3):
-                try:
-                    ds=gdal.Open(filename_srtm3)
-                    altbis=numpy.float32(ds.GetRasterBand(1).ReadAsArray())
-                    alt=numpy.where(alt==-32768,altbis,alt)
-                    alt=numpy.array(alt,dtype=numpy.float32)
-                    print("I have filled it with your available void filled SRTM data for the tile.")
-                except:
-                    print("I move forward by filling them with the mean altitude of the")
-                    print("whole tile but you'd better fill them by hand (e.g. with gdal_translate).")
-                    print("")
-                    alt=alt+(32768+alt.mean())*(alt==-32768)
-                    alt=numpy.array(alt,dtype=numpy.float32)
-            elif ndem==3601 and os.path.isfile(filename_srtm1):
-                try:
-                    ds=gdal.Open(filename_srtm1)
-                    altbis=numpy.float32(ds.GetRasterBand(1).ReadAsArray())
-                    alt=numpy.where(alt==-32768,altbis,alt)
-                    alt=numpy.array(alt,dtype=numpy.float32)
-                    print("I have filled it with your available void filled SRTM data for the tile.")
-                except:
-                    print("I move forward by filling them with the mean altitude of the")
-                    print("whole tile but you'd better fill them by hand (e.g. with gdal_translate).")
-                    print("")
-                    alt=alt+(32768+alt.mean())*(alt==-32768)
-                    alt=numpy.array(alt,dtype=numpy.float32)
-            else:
-                print("I move forward by filling them with the mean altitude of the")
-                print("whole tile but you'd better fill them by hand (e.g. with gdal_translate).")
-                print("")
-                alt=alt+(32768+alt.mean())*(alt==-32768)
-                alt=numpy.array(alt,dtype=numpy.float32)
-        return [alt,ndem]
     elif ('.tif' in filename) or ('.TIF' in filename):
         if gdal_loaded == True:
             try:
@@ -1695,7 +1706,7 @@ def load_altitude_matrix(lat,lon,filename='None'):
                 ndem=ds.RasterXSize
             except:
                 usage('dem_files',do_i_quit=False) 
-                return 'error'
+                return [numpy.zeros([1201,1201],dtype=numpy.float32),1201]
         else:
             try:
                 # geotiff file do not seem to be easily treated by PIL,
@@ -1710,21 +1721,40 @@ def load_altitude_matrix(lat,lon,filename='None'):
                     ndem=alt.shape[0]
                 else:
                     usage('dem_files',do_i_quit=False) 
-                    return 'error'
+                    return [numpy.zeros([1201,1201],dtype=numpy.float32),1201]
             except:
                 usage('dem_files',do_i_quit=False) 
-                return 'error'
-        if alt.min()==-32768:
-            print("")
-            print("WARNING : The elevation file "+filename+" has no data zones, ")
-            print("I move forward by filling them with the mean altitude of the")
-            print("whole tile but you'd better fill them by hand (e.g. with gdal_translate).")
-            print("")
-            alt=alt+(32768+alt.mean())*(alt==-32768)
-            alt=numpy.array(alt,dtype=numpy.float32)
-        return [alt,ndem]
-    usage('dem_files',do_i_quit=False)
-    return 'error'
+                return [numpy.zeros([1201,1201],dtype=numpy.float32),1201]
+    else:
+        usage('dem_files',do_i_quit=False) 
+        return [numpy.zeros([1201,1201],dtype=numpy.float32),1201]
+    if alt.min()==-32768:
+        print("")
+        print("WARNING : The elevation file "+filename+" has some 'no data' zones, ")
+        print("          I am filling the holes using a nearest neighbour approach.") 
+        is_filled=False
+        step=0
+        while not is_filled:
+            step+=1
+            alt10=numpy.roll(alt,1,axis=0)
+            alt10[0]=alt[0]
+            alt20=numpy.roll(alt,-1,axis=0)
+            alt20[-1]=alt[-1]
+            alt01=numpy.roll(alt,1,axis=1)
+            alt01[:,0]=alt[:,0]
+            alt02=numpy.roll(alt,-1,axis=1)
+            alt02[:,-1]=alt[:,-1]
+            atemp=numpy.maximum(alt10,alt20)
+            atemp=numpy.maximum(atemp,alt01)
+            atemp=numpy.maximum(atemp,alt02)
+            alt=alt+(32768+atemp)*(alt==-32768)
+            if alt.min()>-32768:
+                is_filled=True
+            if step>100:
+                print("The hole seems to big to be true... or the no data sign is not the one expected, I quit.")
+                break
+        print("          Done.\n") 
+    return [alt,ndem]
 ##############################################################################
  
 
@@ -1769,7 +1799,7 @@ def altitude(x,y,alt_dem,ndem):
 #  triangles de mer (pour éviter les effets indésirables des erreurs des
 #  fichiers DEM sur le litoral lorsque celui-ci est accidenté). 
 ##############################################################################
-def build_3D_vertex_array(lat,lon,alt_dem,ndem):
+def build_3D_vertex_array(lat,lon,alt_dem,ndem,build_dir):
     strlat='{:+.0f}'.format(lat).zfill(3)
     strlon='{:+.0f}'.format(lon).zfill(4)
     node_filename = build_dir+dir_sep+'Data'+strlat+strlon+'.1.node'
@@ -1985,7 +2015,7 @@ def build_3D_vertex_array(lat,lon,alt_dem,ndem):
 ##############################################################################
 # Write of the mesh file based on .1.ele, .1.node and vertices
 ##############################################################################
-def build_mesh_file(lat,lon,vertices,mesh_filename):
+def build_mesh_file(lat,lon,vertices,mesh_filename,build_dir):
     print("-> Writing of the final mesh to the file "+mesh_filename)
     strlat='{:+.0f}'.format(lat).zfill(3)
     strlon='{:+.0f}'.format(lon).zfill(4)
@@ -2040,11 +2070,11 @@ def build_mesh(lat,lon,build_dir):
             load_result=load_altitude_matrix(lat,lon)
     except:
         load_result=load_altitude_matrix(lat,lon)
-    if load_result=='error':
-        print('\nFailure.')
-        print('_____________________________________________________________'+\
-            '____________________________________')
-        return
+    #if load_result=='error':
+    #    print('\nFailure.')
+    #    print('_____________________________________________________________'+\
+    #        '____________________________________')
+    #    return
     [alt_dem,ndem]=load_result
     alt_dem.tofile(alt_filename)
     print("-> Start of the mesh algorithm Triangle4XP :\n") 
@@ -2061,8 +2091,8 @@ def build_mesh(lat,lon,build_dir):
             break
         else:
             print(line.decode("utf-8")[:-1])
-    vertices=build_3D_vertex_array(lat,lon,alt_dem,ndem)
-    build_mesh_file(lat,lon,vertices,mesh_filename)
+    vertices=build_3D_vertex_array(lat,lon,alt_dem,ndem,build_dir)
+    build_mesh_file(lat,lon,vertices,mesh_filename,build_dir)
     print('\nCompleted in '+str('{:.2f}'.format(time.time()-t2))+\
               'sec.')
     print('_____________________________________________________________'+\
@@ -2522,7 +2552,7 @@ def create_vignettes(zoomlevel,website):
 ##############################################################################
 # Les fichiers .ter de X-Plane (ici la version pour les zones non immergées).
 ##############################################################################
-def create_terrain_file(file_name,til_x_left,til_y_top,zoomlevel,website):
+def create_terrain_file(build_dir,file_name,til_x_left,til_y_top,zoomlevel,website):
     if not os.path.exists(build_dir+dir_sep+'terrain'):
         os.makedirs(build_dir+dir_sep+'terrain') 
     file=open(build_dir+dir_sep+'terrain'+dir_sep+file_name+'.ter','w')
@@ -2545,7 +2575,7 @@ def create_terrain_file(file_name,til_x_left,til_y_top,zoomlevel,website):
 ##############################################################################
 # Les fichiers .ter de X-Plane (ici la version pour les lacs et rivières).
 ##############################################################################
-def create_overlay_file(file_name,til_x_left,til_y_top,zoomlevel,website):
+def create_overlay_file(build_dir,file_name,til_x_left,til_y_top,zoomlevel,website):
     if not os.path.exists(build_dir+dir_sep+'terrain'):
         os.makedirs(build_dir+dir_sep+'terrain') 
     file=open(build_dir+dir_sep+'terrain'+dir_sep+file_name+\
@@ -2569,7 +2599,7 @@ def create_overlay_file(file_name,til_x_left,til_y_top,zoomlevel,website):
 ##############################################################################
 # Les fichiers .ter de X-Plane (ici la version pour les mers et océans).
 ##############################################################################
-def create_sea_overlay_file(file_name,mask_name,til_x_left,til_y_top,\
+def create_sea_overlay_file(build_dir,file_name,mask_name,til_x_left,til_y_top,\
         zoomlevel,website):
     if not os.path.exists(build_dir+dir_sep+'terrain'):
         os.makedirs(build_dir+dir_sep+'terrain') 
@@ -2632,7 +2662,7 @@ def which_mask(layer,strlat,strlon):
 ##############################################################################
 #  La routine de conversion jpeg -> dds, avec éventuel calcul du masque alpha.
 ##############################################################################
-def convert_texture(file_dir,file_name,website):
+def convert_texture(file_dir,file_name,website,build_dir):
     global busy_slots_conv
     busy_slots_conv+=1
     #print("Busy convert slots : "+str(busy_slots_conv))
@@ -2663,7 +2693,10 @@ def convert_texture(file_dir,file_name,website):
         conv_cmd=convert_cmd_bis +' "'+Ortho4XP_dir+dir_sep+'tmp'+dir_sep+file_name+'.png" "'+\
                      build_dir+dir_sep+'textures'+dir_sep+file_name+'.'+dds_or_png+'" '+ devnull_rdir
         os.system(conv_cmd)
-        os.remove(Ortho4XP_dir+dir_sep+'tmp'+dir_sep+file_name+'.png')
+        try:
+            os.remove(Ortho4XP_dir+dir_sep+'tmp'+dir_sep+file_name+'.png')
+        except:
+            pass  
     else:
         conv_cmd=convert_cmd_bis + ' "'+file_dir+file_name+file_ext+'" "'+build_dir+dir_sep+\
                    'textures'+dir_sep+file_name+'.'+dds_or_png+'" '+devnull_rdir
@@ -2732,7 +2765,7 @@ def download_textures(strlat,strlon):
 ##############################################################################
 #  Le séquenceur de la phase de conversion jpeg -> dds.
 ##############################################################################
-def convert_textures(strlat,strlon):
+def convert_textures(strlat,strlon,build_dir):
     global convert_to_do_list,busy_slots_conv
     busy_slots_conv=0
     nbr_done=0
@@ -2758,7 +2791,7 @@ def convert_textures(strlat,strlon):
                 if verbose_output==True:
                     print("   Converting orthophoto to build texture "
                       +file_name+'.'+dds_or_png+".")
-                fargs_conv_text=[file_dir,file_name,texture[3]] 
+                fargs_conv_text=[file_dir,file_name,texture[3],build_dir] 
                 threading.Thread(target=convert_texture,args=fargs_conv_text).start()
                 #convert_texture(file_dir,file_name,texture[3])
                 #busy_slots_conv+=1
@@ -2806,7 +2839,23 @@ def convert_textures(strlat,strlon):
 
 ##############################################################################
 def build_dsf(lat0,lon0,ortho_list,water_overlay,\
-        ratio_water,mesh_filename):
+        ratio_water,mesh_filename,build_dir):
+    ####################################################################
+    # The following is a simple web hit counter, it will count how much 
+    # tiles are made by Ortho4XP. One aim is to get an idea of how much
+    # we weight on OSM servers, the second is just curiosity.
+    # Just comment the following lines if you do not wish your tiles
+    # to be counted. 
+    ####################################################################
+    try:
+        s=requests.Session()
+        r=s.get("http://simplehitcounter.com/hit.php?uid=2163525&f=16777215&b=0",timeout=1)
+        del(s)
+        del(r)
+    except:
+        pass
+    ######################################################
+
     global download_to_do_list,pools_max_points
     pool_cols           = 16
     pool_rows           = 16
@@ -2851,6 +2900,9 @@ def build_dsf(lat0,lon0,ortho_list,water_overlay,\
         print("   Pool division = 16")
     f_mesh.close()
 
+    # test
+    #pool_rows=16
+    #pool_cols=16
     
     pool_nbr  = pool_rows*pool_cols
     pools_params=numpy.zeros((4*pool_nbr,18),'float32')
@@ -2994,12 +3046,13 @@ def build_dsf(lat0,lon0,ortho_list,water_overlay,\
                         if verbose_output==True:
                             print("   Texture file "+file_name+"."+dds_or_png+\
                             " already present.")
-                create_terrain_file(file_name,*texture)
+                create_terrain_file(build_dir,file_name,*texture)
                 terrain_def+='terrain/'+file_name+'.ter\0' 
             texture_overlay_idx=-1
         elif water_option in [2,3]:
             texture_idx=0
-            if (tri_type=='1' and use_masks_for_inland==False) and (texture != 'None'):
+            #if (tri_type=='1' and use_masks_for_inland==False) and (texture != 'None'):
+            if (texture != 'None') and ((tri_type=='1' and use_masks_for_inland==False) or int(texture[2])<14):
                 if str(texture)+'_overlay' in dico_textures:
                     texture_overlay_idx=dico_textures[str(texture)+'_overlay']
                 else:
@@ -3017,9 +3070,9 @@ def build_dsf(lat0,lon0,ortho_list,water_overlay,\
                             if verbose_output==True:
                                 print("   Texture file "+file_name+"."+dds_or_png+\
                                 " already present.")
-                    create_overlay_file(file_name,*texture)
+                    create_overlay_file(build_dir,file_name,*texture)
                     terrain_def+='terrain/'+file_name+'_overlay.ter\0' 
-            elif (tri_type in ['2','3'] or use_masks_for_inland==True) and (texture != 'None'):
+            elif (texture != 'None') and (tri_type in ['2','3'] or use_masks_for_inland==True) :
                 if str(texture)+'_sea_overlay' in dico_textures:
                     texture_overlay_idx=dico_textures[str(texture)+'_sea_overlay']
                 elif str(texture) not in skipped_sea_textures:
@@ -3047,7 +3100,7 @@ def build_dsf(lat0,lon0,ortho_list,water_overlay,\
                                 if verbose_output==True:
                                     print("   Texture file "+file_name+"."+dds_or_png+\
                                     " already present.")
-                        create_sea_overlay_file(file_name,mask_name,*texture)
+                        create_sea_overlay_file(build_dir,file_name,mask_name,*texture)
                         terrain_def+='terrain/'+file_name+'_sea_overlay.ter\0' 
                     else:    
                         skipped_sea_textures.append(str(texture))
@@ -3150,7 +3203,7 @@ def build_dsf(lat0,lon0,ortho_list,water_overlay,\
             # next possibly overlays
             if water_overlay==False:
                 continue
-            if texture_overlay_idx!=-1 and tri_type=='1'and use_masks_for_inland==False:
+            if texture_overlay_idx!=-1 and ((tri_type=='1'and use_masks_for_inland==False) or int(texture[2])<14):
                 tri_p=[]
                 for n in [n1,n3,n2]:     # beware of ordering for orientation ! 
                     if str(n)+'_'+str(texture_overlay_idx) in dico_new_pt:
@@ -3487,13 +3540,46 @@ def point_params(lat,lon,lat0,lon0,pools_params,pool_cols,pool_rows):
         pool_x-=1
     if pool_y==pool_cols:
         pool_y-=1
-    pool_idx=(pool_y)*pool_cols+(pool_x)
+    pool_idx=(pool_y)*(pool_cols)+(pool_x)
     pool_nx=int(round((lon-pools_params[pool_idx][1])/\
             pools_params[pool_idx][0]*65535))
     pool_ny=int(round((lat-pools_params[pool_idx][3])/\
             pools_params[pool_idx][2]*65535))
     return [pool_idx,pool_nx,pool_ny]
 ##############################################################################
+
+####
+#Test
+####
+def build_pools_params(lat0,lon0,pool_cols,pool_rows):
+    pool_nbr=pool_rows*pool_cols
+    pools_params=numpy.zeros((4*pool_nbr,18),'float32')
+    for pool_y in range(0,pool_rows):       
+        for pool_x in range(0,pool_cols):  
+            pool_idx=(pool_y)*pool_cols+(pool_x)
+            pools_params[pool_idx,0]=1/pool_cols*(65536/65535)
+            pools_params[pool_idx,1]=lon0+pool_x/pool_cols # lon
+            pools_params[pool_idx,2]=1/pool_rows
+            pools_params[pool_idx,3]=lat0+pool_y/pool_rows # lat 
+            pools_params[pool_idx,4]=0
+            pools_params[pool_idx,5]=0             # z (temp)
+            pools_params[pool_idx,6]=2     
+            pools_params[pool_idx,7]=-1            # u 
+            pools_params[pool_idx,8]=2     
+            pools_params[pool_idx,9]=-1            # v
+            pools_params[pool_idx,10]=1    
+            pools_params[pool_idx,11]=0            # s
+            pools_params[pool_idx,12]=1    
+            pools_params[pool_idx,13]=0            # t
+            pools_params[pool_idx,14]=1    
+            pools_params[pool_idx,15]=0            # bs
+            pools_params[pool_idx,16]=1    
+            pools_params[pool_idx,17]=0            # bt
+    pools_params[pool_nbr:2*pool_nbr]=pools_params[0:pool_nbr]
+    pools_params[2*pool_nbr:3*pool_nbr]=pools_params[0:pool_nbr]
+    pools_params[3*pool_nbr:4*pool_nbr]=pools_params[0:pool_nbr]
+    return pools_params
+
 
 def build_tile(lat,lon,build_dir,mesh_filename,clean_tmp_files):
     global download_to_do_list,convert_to_do_list
@@ -3503,7 +3589,7 @@ def build_tile(lat,lon,build_dir,mesh_filename,clean_tmp_files):
     strlat='{:+.0f}'.format(lat).zfill(3)
     strlon='{:+.0f}'.format(lon).zfill(4)
     fargs_dsf=[lat,lon,ortho_list,\
-            water_overlay,ratio_water,mesh_filename] 
+            water_overlay,ratio_water,mesh_filename,build_dir] 
     if clean_unused_dds_and_ter_files==True:
         print("Purging old .ter files")
         if os.path.exists(build_dir+dir_sep+'terrain'):
@@ -3512,7 +3598,7 @@ def build_tile(lat,lon,build_dir,mesh_filename,clean_tmp_files):
     build_dsf_thread=threading.Thread(target=build_dsf,args=fargs_dsf)
     fargs_down=[strlat,strlon]
     download_thread=threading.Thread(target=download_textures,args=fargs_down)
-    fargs_conv=[strlat,strlon]
+    fargs_conv=[strlat,strlon,build_dir]
     convert_thread=threading.Thread(target=convert_textures,args=fargs_conv)
     try:
         application.red_flag.set(0)
@@ -3850,7 +3936,7 @@ def build_masks(lat,lon,build_dir,mesh_filename_list):
             tex_im=masks_im.crop(box)
             if tex_im.getextrema()[1]>=10:
                 tex_im.save(masks_dir+dir_sep+str(til_y_min+nyloc*16)+'_'+str(til_x_min+nxloc*16)+'.png')
-                tex_im.save(build_dir+dir_sep+"textures"+dir_sep+str(til_y_min+nyloc*16)+'_'+str(til_x_min+nxloc*16)+'.png')
+                #tex_im.save(build_dir+dir_sep+"textures"+dir_sep+str(til_y_min+nyloc*16)+'_'+str(til_x_min+nxloc*16)+'.png')
     try:
         application.progress_attr.set(100)
         if application.red_flag.get()==1:
@@ -3866,9 +3952,11 @@ def build_masks(lat,lon,build_dir,mesh_filename_list):
 
 
 ##############################################################################
-def build_tile_list(tile_list,build_dir_option,zoomlevel,website):
-    global ortho_list,build_dir
+def build_tile_list(tile_list,build_dir_option,read_config,use_existing_mesh,bbmasks,bboverlays):
+    global ortho_list,zone_list,default_website,default_zl 
     nbr_tiles=len(tile_list)
+    default_website=application.map_choice.get()
+    default_zl=application.zl_choice.get()
     n=1
     for tile in tile_list:
         [lat,lon]=tile
@@ -3883,25 +3971,84 @@ def build_tile_list(tile_list,build_dir_option,zoomlevel,website):
                 build_dir=build_dir_option
         application.lat.set(lat)
         application.lon.set(lon)
-        print("\nTile "+str(n)+" / "+str(nbr_tiles))
-        print("\nStep 1 : Building OSM and patch data for tile "+strlat+strlon+" : ")
-        print("--------\n")
-        build_poly_file(lat,lon,water_option,build_dir)
-        print("\nTile "+str(n)+" / "+str(nbr_tiles))
-        print("\nStep 2 : Building mesh for tile "+strlat+strlon+" : ")
-        print("--------\n")
-        build_mesh(lat,lon,build_dir)
+        zone_list=[]
         ortho_list=[]
-        if website!='None':
+        if read_config:
+            application.read_cfg()
+        if not use_existing_mesh:
+            print("\nTile "+str(n)+" / "+str(nbr_tiles))
+            print("\nStep 1 : Building OSM and patch data for tile "+strlat+strlon+" : ")
+            print("--------\n")
+            build_poly_file(lat,lon,water_option,build_dir)
+            if application.red_flag.get()==1:
+                print("\nBatch build process interrupted.")
+                print('_____________________________________________________________'+\
+                      '____________________________________')
+                return
+            print("\nTile "+str(n)+" / "+str(nbr_tiles))
+            print("\nStep 2 : Building mesh for tile "+strlat+strlon+" : ")
+            print("--------\n")
+            build_mesh(lat,lon,build_dir)
+            if application.red_flag.get()==1:
+                print("\nBatch build process interrupted.")
+                print('_____________________________________________________________'+\
+                      '____________________________________')
+                return
+            mesh_filename = build_dir+dir_sep+'Data'+strlat+strlon+".mesh"
+            if bbmasks:
+                print("\nTile "+str(n)+" / "+str(nbr_tiles))
+                print("\nStep 2.5 : Building masks for tile "+strlat+strlon+" : ")
+                print("--------\n")
+                if complex_masks==False:
+                    mesh_filename_list=[mesh_filename]
+                else:
+                    mesh_filename_list=[]
+                    for closelat in [lat-1,lat,lat+1]:
+                        for closelon in [lon-1,lon,lon+1]:
+                            strcloselat='{:+.0f}'.format(closelat).zfill(3)
+                            strcloselon='{:+.0f}'.format(closelon).zfill(4)
+                            closemesh_filename=Ortho4XP_dir+dir_sep+'zOrtho4XP_'+strcloselat+strcloselon+\
+                                   dir_sep+'Data'+strcloselat+strcloselon+".mesh"
+                            if os.path.isfile(closemesh_filename):
+                                mesh_filename_list.append(closemesh_filename)
+                build_masks(lat,lon,build_dir,mesh_filename_list)
+            if application.red_flag.get()==1:
+                print("\nBatch build process interrupted.")
+                print('_____________________________________________________________'+\
+                      '____________________________________')
+                return
+        ortho_list=zone_list[:]
+        if default_website!='None':
             ortho_list.append([[lat,lon,lat,lon+1,lat+1,lon+1,lat+1,lon,lat,lon],\
-                    str(zoomlevel),str(website)])
+                    str(default_zl),str(default_website)])
+        mesh_filename = build_dir+dir_sep+'Data'+strlat+strlon+".mesh"
+        if os.path.isfile(mesh_filename)!=True:
+            print("The mesh of Tile "+strlat+strlon+" was not found, skipping that one...")
+            continue
         application.write_cfg()
         print("\nTile "+str(n)+" / "+str(nbr_tiles))
         print("\nStep 3 : Building Tile "+strlat+strlon+" : ")
         print("--------\n")
-        #build_masks(lat,lon,build_dir,mesh_filename_list)
-        mesh_filename = build_dir+dir_sep+'Data'+strlat+strlon+".mesh"
         build_tile(lat,lon,build_dir,mesh_filename,clean_tmp_files)
+        if application.red_flag.get()==1:
+            print("\nBatch build process interrupted.")
+            print('_____________________________________________________________'+\
+                      '____________________________________')
+            return
+        if bboverlays:
+            print("\nIndependent Step  : Building of an Overlay DSF from third party data : ")
+            print("-------------------\n")
+            base_sniff_dir=application.sniff_dir_entry.get()
+            strlatround='{:+.0f}'.format(floor(lat/10)*10).zfill(3)
+            strlonround='{:+.0f}'.format(floor(lon/10)*10).zfill(4)
+            file_to_sniff=base_sniff_dir+dir_sep+"Earth nav data"+dir_sep+\
+                      strlatround+strlonround+dir_sep+strlat+strlon+'.dsf'
+            if not os.path.isfile(file_to_sniff):
+                print('\nFailure : there is no file to sniff from at the indicated place.')
+                print('_____________________________________________________________'+\
+                 '____________________________________')
+            else:
+                build_overlay(lat,lon,file_to_sniff)
         n+=1
 
      # --> mth
@@ -3994,6 +4141,40 @@ def point_in_polygon(point,polygon):
 ##############################################################################
 
 ##############################################################################
+# distance squared from a point "point" to the line through "p1" et "p2"
+##############################################################################
+def point_to_line_distsquared(point,point1,point2):
+    p0=point[0]-point1[0]
+    p1=point[1]-point1[1]
+    q0=point2[0]-point1[0]
+    q1=point2[1]-point1[1]
+    n2=q0**2+q1**2
+    if n2<1e-12:
+        return p0**2+p1**2
+    return p0**2+p1**2-(p0*q0+p1*q1)**2/n2 
+##############################################################################     
+
+
+
+##############################################################################
+def ramer_douglas_peucker(polygon,tol):
+    dmax2=0
+    cut=-1
+    for i in range(1,len(polygon)-1):
+       d2 = point_to_line_distsquared(polygon[i],polygon[0],polygon[-1])
+       if d2 > dmax2:
+           cut=i
+           dmax2=d2
+    if dmax2 > tol**2:
+        r1=ramer_douglas_peucker(polygon[:cut+1],tol)
+        r2=ramer_douglas_peucker(polygon[cut:],tol)
+        return r1[:-1]+r2
+    else:
+        return [polygon[0],polygon[-1]]
+##############################################################################    
+         
+        
+##############################################################################
 def clean_temporary_files(build_dir,steps):
     for step in steps:
         if step=='OSM':
@@ -4022,9 +4203,6 @@ def clean_temporary_files(build_dir,steps):
 ##############################################################################
 class Earth_Preview_window(Toplevel):
     
-    dico_tiles_todo={}
-    dico_tiles_done={}
-    dico_custom_scenery={}
     dico_old_stuff={}
     earthzl=6 
     resolution=2**earthzl*256
@@ -4047,8 +4225,19 @@ class Earth_Preview_window(Toplevel):
         self.rowconfigure(0,weight=1)
     
         # Constants/Variable
+        self.dico_tiles_todo={}
+        self.dico_tiles_done={}
 
         self.latlon         = StringVar()
+        self.ptc            = IntVar()
+        self.ptc.set(0)
+        self.uem            = IntVar()
+        self.uem.set(0)
+        self.bbm            = IntVar()
+        self.bbm.set(0)
+        self.bbo            = IntVar()
+        self.bbo.set(0)
+ 
     
         # Frames
         self.frame_left   =  Frame(self, border=4, relief=RIDGE,bg='light green')
@@ -4068,10 +4257,19 @@ class Earth_Preview_window(Toplevel):
         self.delosm_btn       =  Button(self.frame_left,text='  Delete OSM    ',command=self.delete_osm)
         self.delortho_btn     =  Button(self.frame_left,text='  Delete Ortho  ',command=self.delete_ortho)
         self.delall_btn       =  Button(self.frame_left,text='  Delete All    ',command=self.delete_all)
-        self.infomid          =  Label(self.frame_left,text="Old stuff = data no longer\ncorresponding to\nexisting tile",bg="light green")
-        self.toggle_old_btn   =  Button(self.frame_left,text='Toggle old stuff',command=self.toggle_old_stuff)
-        self.infomid2          =  Label(self.frame_left,text="Build multiple tiles at once\nwith (limited) common config",bg="light green")
+        self.infomid          =  Label(self.frame_left,text="---------------\nAll = OSM or Ortho or Tiles",bg="light green")
+        self.toggle_old_btn   =  Button(self.frame_left,text='Toggle all stuff',command=self.toggle_old_stuff)
+        self.infomid2         =  Label(self.frame_left,text="---------------\nBuild multiple tiles at once :",bg="light green")
+        self.check1           =  Checkbutton(self.frame_left,text='Per tile config',anchor=W,\
+                                   variable=self.ptc,bg="light green",activebackground="light green",highlightthickness=0)
+        self.check2           =  Checkbutton(self.frame_left,text='Use existing mesh',anchor=W,\
+                                   variable=self.uem,bg="light green",activebackground="light green",highlightthickness=0)
+        self.check3           =  Checkbutton(self.frame_left,text='Build masks',anchor=W,\
+                                   variable=self.bbm,bg="light green",activebackground="light green",highlightthickness=0)
+        self.check4           =  Checkbutton(self.frame_left,text='Build overlays',anchor=W,\
+                                   variable=self.bbo,bg="light green",activebackground="light green",highlightthickness=0)
         self.build_btn        =  Button(self.frame_left,text='  Batch Build   ',command=self.batch_build)
+        self.refresh_btn      =  Button(self.frame_left,text='     Refresh    ',command=self.refresh)
         self.exit_btn         =  Button(self.frame_left,text='      Exit      ',command=self.destroy)
         self.shortcuts        =  Label(self.frame_left,text="Shortcuts :\n-------------------\nClick+hold=move map\nDouble-click=select active lat/lon\nShift+click=add for batch build\nR-click= link in Custom Scenery\n\nActive lat/lon\n---------------------",bg="light green")
         self.latlon_entry     =  Entry(self.frame_left,width=8,bg="white",fg="blue",textvariable=self.latlon)
@@ -4088,12 +4286,17 @@ class Earth_Preview_window(Toplevel):
         self.infomid.grid(row=20,column=0,padx=5,pady=5,sticky=N+S+E+W)
         self.toggle_old_btn.grid(row=21,column=0,padx=5,pady=5,sticky=N+S+E+W)
         self.infomid2.grid(row=22,column=0,padx=5,pady=5,sticky=N+S+E+W)
-        self.build_btn.grid(row=23,column=0,padx=5,pady=5,sticky=N+S+E+W)
-        self.exit_btn.grid(row=24,column=0,padx=5,pady=5,sticky=N+S+E+W)
+        self.check1.grid(row=23,column=0,padx=5,pady=5,sticky=N+S+E+W)
+        self.check2.grid(row=24,column=0,padx=5,pady=5,sticky=N+S+E+W)
+        self.check3.grid(row=25,column=0,padx=5,pady=5,sticky=N+S+E+W)
+        self.check4.grid(row=26,column=0,padx=5,pady=5,sticky=N+S+E+W)
+        self.build_btn.grid(row=27,column=0,padx=5,pady=5,sticky=N+S+E+W)
+        self.refresh_btn.grid(row=28,column=0,padx=5,pady=5,sticky=N+S+E+W)
+        self.exit_btn.grid(row=29,column=0,padx=5,pady=5,sticky=N+S+E+W)
         self.canvas.grid(row=0,column=0,sticky=N+S+E+W)     
         
         self.init_canvas()
-        self.preview_existing_tiles()
+        self.refresh()
         
     def init_canvas(self):
         self.canvas.config(scrollregion=(1,1,2**self.earthzl*256-1,2**self.earthzl*256-1)) #self.canvas.bbox(ALL))
@@ -4111,33 +4314,67 @@ class Earth_Preview_window(Toplevel):
         self.canvas.focus_set()
         self.draw_canvas(self.nx0,self.ny0) 
         return
+    
+    def set_working_dir(self):
+        if application.build_dir_entry.get()=='':
+            self.working_dir=Ortho4XP_dir+dir_sep+'Tiles'
+            self.working_type='legacy'
+        else:
+            self.working_dir=application.build_dir_entry.get()
+            if self.working_dir[-1]=='/':
+                self.working_dir=self.working_dir[:-1]
+                self.working_type='legacy'
+            else:
+                self.working_type='onedir'
 
     def preview_existing_tiles(self):
         if not self.dico_tiles_done=={}:
             for tile in self.dico_tiles_done:
                 self.canvas.delete(self.dico_tiles_done[tile])
             self.dico_tiles_done={}
-        for dirname in os.listdir(Ortho4XP_dir+dir_sep+"Tiles"):
-            if "zOrtho4XP_" in dirname:
-                try:
-                    strlat=dirname[-7:-4]
-                    strlon=dirname[-4:]
-                    lat=int(strlat)
-                    lon=int(strlon)
-                    strlatround='{:+.0f}'.format(floor(lat/10)*10).zfill(3)
-                    strlonround='{:+.0f}'.format(floor(lon/10)*10).zfill(4)
-                except:
-                    continue                     
-                [x0,y0]=wgs84_to_pix(lat+1,lon,self.earthzl)
-                [x1,y1]=wgs84_to_pix(lat,lon+1,self.earthzl)
-                if os.path.isfile(Ortho4XP_dir+dir_sep+'Tiles'+dir_sep+dirname+dir_sep+"Earth nav data"+dir_sep+strlatround+strlonround+dir_sep+strlat+strlon+'.dsf'):
+        if self.working_type=='legacy':
+            for dirname in os.listdir(self.working_dir):
+                if "zOrtho4XP_" in dirname:
+                    try:
+                        strlat=dirname[-7:-4]
+                        strlon=dirname[-4:]
+                        lat=int(strlat)
+                        lon=int(strlon)
+                        strlatround='{:+.0f}'.format(floor(lat/10)*10).zfill(3)
+                        strlonround='{:+.0f}'.format(floor(lon/10)*10).zfill(4)
+                    except:
+                        continue                     
+                    [x0,y0]=wgs84_to_pix(lat+1,lon,self.earthzl)
+                    [x1,y1]=wgs84_to_pix(lat,lon+1,self.earthzl)
+                    if os.path.isfile(self.working_dir+dir_sep+dirname+dir_sep+"Earth nav data"+dir_sep+strlatround+strlonround+dir_sep+strlat+strlon+'.dsf'):
+                        self.dico_tiles_done[str(lat)+'_'+str(lon)]=self.canvas.create_rectangle(x0,y0,x1,y1,fill='blue',stipple='gray12')
+                        link=Custom_scenery_dir+dir_sep+custom_scenery_prefix+'zOrtho4XP_'+strlat+strlon
+                        if os.path.isdir(link):
+                            if os.path.samefile(os.path.realpath(link),os.path.realpath(self.working_dir+dir_sep+'zOrtho4XP_'+strlat+strlon)):
+                                self.canvas.itemconfig(self.dico_tiles_done[str(lat)+'_'+str(lon)],stipple='gray50')
+        elif self.working_type=='onedir':
+            for dirname in os.listdir(self.working_dir+dir_sep+'Earth nav data'):
+                for filename in os.listdir(self.working_dir+dir_sep+'Earth nav data'+dir_sep+dirname):
+                    try:
+                        lat=int(filename[0:3])   
+                        lon=int(filename[3:7])
+                    except:
+                        continue
+                    [x0,y0]=wgs84_to_pix(lat+1,lon,self.earthzl)
+                    [x1,y1]=wgs84_to_pix(lat,lon+1,self.earthzl)
                     self.dico_tiles_done[str(lat)+'_'+str(lon)]=self.canvas.create_rectangle(x0,y0,x1,y1,fill='blue',stipple='gray12')
-                    link=Custom_scenery_dir+dir_sep+'zOrtho4XP_'+strlat+strlon
-                    if os.path.isdir(link):
-                        self.canvas.itemconfig(self.dico_tiles_done[str(lat)+'_'+str(lon)],stipple='gray50')
+            link=Custom_scenery_dir+dir_sep+custom_scenery_prefix+'zOrtho4XP_'+os.path.basename(self.working_dir)
+            if os.path.isdir(link):
+                if os.path.samefile(os.path.realpath(link),os.path.realpath(self.working_dir)):
+                    for tile in self.dico_tiles_done:
+                        self.canvas.itemconfig(self.dico_tiles_done[tile],stipple='gray50')
         return
 
-         
+   
+    def refresh(self):
+        self.set_working_dir()
+        self.preview_existing_tiles()
+        return      
 
     def toggle_old_stuff(self):
         if not self.dico_old_stuff=={}:
@@ -4145,7 +4382,7 @@ class Earth_Preview_window(Toplevel):
                 self.canvas.delete(self.dico_old_stuff[tile])
             self.dico_old_stuff={}
             return    
-        for dirname in os.listdir(Ortho4XP_dir+dir_sep+"Tiles"): 
+        for dirname in os.listdir(self.working_dir): 
             if "zOrtho4XP_" in dirname:
                 try:
                     strlat=dirname[-7:-4]
@@ -4187,12 +4424,22 @@ class Earth_Preview_window(Toplevel):
         return  
 
     def delete_tile(self):
-        try:
-            strlat='{:+.0f}'.format(float(self.active_lat)).zfill(3)
-            strlon='{:+.0f}'.format(float(self.active_lon)).zfill(4)
-            shutil.rmtree(Ortho4XP_dir+dir_sep+"Tiles"+dir_sep+"zOrtho4XP_"+strlat+strlon)
-        except:
-            pass
+        if self.working_type=='legacy':
+            try:
+                strlat='{:+.0f}'.format(float(self.active_lat)).zfill(3)
+                strlon='{:+.0f}'.format(float(self.active_lon)).zfill(4)
+                shutil.rmtree(self.working_dir+dir_sep+"zOrtho4XP_"+strlat+strlon)
+            except:
+                pass
+        elif self.working_type=='onedir':
+            try:
+                strlat='{:+.0f}'.format(float(self.active_lat)).zfill(3)
+                strlon='{:+.0f}'.format(float(self.active_lon)).zfill(4)
+                strlatround='{:+.0f}'.format(floor(lat/10)*10).zfill(3)
+                strlonround='{:+.0f}'.format(floor(lon/10)*10).zfill(4)
+                os.remove(self.working_dir+dir_sep+"Earth nav data"+dir_sep+strlatround+strlonround+dir_sep+strlat+strlon+'.dsf')
+            except:
+                pass
         self.preview_existing_tiles()
         self.toggle_old_stuff()
         self.toggle_old_stuff()
@@ -4227,6 +4474,8 @@ class Earth_Preview_window(Toplevel):
         self.delete_osm()
         self.delete_ortho()
         return
+
+         
     
     def select_tile(self,event):
         x=self.canvas.canvasx(event.x)
@@ -4246,14 +4495,17 @@ class Earth_Preview_window(Toplevel):
         [x0,y0]=wgs84_to_pix(lat+1,lon,self.earthzl)
         [x1,y1]=wgs84_to_pix(lat,lon+1,self.earthzl)
         self.active_tile=self.canvas.create_rectangle(x0,y0,x1,y1,fill='',outline='yellow',width=3)
-        if str(lat)+'_'+str(lon) in self.dico_tiles_done:
-            application.lat.set(lat)
-            application.lon.set(lon)
-            application.read_cfg()
-        else:
-            application.lat.set(lat)
-            application.lon.set(lon)
-            application.zone_list=[]
+        #if str(lat)+'_'+str(lon) in self.dico_tiles_done:
+        #    application.lat.set(lat)
+        #    application.lon.set(lon)
+        #    application.read_cfg()
+        #else:
+        #    application.lat.set(lat)
+        #    application.lon.set(lon)
+        #    application.zone_list=[]
+        application.lat.set(lat)
+        application.lon.set(lon)
+        application.zone_list=[]
         return
     
     def toggle_to_custom(self,event):
@@ -4266,12 +4518,20 @@ class Earth_Preview_window(Toplevel):
         strlon='{:+.0f}'.format(float(lon)).zfill(4)
         if str(lat)+'_'+str(lon) not in self.dico_tiles_done:
             return
-        link=Custom_scenery_dir+dir_sep+'zOrtho4XP_'+strlat+strlon
-        target=os.getcwd()+dir_sep+'Tiles'+dir_sep+'zOrtho4XP_'+strlat+strlon
-        if os.path.isdir(link):
-            os.remove(link)
-            self.preview_existing_tiles()
-            return 
+        if self.working_type=='legacy':
+            link=Custom_scenery_dir+dir_sep+custom_scenery_prefix+'zOrtho4XP_'+strlat+strlon
+            target=os.path.realpath(self.working_dir+dir_sep+'zOrtho4XP_'+strlat+strlon)
+            if os.path.isdir(link):
+                os.remove(link)
+                self.preview_existing_tiles()
+                return 
+        elif self.working_type=='onedir': 
+            link=Custom_scenery_dir+dir_sep+custom_scenery_prefix+'zOrtho4XP_'+os.path.basename(self.working_dir)
+            target=os.path.realpath(self.working_dir)
+            if os.path.isdir(link):
+                os.remove(link)
+                self.preview_existing_tiles()
+                return 
         if ('dar' in sys.platform) or ('win' not in sys.platform): # Mac and Linux
             os.system("ln -s "+' "'+target+'" "'+link+'"')
         else:
@@ -4298,14 +4558,40 @@ class Earth_Preview_window(Toplevel):
         return
 
     def batch_build(self):
-            tile_list=[]
-            for tile in self.dico_tiles_todo:
-                [stlat,stlon]=tile.split('_')
-                lat=int(stlat)
-                lon=int(stlon)
-                tile_list.append([lat,lon])
-            application.build_tile_list_ifc(tile_list) 
-            return
+        tile_list=[]
+        if self.ptc.get()==1:
+            read_config=True
+        else:
+            read_config=False    
+        if self.uem.get()==1:
+            use_existing_mesh=True
+        else:
+            use_existing_mesh=False    
+        if self.bbm.get()==1:
+            bbmasks=True
+        else:
+            bbmasks=False    
+        if self.bbo.get()==1:
+            bboverlays=True
+        else:
+            bboverlays=False    
+        for tile in self.dico_tiles_todo:
+            [stlat,stlon]=tile.split('_')
+            lat=int(stlat)
+            lon=int(stlon)
+            tile_list.append([lat,lon])
+        application.build_tile_list_ifc(tile_list,read_config,use_existing_mesh,bbmasks,bboverlays) 
+        return
+    
+    def batch_build_2(self):
+        tile_list=[]
+        for tile in self.dico_tiles_todo:
+            [stlat,stlon]=tile.split('_')
+            lat=int(stlat)
+            lon=int(stlon)
+            tile_list.append([lat,lon])
+        application.build_tile_list_ifc(tile_list,read_config=True) 
+        return
 
     def scroll_start(self,event):
         self.canvas.scan_mark(event.x, event.y)
@@ -4330,6 +4616,9 @@ class Earth_Preview_window(Toplevel):
            self.canvas.delete(self.canv_imgNE)
            self.canvas.delete(self.canv_imgSW)
            self.canvas.delete(self.canv_imgSE)
+           #fargs_rc=[nx0,ny0]
+           #self.rc_thread=threading.Thread(target=self.draw_canvas,args=fargs_rc)
+           #self.rc_thread.start()
            self.draw_canvas(nx0,ny0)
            return 
       
@@ -4358,7 +4647,10 @@ class Earth_Preview_window(Toplevel):
               self.photoSE=ImageTk.PhotoImage(self.imageSE)
               self.canv_imgSE=self.canvas.create_image((nx0+1)*2**self.earthzl*256/8,(ny0+1)*2**self.earthzl*256/8,anchor=NW,image=self.photoSE)
               self.canvas.tag_lower(self.canv_imgSE)
-           return         
+           return      
+##############################################################################   
+
+
 
 ##############################################################################
 class Preview_window(Toplevel):
@@ -4447,23 +4739,24 @@ class Preview_window(Toplevel):
                                  values=self.map_list2,state='readonly',width=8)
         self.B15 =  Radiobutton(self.frame_left,bd=4,bg=self.dico_color[15],\
                     activebackground=self.dico_color[15],selectcolor=self.dico_color[15],\
-                    height=3,indicatoron=0,text='ZL15',variable=self.zlpol,value=15,\
+                    height=2,indicatoron=0,text='ZL15',variable=self.zlpol,value=15,\
                     command=self.redraw_poly)
         self.B16 =  Radiobutton(self.frame_left,bd=4,bg=self.dico_color[16],\
-                    activebackground=self.dico_color[16],selectcolor=self.dico_color[16],height=3,\
+                    activebackground=self.dico_color[16],selectcolor=self.dico_color[16],height=2,\
                     indicatoron=0,text='ZL16',variable=self.zlpol,value=16,command=self.redraw_poly)
         self.B17 =  Radiobutton(self.frame_left,bd=4,bg=self.dico_color[17],\
-                    activebackground=self.dico_color[17],selectcolor=self.dico_color[17],height=3,\
+                    activebackground=self.dico_color[17],selectcolor=self.dico_color[17],height=2,\
                     indicatoron=0,text='ZL17',variable=self.zlpol,value=17,command=self.redraw_poly)
         self.B18 =  Radiobutton(self.frame_left,bd=4,bg=self.dico_color[18],\
-                    activebackground=self.dico_color[18],selectcolor=self.dico_color[18],height=3,\
+                    activebackground=self.dico_color[18],selectcolor=self.dico_color[18],height=2,\
                     indicatoron=0,text='ZL18',variable=self.zlpol,value=18,command=self.redraw_poly)
         self.B19 =  Radiobutton(self.frame_left,bd=4,bg=self.dico_color[19],\
-                    activebackground=self.dico_color[19],selectcolor=self.dico_color[19],height=3,\
+                    activebackground=self.dico_color[19],selectcolor=self.dico_color[19],height=2,\
                     indicatoron=0,text='ZL19',variable=self.zlpol,value=19,command=self.redraw_poly)
         self.save_zone_btn    =  Button(self.frame_left,text='  Save zone  ',command=self.save_zone_cmd)
         self.del_zone_btn     =  Button(self.frame_left,text=' Delete zone ',command=self.delete_zone_cmd)
         self.save_zones_btn   =  Button(self.frame_left,text='Save and Exit',command=self.save_zone_list)
+        self.load_poly_btn    =  Button(self.frame_left,text='  Load Poly  ',command=lambda: self.load_poly(lat,lon))
         self.exit_btn         =  Button(self.frame_left,text='   Abandon   ',command=self.destroy)
         self.title_gbsize     =  Label(self.frame_left,anchor=W,text="Approx. Add. Size : ",bg="light green") 
         self.gbsize           =  Entry(self.frame_left,width=6,bg="white",fg="blue",textvariable=self.gb)
@@ -4490,21 +4783,25 @@ class Preview_window(Toplevel):
         self.gbsize.grid(row=15,column=0,padx=5,pady=10,sticky=E)
         self.save_zone_btn.grid(row=16,column=0,padx=5,pady=5,sticky=N+S+E+W)
         self.del_zone_btn.grid(row=17,column=0,padx=5,pady=5,sticky=N+S+E+W)
-        self.save_zones_btn.grid(row=18,column=0,padx=5,pady=5,sticky=N+S+E+W)
-        self.exit_btn.grid(row=19,column=0,padx=5,pady=0,sticky=N+S+E+W)
-        self.shortcuts.grid(row=20,column=0,padx=5,pady=0,sticky=N+S+E+W)
+        self.load_poly_btn.grid(row=18,column=0,padx=5,pady=5,sticky=N+S+E+W)
+        self.save_zones_btn.grid(row=19,column=0,padx=5,pady=5,sticky=N+S+E+W)
+        self.exit_btn.grid(row=20,column=0,padx=5,pady=0,sticky=N+S+E+W)
+        self.shortcuts.grid(row=21,column=0,padx=5,pady=0,sticky=N+S+E+W)
         self.canvas.grid(row=0,column=0,sticky=N+S+E+W)     
         
         
     def preview_tile(self,lat,lon):
-        zoomlevel=int(self.zl_combo.get())
+        self.zoomlevel=int(self.zl_combo.get())
+        zoomlevel=self.zoomlevel
         website=self.map_combo.get()    
         strlat='{:+.0f}'.format(float(lat)).zfill(3)
         strlon='{:+.0f}'.format(float(lon)).zfill(4)
         [tilxleft,tilytop]=wgs84_to_gtile(lat+1,lon,zoomlevel)
         [self.latmax,self.lonmin]=gtile_to_wgs84(tilxleft,tilytop,zoomlevel)
+        [self.xmin,self.ymin]=wgs84_to_pix(self.latmax,self.lonmin,zoomlevel)
         [tilxright,tilybot]=wgs84_to_gtile(lat,lon+1,zoomlevel)
         [self.latmin,self.lonmax]=gtile_to_wgs84(tilxright+1,tilybot+1,zoomlevel)
+        [self.xmax,self.ymax]=wgs84_to_pix(self.latmin,self.lonmax,zoomlevel)
         filepreview=Ortho4XP_dir+dir_sep+'Previews'+dir_sep+strlat+strlon+\
                     "_"+website+str(zoomlevel)+".jpg"       
         if os.path.isfile(filepreview) != True:
@@ -4556,8 +4853,9 @@ class Preview_window(Toplevel):
         self.poly_curr=[]
         bdpoints=[]
         for [latp,lonp] in [[lat,lon],[lat,lon+1],[lat+1,lon+1],[lat+1,lon]]:
-                x=(lonp-self.lonmin)/(self.lonmax-self.lonmin)*self.map_x_res
-                y=(self.latmax-latp)/(self.latmax-self.latmin)*self.map_y_res
+                #x=(lonp-self.lonmin)/(self.lonmax-self.lonmin)*self.map_x_res
+                #y=(self.latmax-latp)/(self.latmax-self.latmin)*self.map_y_res
+                [x,y]=self.latlon_to_xy(latp,lonp,self.zoomlevel)
                 bdpoints+=[int(x),int(y)]
         self.boundary=self.canvas.create_polygon(bdpoints,\
                            outline='black',fill='', width=2)
@@ -4569,8 +4867,9 @@ class Preview_window(Toplevel):
             for idxll in range(0,len(self.coords)//2):
                 latp=self.coords[2*idxll]
                 lonp=self.coords[2*idxll+1]
-                x=(lonp-self.lonmin)/(self.lonmax-self.lonmin)*self.map_x_res
-                y=(self.latmax-latp)/(self.latmax-self.latmin)*self.map_y_res
+                #x=(lonp-self.lonmin)/(self.lonmax-self.lonmin)*self.map_x_res
+                #y=(self.latmax-latp)/(self.latmax-self.latmin)*self.map_y_res
+                [x,y]=self.latlon_to_xy(latp,lonp,self.zoomlevel)
                 self.points+=[int(x),int(y)]
             self.redraw_poly()
             self.save_zone_cmd()
@@ -4598,16 +4897,55 @@ class Preview_window(Toplevel):
             pass
         return
 
+    def load_poly(self,lat,lon):
+        poly_file=filedialog.askopenfilename()    
+        self.lift()
+        try:
+            f=open(poly_file,'r')
+        except:
+            return
+        f.readline()
+        array=[]
+        for line in f.readlines():
+           if 'END' in line:
+              break
+           [lonp,latp]=line.split()
+           lonp=float(lonp)
+           latp=float(latp)
+           latp=latp if latp > lat-0.001 else lat-0.001
+           latp=latp if latp < lat+1.001 else lat+1.001
+           lonp=lonp if lonp > lon-0.001 else lon-0.001
+           lonp=lonp if lonp < lon+1.001 else lon+1.001
+           array.append([float(latp),float(lonp)])
+        new_array=ramer_douglas_peucker(array,tol=0.002)
+        for point in new_array:
+           self.coords+=[point[0],point[1]]
+           self.points+=self.latlon_to_xy(point[0],point[1],self.zoomlevel)
+        self.redraw_poly()
+        return
+
+
     def newPoint(self,event):
         x=self.canvas.canvasx(event.x)
         y=self.canvas.canvasy(event.y)
         self.points+=[x,y]
-        latp=self.latmax-(y/self.map_y_res)*(self.latmax-self.latmin)
-        lonp=self.lonmin+(x/self.map_x_res)*(self.lonmax-self.lonmin)
+        #latp=self.latmax-(y/self.map_y_res)*(self.latmax-self.latmin)
+        #lonp=self.lonmin+(x/self.map_x_res)*(self.lonmax-self.lonmin)
+        [latp,lonp]=self.xy_to_latlon(x,y,self.zoomlevel)
         self.coords+=[latp,lonp]
         self.redraw_poly()
         return
- 
+
+    def xy_to_latlon(self,x,y,zoomlevel):
+        pix_x=x+self.xmin
+        pix_y=y+self.ymin
+        return pix_to_wgs84(pix_x,pix_y,zoomlevel)
+        
+
+    def latlon_to_xy(self,lat,lon,zoomlevel):
+        [pix_x,pix_y]=wgs84_to_pix(lat,lon,zoomlevel)
+        return [pix_x-self.xmin,pix_y-self.ymin]
+
     def delLast(self,event):
         self.points=self.points[0:-2]
         self.coords=self.coords[0:-2]
@@ -4675,8 +5013,9 @@ class Preview_window(Toplevel):
             zone_list.append([tmp,item[2],item[3]])
         self.destroy()    
         return
+############################################################################################
 
-
+############################################################################################
 class Ortho4XP_Graphical(Tk):
 
     def __init__(self):
@@ -5091,6 +5430,7 @@ class Ortho4XP_Graphical(Tk):
                no_small_angles,smallest_angle,default_website,default_zl,\
                skip_downloads,skip_converts,verbose_output,clean_tmp_files,\
                dds_or_png,check_tms_response,complex_masks,use_masks_for_inland,zone_list,sea_texture_params
+        print("reading config")
         [lat,lon]=self.load_latlon()
         if lat=='error':
             return
@@ -5168,6 +5508,8 @@ class Ortho4XP_Graphical(Tk):
             build_dir=self.build_dir_entry.get()
             if build_dir[-1]=='/':
                 build_dir=build_dir[:-1]+dir_sep+'zOrtho4XP_'+strlat+strlon
+        if not os.path.exists(build_dir):
+            os.makedirs(build_dir)
         try:
             fgen=open(Ortho4XP_dir+dir_sep+"Ortho4XP.cfg",'r')
             fbuild=open(build_dir+dir_sep+"Ortho4XP.cfg",'w')
@@ -5512,9 +5854,10 @@ class Ortho4XP_Graphical(Tk):
         build_masks_thread.start()
         return
 
-    def build_tile_list_ifc(self,tile_list):
+    def build_tile_list_ifc(self,tile_list,read_config,use_existing_mesh,bbmasks,bboverlays):
         global skip_downloads,skip_converts,verbose_output,min_area,no_small_angles,smallest_angle,curvature_tol,\
-                clean_tmp_files,dds_or_png,water_overlay,ratio_water,use_masks_for_inland,ortho_list
+                clean_tmp_files,dds_or_png,water_overlay,ratio_water,use_masks_for_inland,\
+                sea_texture_params
         if self.water_type.get()==1:
             water_overlay=False
         else:
@@ -5565,10 +5908,12 @@ class Ortho4XP_Graphical(Tk):
                 print('_____________________________________________________________'+\
                 '____________________________________')
                 return
-        website=self.map_choice.get()
-        zoomlevel=self.zl_choice.get()
+        if self.seamap_choice.get() != '': 
+           sea_texture_params=[self.seamap_choice.get(),int(self.zlsea_choice.get())]
+        else:
+           sea_texture_params=[]
         build_dir_option=self.build_dir_entry.get()
-        fargs_build_tile_list=[tile_list,build_dir_option,zoomlevel,website]
+        fargs_build_tile_list=[tile_list,build_dir_option,read_config,use_existing_mesh,bbmasks,bboverlays]
         build_tile_list_thread=threading.Thread(target=build_tile_list,\
                 args=fargs_build_tile_list)
         build_tile_list_thread.start()
