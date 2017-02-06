@@ -1,7 +1,7 @@
 #!/usr/bin/env python3                                                       
 ##############################################################################
 # Ortho4XP : A base mesh creation tool for the X-Plane 10 flight simulator.  #
-# Version  : 1.15 released July 9th 2016                                     #
+# Version  : 1.16 released August 20th 2016                                  #
 # Copyright 2016 Oscar Pilote                                                #
 # Thanks to all that have contributed to improvement of the code.            #
 ##############################################################################
@@ -22,6 +22,8 @@
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.    #
 #                                                                            #
 ##############################################################################
+
+version=' 1.16'
 
 from math import *
 import array,numpy
@@ -191,23 +193,6 @@ def usage(reason,do_i_quit=True):
     return
 ##############################################################################
 
-##############################################################################
-# Téléchargement de tags Openstreetmap via l'api Overpass.
-##############################################################################
-def get_osm_data(lat0,lat1,lon0,lon1,tag):                                   
-    api=overpy.Overpass()
-    succeeded = False 
-    while succeeded == False:
-        try:
-            result=api.query('('+tag+'('+str(lat0)+','+str(lon0)+','+\
-                 str(lat1)+','+str(lon1)+');>>;);out;')
-            succeeded = True
-        except:
-            print("Server overloaded or network not available, "
-                  "will try again in 3 sec.") 
-            time.sleep(3)
-    return result
-##############################################################################
 
 ##############################################################################
 # Construction du fichier .poly décrivant toutes les données vectorielles
@@ -217,6 +202,8 @@ def build_poly_file(lat0,lon0,option,build_dir):
     t1=time.time()
     if not os.path.exists(build_dir):
         os.makedirs(build_dir)
+    if not os.path.exists(build_dir+dir_sep+"OSM"):
+        os.makedirs(build_dir+dir_sep+"OSM")
     strlat='{:+.0f}'.format(lat0).zfill(3)
     strlon='{:+.0f}'.format(lon0).zfill(4)
     poly_file     =  build_dir+dir_sep+'Data'+strlat+strlon+'.poly'
@@ -234,14 +221,7 @@ def build_poly_file(lat0,lon0,option,build_dir):
     sloped_patch_seeds=[]
     init_nodes=0
     tags=[]
-    if option==4:    # Testing airports
-        orthogrid=False
-        print("-> Downloading airport data from OpenstreetMap.")
-        tags.append('node["aeroway"="aerodrome"]')                                         
-        tags.append('way["aeroway"="aerodrome"]')                                         
-        tags.append('rel["aeroway"="aerodrome"]')                                         
-        tags.append('way["aeroway"="heliport"]')                                         
-    elif option==2:  # Orthophoto only for inland water
+    if option==2:  # Orthophoto only for inland water
         orthogrid=True
         print("-> Downloading airport and water/ground boundary data on Openstreetmap")
         tags.append('way["aeroway"="aerodrome"]')                                         
@@ -250,12 +230,12 @@ def build_poly_file(lat0,lon0,option,build_dir):
         tags.append('way["natural"="coastline"]')
     else:  # Mixed
         orthogrid=True
-        print("-> Downloading airport and water/ground boundary data on Openstreetmap")
+        print("-> Downloading airport and water/ground boundary data from Openstreetmap :")
         tags.append('way["aeroway"="aerodrome"]')                                         
         tags.append('rel["aeroway"="aerodrome"]')                                         
         tags.append('way["aeroway"="heliport"]')                                         
-        tags.append('way["natural"="water"]')                                         
-        tags.append('rel["natural"="water"]')                                         
+        tags.append('way["natural"="water"]["tidal"!="yes"]')                                         
+        tags.append('rel["natural"="water"]["tidal"!="yes"]')                                         
         tags.append('way["waterway"="riverbank"]')                                    
         tags.append('rel["waterway"="riverbank"]')                                    
         tags.append('way["natural"="coastline"]')
@@ -274,159 +254,117 @@ def build_poly_file(lat0,lon0,option,build_dir):
         except:
             pass
         subtags=tag.split('"')
-        osmfilename=build_dir+dir_sep+"OSM_"+subtags[0][0:-1]+'_'+\
-                subtags[1]+'_'+subtags[3]
-        if os.path.isfile(osmfilename):
-            osmfile=open(osmfilename,'rb')
-            result=pickle.load(osmfile)
-            nbr_nodes=len(result.nodes)
-            if nbr_nodes>0:
-                strtmp=str(nbr_nodes)+" nodes."
-            else:
-                strtmp="no node."
-            print("     -> "+tag+" recycled from previous data : "\
-                    +strtmp)
+        osm_filename=build_dir+dir_sep+"OSM"+dir_sep+strlat+strlon+'_'+subtags[0][0:-1]+'_'+\
+                subtags[1]+'_'+subtags[3]+'.osm'
+        osm_errors_filename=build_dir+dir_sep+"OSM"+dir_sep+strlat+strlon+'_'+subtags[0][0:-1]+'_'+\
+                subtags[1]+'_'+subtags[3]+'_detected_errors.txt'
+        if not os.path.isfile(osm_filename):
+            print("    Obtaining OSM data for "+tag)
+            s=requests.Session()
+            osm_download_ok = False
+            while osm_download_ok != True:
+                url=overpass_server_list[overpass_server_choice]+"?data=("+tag+"("+str(lat0)+","+str(lon0)+","+str(lat0+1)+","+str(lon0+1)+"););(._;>>;);out meta;"
+                r=s.get(url)
+                if r.headers['content-type']=='application/osm3s+xml':
+                    osm_download_ok=True
+                else:
+                    print("      OSM server was busy, new tentative...")
+            osmfile=open(osm_filename,'wb')
+            osmfile.write(r.content)
+            osmfile.close()
+            print("     Done.")
         else:
-            result=get_osm_data(lat0,lat0+1,lon0,lon0+1,tag)
-            osmfile=open(osmfilename,'wb')
-            pickle.dump(result,osmfile)
-            nbr_nodes=len(result.nodes)
-            if nbr_nodes>0:
-                strtmp=str(nbr_nodes)+" nodes."
-            else:
-                strtmp="no node."
-            print('     -> '+tag+ ' downloaded without error : '+strtmp)
-        osmfile.close()
-        # we shall treat osm data differently depending on tag :
-        # coastline data are non closed ways, and relations (multipolygons)
-        # are sometimes splitted (see below)
-        if tag=='node["aeroway"="aerodrome"]':
-            for node in result.nodes:
-                if ('icao' in node.tags) and ('name' in node.tags):
-                    try:
-                        print("       * "+node.tags['icao']+" "+node.tags['name'])
-                    except:
-                        print("       * "+node.tags['icao'])
-                elif ('name' in node.tags):
-                    try:
-                        print("       *       "+node.tags['name'])
-                    except:
-                        pass
-                elif ('icao' in node.tags):
-                    print("       * "+node.tags['icao'])
-        elif tag=='way["aeroway"="aerodrome"]' or tag=='way["aeroway"="heliport"]':
+            print("    Recycling OSM data for "+tag)
+        if 'way[' in tag:
+            [dicosmw,dicosmw_name,dicosmw_icao,dicosmw_ele]=osmway_to_dicos(osm_filename)
+        elif 'rel[' in tag:
+            [dicosmr,dicosmrinner,dicosmrouter,dicosmr_name,dicosmr_icao,dicosmr_ele]=osmrel_to_dicos(osm_filename,osm_errors_filename)
+
+        # we shall treat osm data differently depending on tag 
+        if tag=='way["aeroway"="aerodrome"]' or tag=='way["aeroway"="heliport"]':
             sloped_airports_list=[]
             if os.path.exists(patch_dir):
                 for pfilename in os.listdir(patch_dir):
                     if pfilename[-10:] == '.patch.osm':
                         sloped_airports_list.append(pfilename[:4])
-            for way in result.ways:
+            for wayid in dicosmw:
+                way=dicosmw[wayid]
                 # we only treat closed ways, non closed should not exist in 
                 # osm ways (but a few sometimes do!)
-                if strcode(way.nodes[0]) == strcode(way.nodes[-1]):
+                if strcode(way[0]) == strcode(way[-1]):
                     signed_area=area(way)
-                    # Keep only sufficiently large water pieces. 1 deg^2 is
-                    # very roughly equal to 10000 km^2
                     if signed_area<0:
                         side='left'
                     else:
                         side='right'
                     keep_that_one=True
-                    if ('icao' in way.tags):
-                        if (way.tags['icao'] in sloped_airports_list) or (way.tags['icao'] in do_not_flatten_these_list):
-                            print("          I will not flatten "+way.tags['icao']+ " airport.")	
-                            keep_that_one=False
-                    if ('icao' in way.tags) and ('name' in way.tags):
-                        print("       * "+way.tags['icao']+" "+way.tags['name'])
-                    elif ('icao' in way.tags):
-                        print("       * "+way.tags['icao'])
-                    elif 'name' in way.tags:
-                        print("       *      "+way.tags['name'])
+                    if (wayid in dicosmw_icao) and (wayid in dicosmw_name):
+                        print("       * "+dicosmw_icao[wayid]+" "+dicosmw_name[wayid])
+                    elif (wayid in dicosmw_icao):
+                        print("       * "+dicosmw_icao[wayid])
+                    elif (wayid in dicosmw_name):
+                        print("       *      "+dicosmw_name[wayid])
                     else:
-                        print("       * lat="+str(way.nodes[0].lat)+" lon="+str(way.nodes[0].lon))
-                    if ('ele' in way.tags):
-                        altitude=way.tags['ele']
+                        print("       * lat="+str(way[0][0])+" lon="+str(way[0][1]))
+                    if (wayid in dicosmw_ele):
+                        altitude=dicosmw_ele[wayid]
                     else:
                         altitude='unknown'
+                    if (wayid in dicosmw_icao):
+                        if (dicosmw_icao[wayid] in sloped_airports_list) or (dicosmw_icao[wayid] in do_not_flatten_these_list):
+                            print("          I will not flatten "+dicosmw_icao[wayid]+ " airport.")	
+                            keep_that_one=False
                     if keep_that_one==True:
                         keep_way(way,lat0,lon0,1,'airport',dico_nodes,\
                                 dico_edges)
                         flat_airport_seeds.append([way,\
                                 pick_point(way,side,lat0,lon0),altitude])
                 else:
-                    print("One or the airports within the tile is not correctly closed \n"+\
-                          "on Openstreetmap !")
+                    print("One of the airports within the tile is not correctly closed \n"+\
+                          "on Openstreetmap ! Close to coordinates " + str(way[0]))
         elif tag=='rel["aeroway"="aerodrome"]':
             sloped_airports_list=[]
             if os.path.exists(patch_dir):
                 for pfilename in os.listdir(patch_dir):
                     if pfilename[-10:] == '.patch.osm':
                         sloped_airports_list.append(pfilename[:4])
-            for rel in result.relations:
+            for relid in dicosmr:
                 keep_that_one=True
-                if ('icao' in rel.tags):
-                    if rel.tags['icao'] in sloped_airports_list or (rel.tags['icao'] in do_not_flatten_these_list):
+                if (relid in dicosmr_icao):
+                    if dicosmr_icao[relid] in sloped_airports_list or (dicosmr_icao[relid] in do_not_flatten_these_list):
                         keep_that_one=False
-                if ('icao' in rel.tags) and ('name' in rel.tags):
-                    print("       * "+rel.tags['icao']+" "+rel.tags['name'])
-                elif ('icao' in rel.tags):
-                    print("       * "+rel.tags['icao'])
-                elif 'name' in rel.tags:
-                        print("       *      "+rel.tags['name'])
-                if ('ele' in rel.tags):
-                    altitude=rel.tags['ele']
+                if (relid in dicosmr_icao) and (relid in dicosmr_name):
+                    print("       * "+dicosmr_icao[relid]+" "+dicosmr_name[relid])
+                elif (relid in dicosmr_icao):
+                    print("       * "+idcosmr_icao[relid])
+                elif relid in dicosmr_name:
+                        print("       *      "+dicosmr_name[relid])
+                if (relid in dicosmr_ele):
+                    altitude=dicosmr_ele[relid]
                 else:
                     altitude='unknown'
                 if keep_that_one==False:
                     continue
-                index=0
-                while index < len(rel.members):
-                    role=rel.members[index].role
-                    if role not in ['outer','inner']:
-                        #print("strange role :"+str(role))
-                        index+=1
-                        break
-                    loop_structure=find_next_loop(rel,index,result)
-                    if loop_structure=='None':
-                        # This relation of OSM data was too poor, 
-                        index+=1
-                        break
-                    if role=='inner':
-                        new_index=index
-                        for data in loop_structure:
-                            new_index=max(new_index,data[0])
-                        index=new_index+1
-                        continue
-                    total_area=0
-                    for data in loop_structure:
-                        way=member_to_way(rel.members[data[0]],result)
-                        sign=data[1]
-                        total_area+=area(way)*sign 
-                    for data in loop_structure:
-                        way=member_to_way(rel.members[data[0]],result)
-                        sign=data[1]
-                        keep_way(way,lat0,lon0,sign,'airport',dico_nodes,\
+                for waypts in dicosmrinner[relid]:
+                    keep_way(waypts,lat0,lon0,1,'airport',dico_nodes,\
                                         dico_edges)
-                    data=loop_structure[0]
-                    way=member_to_way(rel.members[data[0]],result)
-                    sign=data[1]
-                    if total_area*sign>0:
-                        side='right'
-                    else:
+                for waypts in dicosmrouter[relid]:
+                    signed_area=area(waypts)
+                    if signed_area<0:
                         side='left'
-                    flat_airport_seeds.append([way,\
-                                pick_point(way,side,lat0,lon0),altitude])
-                    new_index=index
-                    for data in loop_structure:
-                        new_index=max(new_index,data[0])
-                    index=new_index+1
+                    else:
+                        side='right'
+                    keep_way(waypts,lat0,lon0,1,'airport',dico_nodes,\
+                                        dico_edges)
+                    flat_airport_seeds.append([waypts,\
+                            pick_point_check(waypts,side,lat0,lon0),altitude])
         elif 'way["natural"="coastline"]' in tag:
-            #continue
             total_sea_seeds=0
-            for way in result.ways:
+            for wayid in dicosmw:
+                way=dicosmw[wayid]
                 # Openstreetmap ask that sea is to the right of oriented
                 # coastline. We trust OSM contributors...
-                if strcode(way.nodes[0])!=strcode(way.nodes[-1]):
+                if strcode(way[0])!=strcode(way[-1]):
                     if (lat0>=40 and lat0<=49 and lon0>=-93 and lon0<=-76):
                         sea_equiv_seeds+=pick_points_safe(way,'right',lat0,lon0)
                     else:
@@ -434,127 +372,66 @@ def build_poly_file(lat0,lon0,option,build_dir):
                     total_sea_seeds+=1
                 keep_way(way,lat0,lon0,1,'coastline',dico_nodes,dico_edges)
             if total_sea_seeds<=3:
-                for way in result.ways:
-                    if strcode(way.nodes[0])==strcode(way.nodes[-1]):
+                for wayid in dicosmw:
+                    way=dicosmw[wayid]
+                    if strcode(way[0])==strcode(way[-1]):
                         if (lat0>=40 and lat0<=49 and lon0>=-93 and lon0<=-76):
                             sea_equiv_seeds+=pick_points_safe(way,'right',lat0,lon0)
                         else:
                             sea_seeds+=pick_points_safe(way,'right',lat0,lon0)
-        elif tag in ['way["natural"="water"]',\
-                   'way["waterway"="riverbank"]',\
-                   'way["waterway"="dock"]']:
-            #continue
-            for way in result.ways:
-                # we only treat closed ways, non closed should not exist in 
-                # osm ways (but a few sometimes do!)
-                try:
-                    check_server=strcode(way.nodes[0])
-                    check_server=strcode(way.nodes[-1])
-                except:
-                    print("\nThe overpass OSM server did not fulfilled our request, it is probably down.")
-                    print("\nFailure.")        
-                    print('_____________________________________________________________'+\
-                            '____________________________________')
-                    return
-                if strcode(way.nodes[0]) == strcode(way.nodes[-1]) and \
+        elif ('way["natural"="water"]' in tag) or ('way["waterway"="riverbank"]' in tag) or ('way["waterway"="dock"]' in tag) :
+            for wayid in dicosmw:
+                way=dicosmw[wayid]
+                if strcode(way[0]) == strcode(way[-1]) and \
                         touches_region(way,lat0,lat0+1,lon0,lon0+1)==True:
                     signed_area=area(way)
                     # Keep only sufficiently large water pieces. 1 deg^2 is
                     # very roughly equal to 10000 km^2
                     if abs(signed_area) >= min_area/10000.0: 
-                    #if abs(signed_area) >= 0.04/10000.0 and abs(signed_area)<=0.06/10000.0: 
                         if signed_area<0:
                             side='left'
                         else:
                             side='right'
                         keep_way(way,lat0,lon0,1,'outer',dico_nodes,\
                                 dico_edges)
-                        point=pick_point(way,side,lat0,lon0)
-                        polygon=[]
-                        for node in way.nodes:
-                            polygon+=[float(node.lon),float(node.lat)]
-                        if point_in_polygon(point,polygon):
-                            sea_way=False
-                            try:
-                                if way.tags['name'] in sea_equiv:
-                                    sea_way=True
-                            except:
-                                pass    
-                            if sea_way!=True:
-                                water_seeds.append(point)
-                            else:
-                                sea_seeds.append(point)
+                        point=pick_point_check(way,side,lat0,lon0)
+                        sea_way=False
+                        try:
+                            if dicosmw_name[wayid] in sea_equiv:
+                                print("     Sea_equiv found :",dicosmw_name[wayid])
+                                sea_way=True
+                        except:
+                            pass    
+                        if sea_way!=True:
+                            water_seeds.append(point)
                         else:
-                            pass
-                            #print("Point outside : "+str(point))
+                            sea_equiv_seeds.append(point)
         elif 'rel[' in tag:
-            for rel in result.relations:
-                # Members of rel may not be closed and the 
-                # corresponding polygon is split across (hopefully) 
-                # consecutive members. For that reason
-                # we need an extra bit of work to guess how to
-                # rebuild closed loops of water.
+            for relid in dicosmr:
                 sea_rel=False
                 try:
-                    if rel.tags['name'] in sea_equiv:
-                        print("sea_equiv found :",rel.tags['name'])
+                    if dicosmr_name[relid] in sea_equiv:
+                        print("     Sea_equiv found :",dicosmr_name[relid])
                         sea_rel=True
                 except:
-                    pass
-                index=0
-                while index < len(rel.members):
-                    role=rel.members[index].role
-                    if role not in ['outer','inner']:
-                        #print("strange role :"+str(role))
-                        index+=1
-                        break
-                    loop_structure=find_next_loop(rel,index,result)
-                    if loop_structure=='None':
-                        # This relation of OSM data was too poor, 
-                        # (occurs, but rarely). 
-                        # print("Aie...")
-                        index+=1
-                        break
-                    total_area=0
-                    keep_loop=False
-                    for data in loop_structure:
-                        way=member_to_way(rel.members[data[0]],result)
-                        if touches_region(way,lat0,lat0+1,lon0,lon0+1)==True:
-                            keep_loop=True
-                        sign=data[1]
-                        total_area+=area(way)*sign 
-                    if ((role=='inner') or \
-                            (abs(total_area) >= min_area/10000.0)) \
-                            and (keep_loop==True):
-                    #if (abs(total_area) >= 0.058/10000.0) and  (abs(total_area) <= 0.059/10000.0) and \
-                    #        (keep_loop==True):
-                        for data in loop_structure:
-                            way=member_to_way(rel.members[data[0]],result)
-                            sign=data[1]
-                            if touches_region(way,lat0,lat0+1,lon0,lon0+1)\
-                                    ==True:
-                                keep_way(way,lat0,lon0,sign,role,dico_nodes,\
+                    pass    
+                for waypts in dicosmrinner[relid]:
+                    keep_way(waypts,lat0,lon0,1,'inner',dico_nodes,\
                                         dico_edges)
-                                if role=='outer':
-                                    #if abs(total_area)*10000>0.001 and abs(total_area)*10000<0.01:
-                                    #    print(way.nodes[0].lat,way.nodes[0].lon)
-                                    if total_area*sign>0:
-                                        side='right'
-                                    else:
-                                        side='left'
-                                    if sea_rel == True:
-                                        #pass
-                                        sea_equiv_seeds.append(pick_point(\
-                                                way,side,lat0,lon0))
-                                    else:
-                                        #pass
-                                        #print(pick_point(way,side,lat0,lon0))
-                                        water_seeds.append(pick_point(\
-                                                way,side,lat0,lon0))
-                    new_index=index
-                    for data in loop_structure:
-                        new_index=max(new_index,data[0])
-                    index=new_index+1
+                for waypts in dicosmrouter[relid]:
+                    signed_area=area(waypts)
+                    if abs(signed_area) >= min_area/10000.0: 
+                        if signed_area<0:
+                            side='left'
+                        else:
+                            side='right'
+                        keep_way(waypts,lat0,lon0,1,'outer',dico_nodes,\
+                                        dico_edges)
+                        point=pick_point_check(waypts,side,lat0,lon0)
+                        if sea_rel!=True:
+                            water_seeds.append(point)
+                        else:
+                            sea_equiv_seeds.append(point)
     treated_nodes=len(dico_nodes)-init_nodes
     init_nodes=len(dico_nodes)
     if treated_nodes>0:
@@ -570,7 +447,8 @@ def build_poly_file(lat0,lon0,option,build_dir):
         yi=ycoord(initpt,dico_nodes)
         xf= xcoord(endpt,dico_nodes)
         yf= ycoord(endpt,dico_nodes)
-        length=sqrt((xi-xf)*(xi-xf)+(yi-yf)*(yi-yf))
+        #length=sqrt((xi-xf)*(xi-xf)+(yi-yf)*(yi-yf))
+        length=abs(xi-xf)+abs(yi-yf)
         pieces=ceil(length*1000)
         if pieces == 1:
             dico_edges_tmp[edge]=dico_edges[edge]
@@ -798,11 +676,11 @@ def build_poly_file(lat0,lon0,option,build_dir):
     fp_idx  =  1000
     sp_idx  = 10000
     for seed in flat_airport_seeds:
-        f.write("Airport "+str(apt_idx)+" : "+str(len(seed[0].nodes))+\
+        f.write("Airport "+str(apt_idx)+" : "+str(len(seed[0]))+\
                 " nodes.\n")
         f.write("Elevation "+str(seed[2])+'\n')
-        for node in seed[0].nodes:
-            f.write(str(float(node.lat))+" "+str(float(node.lon))+"\n")
+        for node in seed[0]:
+            f.write(str(float(node[0]))+" "+str(float(node[1]))+"\n")
         f.write("\n")
         apt_idx+=1
     f.write('\n')
@@ -828,88 +706,224 @@ def build_poly_file(lat0,lon0,option,build_dir):
             '____________________________________')
     return 
 #############################################################################
-#############################################################################
-# Puzzle consistant à trouver toutes les boucles fermées de berges parmi
-# une mer de boucles ouvertes...
-#############################################################################
-def find_next_loop(rel,index,result):
-   way=member_to_way(rel.members[index],result)
-   if way is None:
-       return 'None'
-   initpoint = strcode(way.nodes[0])
-   endpoint  = strcode(way.nodes[-1])
-   loop_structure=[[index,1]]
-   list_already_in_loop=[index]
-   while initpoint != endpoint:
-       new_idx=index
-       while new_idx < len(rel.members): 
-           if new_idx not in list_already_in_loop:
-               [start,stop]=end_pt_codes(new_idx,rel,result)
-               if endpoint == start:
-                   loop_structure.append([new_idx,1])
-                   endpoint=stop
-                   list_already_in_loop.append(new_idx)
-                   break
-               elif endpoint == stop:
-                   loop_structure.append([new_idx,-1])
-                   endpoint=start
-                   list_already_in_loop.append(new_idx)
-                   break
-               else:
-                   new_idx+=1
-           else:
-               new_idx+=1
-       if new_idx==len(rel.members):
-           #print("Je n'ai pas pu fermer une des relations OpenStreetMap.")
-           return 'None'
-   return loop_structure 
-#############################################################################
+
+##############################################################################
+def osmway_to_dicos(osm_filename):
+    pfile=open(osm_filename,'r',encoding="utf-8")
+    dicosmn={}
+    dicosmw={}
+    dicosmw_name={}
+    dicosmw_icao={}
+    dicosmw_ele={}
+    finished_with_file=False
+    in_way=False
+    first_line=pfile.readline()
+    if "'" in first_line:
+        separator="'"
+    else:
+        separator='"'
+    while not finished_with_file==True:
+        items=pfile.readline().split(separator)
+        if items[0]=='  <node id=':
+            id=items[1]
+            for j in range(0,len(items)):
+                if items[j]==' lat=':
+                    slat=items[j+1]
+                elif items[j]==' lon=':
+                    slon=items[j+1]
+            #slat=items[3]
+            #slon=items[5]
+            dicosmn[id]=[slat,slon]
+        elif items[0]=='  <way id=':
+            in_way=True
+            wayid=items[1]
+            dicosmw[wayid]=[]  
+        elif items[0]=='    <nd ref=':
+            dicosmw[wayid].append(dicosmn[items[1]])
+        elif items[0]=='    <tag k=' and in_way and items[1]=='name':
+            dicosmw_name[wayid]=items[3]
+        elif items[0]=='    <tag k=' and in_way and items[1]=='icao':
+            dicosmw_icao[wayid]=items[3]
+        elif items[0]=='    <tag k=' and in_way and items[1]=='ele':
+            dicosmw_ele[wayid]=items[3]
+        elif items[0]=='</osm>\n':
+            finished_with_file=True
+    pfile.close()
+    print("     A total of "+str(len(dicosmn))+" node(s) and "+str(len(dicosmw))+" way(s).")
+    return [dicosmw,dicosmw_name,dicosmw_icao,dicosmw_ele]
+##############################################################################
+
+##############################################################################
+def osmrel_to_dicos(osm_filename,osm_errors_filename):
+    pfile=open(osm_filename,'r',encoding="utf-8")
+    efile=open(osm_errors_filename,'w')
+    osm_errors_found=False
+    dicosmn={}
+    dicosmw={}
+    dicosmr={}
+    dicosmrinner={}
+    dicosmrouter={}
+    dicosmr_name={}
+    dicosmr_icao={}
+    dicosmr_ele={}
+    dicoendpt={}
+    finished_with_file=False
+    in_rel=False
+    first_line=pfile.readline()
+    if "'" in first_line:
+        separator="'"
+    else:
+        separator='"'
+    while not finished_with_file==True:
+        items=pfile.readline().split(separator)
+        if items[0]=='  <node id=':
+            id=items[1]
+            for j in range(0,len(items)):
+                if items[j]==' lat=':
+                    slat=items[j+1]
+                elif items[j]==' lon=':
+                    slon=items[j+1]
+            dicosmn[id]=[slat,slon]
+        elif items[0]=='  <way id=':
+            wayid=items[1]
+            dicosmw[wayid]=[]  
+        elif items[0]=='    <nd ref=':
+            dicosmw[wayid].append(items[1])
+        elif items[0]=='  <relation id=':
+            relid=items[1]
+            in_rel=True
+            dicosmr[relid]=[]
+            dicosmrinner[relid]=[]
+            dicosmrouter[relid]=[]
+            dicoendpt={}
+        elif items[0]=='    <member type=':
+            if items[1]!='way':
+                efile.write("Relation id="+str(relid)+"contains member "+items[1]+" which was not treated because it is not a way.\n")
+                osm_errors_found=True
+                continue
+            role=items[5]
+            if role=='inner':
+                waytmp=[]
+                for nodeid in dicosmw[items[3]]:
+                    waytmp.append(dicosmn[nodeid])
+                dicosmrinner[relid].append(waytmp)
+            elif role=='outer':
+                endpt1=dicosmw[items[3]][0]
+                endpt2=dicosmw[items[3]][-1]
+                if endpt1==endpt2:
+                    waytmp=[]
+                    for nodeid in dicosmw[items[3]]:
+                        waytmp.append(dicosmn[nodeid])
+                    dicosmrouter[relid].append(waytmp)
+                else:
+                    if endpt1 in dicoendpt:
+                        dicoendpt[endpt1].append(items[3])
+                    else:
+                        dicoendpt[endpt1]=[items[3]]
+                    if endpt2 in dicoendpt:
+                        dicoendpt[endpt2].append(items[3])
+                    else:
+                        dicoendpt[endpt2]=[items[3]]
+            else:
+                efile.write("Relation id="+str(relid)+" contains a member with role different from inner or outer, it was not treated.\n")
+                osm_errors_found=True
+                continue
+            dicosmr[relid].append(items[3]) 
+        elif items[0]=='    <tag k=' and in_rel and items[1]=='name':
+            dicosmr_name[relid]=items[3]
+        elif items[0]=='    <tag k=' and in_rel and items[1]=='icao':
+            dicosmr_icao[relid]=items[3]
+        elif items[0]=='    <tag k=' and in_rel and items[1]=='ele':
+            dicosmr_ele[relid]=items[3]
+        elif items[0]=='  </relation>\n':
+            bad_rel=False
+            for endpt in dicoendpt:
+                if len(dicoendpt[endpt])!=2:
+                    bad_rel=True
+                    break
+            if bad_rel==True:
+                efile.write("Relation id="+str(relid)+" is ill formed and was not treated.\n")
+                osm_errors_found=True
+                dicosmr.pop(relid,'None')
+                dicosmrinner.pop(relid,'None')
+                dicosmrouter.pop(relid,'None')
+                continue
+            while dicoendpt:
+                waypts=[]
+                endpt=next(iter(dicoendpt))
+                way=dicoendpt[endpt][0]
+                endptinit=dicosmw[way][0]
+                endpt1=endptinit
+                endpt2=dicosmw[way][-1]
+                for node in dicosmw[way][:-1]:
+                    waypts.append(dicosmn[node])
+                while endpt2!=endptinit:
+                    if dicoendpt[endpt2][0]==way:
+                            way=dicoendpt[endpt2][1]
+                    else:
+                            way=dicoendpt[endpt2][0]
+                    endpt1=endpt2
+                    if dicosmw[way][0]==endpt1:
+                        endpt2=dicosmw[way][-1]
+                        for node in dicosmw[way][:-1]:
+                            waypts.append(dicosmn[node])
+                    else:
+                        endpt2=dicosmw[way][0]
+                        for node in dicosmw[way][-1:0:-1]:
+                            waypts.append(dicosmn[node])
+                    dicoendpt.pop(endpt1,'None')
+                waypts.append(dicosmn[endptinit])
+                dicosmrouter[relid].append(waypts)
+                dicoendpt.pop(endptinit,'None')
+            dicoendpt={}
+        elif items[0]=='</osm>\n':
+            finished_with_file=True
+    pfile.close()
+    efile.close()
+    print("     A total of "+str(len(dicosmn))+" node(s) and "+str(len(dicosmr))+" relation(s).")
+    if osm_errors_found:
+        print("     !!!Some OSM errors were detected!!!\n        They are listed in "+str(osm_errors_filename))
+    else:
+        os.remove(osm_errors_filename)
+    return [dicosmr,dicosmrinner,dicosmrouter,dicosmr_name,dicosmr_icao,dicosmr_ele]
+##############################################################################
+
 
 #############################################################################
 def strcode(node):
-   return str(node.lat)+'_'+str(node.lon)
+   return node[0]+'_'+node[1]
 #############################################################################
 
-#############################################################################
-def member_to_way(member,result):
-   for way in result.ways:
-       if way.id==member.ref:
-           return way
-#############################################################################
-
-#############################################################################
-def end_pt_codes(index,rel,result):
-   start = strcode(member_to_way(rel.members[index],result).nodes[0])
-   stop  = strcode(member_to_way(rel.members[index],result).nodes[-1])
-   return [start,stop]
-#############################################################################
 
 #############################################################################
 def keep_node(node,lat0,lon0,dico_nodes):
-   dico_nodes[strcode(node)]=[node.lon-lon0,node.lat-lat0]
+   dico_nodes[strcode(node)]=[float(node[1])-lon0,float(node[0])-lat0]
    return
 #############################################################################
    
 #############################################################################
 def keep_edge(node0,node,marker,dico_edges):
    if strcode(node0) != strcode(node):
-       dico_edges[strcode(node0)+'|'+strcode(node)]=marker
+       if strcode(node)+'|'+strcode(node0) in dico_edges:
+           dico_edges[strcode(node)+'|'+strcode(node0)]=marker
+       else:
+           dico_edges[strcode(node0)+'|'+strcode(node)]=marker
    return
 #############################################################################
 
 #############################################################################
 def keep_way(way,lat0,lon0,sign,marker,dico_nodes,dico_edges):
    if sign==1:
-       node0=way.nodes[0]
+       node0=way[0]
        keep_node(node0,lat0,lon0,dico_nodes)
-       for node in way.nodes[1:]:
+       for node in way[1:]:
            keep_node(node,lat0,lon0,dico_nodes)
            keep_edge(node0,node,marker,dico_edges)
            node0=node
    elif sign==-1:
-       node0=way.nodes[-1]
+       node0=way[-1]
        keep_node(node0,lat0,lon0,dico_nodes)
-       for node in way.nodes[-1:-len(way.nodes)-1:-1]:
+       for node in way[-1:-len(way)-1:-1]:
            keep_node(node,lat0,lon0,dico_nodes)
            keep_edge(node0,node,marker,dico_edges)
            node0=node
@@ -1284,11 +1298,11 @@ def cut_edges_with_grid(lat0,lon0,dico_nodes,dico_edges,orthogrid=True):
 #############################################################################
 def area(way):
    area=0
-   x1=float(way.nodes[0].lon)
-   y1=float(way.nodes[0].lat)
-   for node in way.nodes[1:]:
-       x2=float(node.lon)
-       y2=float(node.lat)
+   x1=float(way[0][1])
+   y1=float(way[0][0])
+   for node in way[1:]:
+       x2=float(node[1])
+       y2=float(node[0])
        area+=(x2-x1)*(y2+y1)
        x1=x2
        y1=y2
@@ -1302,9 +1316,9 @@ def area(way):
 # jusqu'à son embouchure !
 #############################################################################
 def touches_region(way,lat0,lat1,lon0,lon1):
-    for node in way.nodes:
-       if float(node.lat)>=lat0 and float(node.lat)<=lat1\
-         and float(node.lon)>=lon0 and float(node.lon)<=lon1:
+    for node in way:
+       if float(node[0])>=lat0 and float(node[0])<=lat1\
+         and float(node[1])>=lon0 and float(node[1])<=lon1:
            return True
     return False
 #############################################################################
@@ -1324,12 +1338,12 @@ def pick_point(way,side,lat0,lon0):
    ptin=False
    i=0
    while (l<dmin) or (ptin==False):
-       if len(way.nodes)==i+1:
+       if len(way)==i+1:
            break
-       x1=float(way.nodes[i].lon)
-       y1=float(way.nodes[i].lat)
-       x2=float(way.nodes[i+1].lon)
-       y2=float(way.nodes[i+1].lat)
+       x1=float(way[i][1])
+       y1=float(way[i][0])
+       x2=float(way[i+1][1])
+       y2=float(way[i+1][0])
        l=sqrt((x2-x1)**2+(y2-y1)**2)
        ptin=False
        if ((x2>lon0) and (x2<lon0+1) and (y2>lat0) and (y2<lat0+1)) and\
@@ -1342,14 +1356,15 @@ def pick_point(way,side,lat0,lon0):
        y=0.5*y1+0.5*y2+(x2-x1)/l*dperp*sign
        return [x,y]
    i=0
+   ptin=False
    while (l<dmin) or (ptin==False):
-       if len(way.nodes)==i+1:
+       if len(way)==i+1:
            # This should never happen, we send it to hell
            return [1000,1000]
-       x1=float(way.nodes[i].lon)
-       y1=float(way.nodes[i].lat)
-       x2=float(way.nodes[i+1].lon)
-       y2=float(way.nodes[i+1].lat)
+       x1=float(way[i][1])
+       y1=float(way[i][0])
+       x2=float(way[i+1][1])
+       y2=float(way[i+1][0])
        l=sqrt((x2-x1)**2+(y2-y1)**2)
        ptin=False
        if ((x2>lon0) and (x2<lon0+1) and (y2>lat0) and (y2<lat0+1)):
@@ -1370,6 +1385,81 @@ def pick_point(way,side,lat0,lon0):
 #############################################################################
 
 #############################################################################
+def pick_point_check(way,side,lat0,lon0):
+   if side=='left':
+       sign=1
+   elif side=='right':
+       sign=-1
+   dmin =0.00001 
+   l=0
+   ptin=False
+   i=0
+   while (l<dmin) or (ptin==False):
+       if len(way)==i+1:
+           break
+       x1=float(way[i][1])
+       y1=float(way[i][0])
+       x2=float(way[i+1][1])
+       y2=float(way[i+1][0])
+       l=sqrt((x2-x1)**2+(y2-y1)**2)
+       ptin=False
+       if ((x2>lon0) and (x2<lon0+1) and (y2>lat0) and (y2<lat0+1)) and\
+          ((x1>lon0) and (x1<lon0+1) and (y1>lat0) and (y1<lat0+1)):
+           ptin=True
+       i+=1
+   if ptin==True:
+       dperp=0.000001
+       x=0.5*x1+0.5*x2+(y1-y2)/l*dperp*sign
+       y=0.5*y1+0.5*y2+(x2-x1)/l*dperp*sign
+       polygon=[]
+       for node in way:
+         polygon+=[float(node[1]),float(node[0])]
+       if point_in_polygon([x,y],polygon):
+         return [x,y]
+       else:
+         pass  
+         #print("Wrong pick 1 !!!!!!!!!!!!!!!")  
+         #print(polygon)
+         #return [1000,1000]
+   i=0
+   ptin=False
+   while (l<dmin) or (ptin==False):
+       if len(way)==i+1:
+           # This should never happen, we send it to hell
+           return [1000,1000]
+       x1=float(way[i][1])
+       y1=float(way[i][0])
+       x2=float(way[i+1][1])
+       y2=float(way[i+1][0])
+       l=sqrt((x2-x1)**2+(y2-y1)**2)
+       ptin=False
+       if ((x2>lon0) and (x2<lon0+1) and (y2>lat0) and (y2<lat0+1)):
+           ptin=True
+           ptend=2
+       if ((x1>lon0) and (x1<lon0+1) and (y1>lat0) and (y1<lat0+1)):
+           ptin=True
+           ptend=1
+       i+=1
+   dperp=0.0000001
+   if ptend==1:
+       x=0.99*x1+0.01*x2+(y1-y2)/l*dperp*sign
+       y=0.99*y1+0.01*y2+(x2-x1)/l*dperp*sign
+   else:
+       x=0.99*x2+0.01*x1+(y1-y2)/l*dperp*sign
+       y=0.99*y2+0.01*y1+(x2-x1)/l*dperp*sign
+   polygon=[]
+   for node in way:
+     polygon+=[float(node[1]),float(node[0])]
+   if point_in_polygon([x,y],polygon):
+    #print("Good pick !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!") 
+    return [x,y]
+   else:
+    #print("Wrong pick 2 !!!!!!!!!!!!!!!!")  
+    return [1000,1000]
+#############################################################################
+   
+
+#############################################################################
 def pick_points_safe(way,side,lat0,lon0):
    if side=='left':
        sign=1
@@ -1378,11 +1468,11 @@ def pick_points_safe(way,side,lat0,lon0):
    dmin =0.00001 
    return_list=[]
    not_yet_edge_fully_in=True
-   for i in range(0,len(way.nodes)-1):
-       x1=float(way.nodes[i].lon)
-       y1=float(way.nodes[i].lat)
-       x2=float(way.nodes[i+1].lon)
-       y2=float(way.nodes[i+1].lat)
+   for i in range(0,len(way)-1):
+       x1=float(way[i][1])
+       y1=float(way[i][0])
+       x2=float(way[i+1][1])
+       y2=float(way[i+1][0])
        l=sqrt((x2-x1)**2+(y2-y1)**2)
        if l<dmin:
           continue    
@@ -1472,8 +1562,30 @@ def load_altitude_matrix(lat,lon,filename='None'):
         elif os.path.isfile(filename_srtm3):
             filename=filename_srtm3
         else:
-            usage('dem_files',do_i_quit=False) 
-            return 'error'
+            print("   No elevation file found, I download it from viewfinderpanorama (J. de Ferranti)")
+            deferranti_nbr=str(31+lon//6)
+            alphabet=list('ABCDEFGHIJKLMNOPQRSTUVWXYZ')
+            deferranti_letter=alphabet[abs(lat)//4]
+            if lat<0:
+                deferranti_letter='S'+deferranti_letter
+            s=requests.Session()
+            dem_download_ok = False
+            while dem_download_ok != True:
+                url="http://viewfinderpanoramas.org/dem3/"+deferranti_letter+deferranti_nbr+".zip"
+                r=s.get(url)
+                if ('Response [20' in str(r)):
+                    print("   Done. The zip archive will now be extracted in the Elevation_data dir.") 
+                    dem_download_ok=True
+                else:
+                    print("      Viewfinderpanorama server was busy, new tentative...")
+            zipfile=open(Ortho4XP_dir+dir_sep+"tmp"+dir_sep+deferranti_letter+deferranti_nbr+".zip",'wb')
+            zipfile.write(r.content)
+            zipfile.close()
+            os.system(unzip_cmd+' e -y -o'+Ortho4XP_dir+dir_sep+'Elevation_data'+' "'+\
+              Ortho4XP_dir+dir_sep+'tmp'+dir_sep+deferranti_letter+deferranti_nbr+'.zip"')
+            filename=filename_viewfinderpanorama
+            #usage('dem_files',do_i_quit=False) 
+            #return 'error'
     if ('.hgt') in filename or ('.HGT' in filename):
         try:
             ndem=int(round(sqrt(os.path.getsize(filename)/2)))
@@ -2063,6 +2175,27 @@ def st_coord(lat,lon,tex_x,tex_y,zoomlevel,website):
         deltax=maxx-minx
         deltay=maxy-miny
         [x,y]=pyproj.transform(epsg4326,epsg32632,lon,lat)
+        s=(x-minx)/deltax
+        t=(y-miny)/deltay
+        s = s if s>=0 else 0
+        s = s if s<=1 else 1
+        t = t if t>=0 else 0
+        t = t if t<=1 else 1
+        return [s,t]
+    elif website=='GE':
+        [latmax,lonmin]=gtile_to_wgs84(tex_x,tex_y,zoomlevel)
+        [latmin,lonmax]=gtile_to_wgs84(tex_x+16,tex_y+16,zoomlevel)
+        [ulx,uly]=pyproj.transform(epsg4326,epsg2056,lonmin,latmax)
+        [urx,ury]=pyproj.transform(epsg4326,epsg2056,lonmax,latmax)
+        [llx,lly]=pyproj.transform(epsg4326,epsg2056,lonmin,latmin)
+        [lrx,lry]=pyproj.transform(epsg4326,epsg2056,lonmax,latmin)
+        minx=min(ulx,llx)
+        maxx=max(urx,lrx)
+        miny=min(lly,lry)
+        maxy=max(uly,ury)
+        deltax=maxx-minx
+        deltay=maxy-miny
+        [x,y]=pyproj.transform(epsg4326,epsg2056,lon,lat)
         s=(x-minx)/deltax
         t=(y-miny)/deltay
         s = s if s>=0 else 0
@@ -3462,6 +3595,8 @@ def build_tile(lat,lon,build_dir,mesh_filename,clean_tmp_files):
             os.remove(build_dir+dir_sep+'textures'+dir_sep+oldfilename)
     if clean_tmp_files==True:
         clean_temporary_files(build_dir,['POLY','ELE'])                                                 
+    else:
+        clean_temporary_files(build_dir,['ELE'])
     print('\nCompleted in '+str('{:.2f}'.format(time.time()-t3))+\
               'sec.')
     print('_____________________________________________________________'+\
@@ -4236,7 +4371,7 @@ class Ortho4XP_Graphical(Tk):
     def __init__(self):
         
         Tk.__init__(self)
-        self.title('Ortho4XP')
+        self.title('Ortho4XP '+version)
         toplevel = self.winfo_toplevel()
         try:
             toplevel.wm_state('zoomed')
@@ -4284,6 +4419,10 @@ class Ortho4XP_Graphical(Tk):
         self.cleantmp.set(0)
         self.cleanddster     = IntVar()
         self.cleanddster.set(0)
+        self.complexmasks     = IntVar()
+        self.complexmasks.set(0)
+        self.masksinland     = IntVar()
+        self.masksinland.set(0)
         self.verbose         = IntVar()
         self.verbose.set(1)
         self.sniff           = IntVar()
@@ -4365,7 +4504,7 @@ class Ortho4XP_Graphical(Tk):
                                    variable=self.bdc,command=self.choose_dir,bg="light green",\
                                    activebackground="light green",highlightthickness=0)
         self.build_dir_entry  =  Entry(self.frame_left,width=20,bg="white",fg="blue",textvariable=self.bd)
-        self.label_zl         =  Label(self.frame_left,anchor=W,text="Zoomlevel and Water options",\
+        self.label_zl         =  Label(self.frame_left,anchor=W,text="Provider and Zoomlevel",\
                                     fg = "light green",bg = "dark green",font = "Helvetica 16 bold italic")
         self.title_src        =  Label(self.frame_left,anchor=W,text="Base source  :",bg="light green") 
         self.map_combo        =  ttk.Combobox(self.frame_left,textvariable=self.map_choice,\
@@ -4374,18 +4513,16 @@ class Ortho4XP_Graphical(Tk):
         self.zl_combo         =  ttk.Combobox(self.frame_left,textvariable=self.zl_choice,\
                                     values=self.zl_list,state='readonly',width=3)
         self.preview_btn      =  Button(self.frame_left, text='Choose custom zoomlevel',command=self.preview_tile)
-        self.title_water      =  Label(self.frame_left,anchor=W,text="Water type  :",bg="light green")
-        self.watertype1       =  Radiobutton(self.frame_left,variable=self.water_type,value=1,text="X-Plane only",\
-                                    border=0,bg="light green",activebackground="light green",highlightthickness=0,\
-                                    command=self.choose_wt)
-        self.watertype2       =  Radiobutton(self.frame_left,variable=self.water_type,value=2,text="Photoreal only",\
-                                    border=0,bg="light green",activebackground="light green",highlightthickness=0,\
-                                    command=self.choose_wt)
-        self.watertype3       =  Radiobutton(self.frame_left,variable=self.water_type,value=3,text="Mixed with transparency",\
-                                    border=0,bg="light green",activebackground="light green",highlightthickness=0,\
-                                    command=self.choose_wt)
-        self.title_ratio_water=  Label(self.frame_left,text='ratio_water  : ',bg="light green")
-        self.ratio_water_entry=  Entry(self.frame_left,width=4,bg="white",fg="blue",textvariable=self.rw)
+        #self.title_water      =  Label(self.frame_left,anchor=W,text="Water type  :",bg="light green")
+        #self.watertype1       =  Radiobutton(self.frame_left,variable=self.water_type,value=1,text="X-Plane only",\
+                #                            border=0,bg="light green",activebackground="light green",highlightthickness=0,\
+                #                    command=self.choose_wt)
+        #self.watertype2       =  Radiobutton(self.frame_left,variable=self.water_type,value=2,text="Photoreal only",\
+                #                           border=0,bg="light green",activebackground="light green",highlightthickness=0,\
+                #                    command=self.choose_wt)
+        #self.watertype3       =  Radiobutton(self.frame_left,variable=self.water_type,value=3,text="Mixed with transparency",\
+                #                           border=0,bg="light green",activebackground="light green",highlightthickness=0,\
+                #                    command=self.choose_wt)
         self.label_osm        =  Label(self.frame_left,justify=RIGHT,anchor=W,text="Build vector data (OSM/Patches)",\
                                    fg = "light green",bg = "dark green",font = "Helvetica 16 bold italic")
         self.title_min_area   =  Label(self.frame_left,text='Min_area  :',anchor=W,bg="light green")
@@ -4419,21 +4556,31 @@ class Ortho4XP_Graphical(Tk):
         self.cleantmp_check   =  Checkbutton(self.frame_left,text="Clean tmp files",\
                                     anchor=W,variable=self.cleantmp,command=self.set_cleantmp,bg="light green",\
                                     activebackground="light green",highlightthickness=0)                    
-        self.cleanddster_check=  Checkbutton(self.frame_left,text="Clean unused dds/ter",\
+        self.cleanddster_check=  Checkbutton(self.frame_left,text="Clean unused dds/ter files",\
                                     anchor=W,variable=self.cleanddster,command=self.set_cleanddster,bg="light green",\
                                     activebackground="light green",highlightthickness=0)                    
+        self.complexmasks_check   =  Checkbutton(self.frame_left,text="Complex masks",\
+                                    anchor=W,variable=self.complexmasks,command=self.set_complexmasks,bg="light green",\
+                                    activebackground="light green",highlightthickness=0)                    
+        self.masksinland_check=  Checkbutton(self.frame_left,text="Use masks for inland",\
+                                    anchor=W,variable=self.masksinland,command=self.set_masksinland,bg="light green",\
+                                    activebackground="light green",highlightthickness=0)                    
+        self.label_overlay        =  Label(self.frame_left,justify=RIGHT,anchor=W,text="Build Overlays",\
+                                    fg = "light green",bg = "dark green",font = "Helvetica 16 bold italic")
         self.sniff_check      =  Checkbutton(self.frame_left,text="Custom overlay dir :",\
                                     anchor=W,variable=self.sniff,command=self.choose_sniff_dir,bg="light green",\
                                     activebackground="light green",highlightthickness=0)                    
         self.sniff_dir_entry  =  Entry(self.frame_left,width=30,bg="white",fg="blue",textvariable=self.sniff_dir)
         self.sniff_btn        =  Button(self.frame_left,text='Build overlay',command=self.build_overlay_ifc)
-        self.check_response   =  Checkbutton(self.frame_left,text="Check TMS response ",\
+        self.check_response   =  Checkbutton(self.frame_left,text="Check against white textures ",\
                                     anchor=W,variable=self.c_tms_r,command=self.set_c_tms_r,bg="light green",\
                                     activebackground="light green",highlightthickness=0)                    
         self.build_tile_btn   =  Button(self.frame_left,text='Step 3 : Build Tile',command=self.build_tile_ifc)
-        self.title_masks_width=  Label(self.frame_left,text='Masks_width  :',anchor=W,bg="light green")
+        self.title_masks_width=  Label(self.frame_left,text='Masks_width :',anchor=W,bg="light green")
         self.masks_width_e    =  Entry(self.frame_left,width=5,bg="white",fg="blue",textvariable=self.mw)
         self.build_masks_btn  =  Button(self.frame_left,text='(Step 2.5 : Build Masks)',command=self.build_masks_ifc)
+        self.title_ratio_water=  Label(self.frame_left,text='Ratio_water : ',bg="light green")
+        self.ratio_water_entry=  Entry(self.frame_left,width=4,bg="white",fg="blue",textvariable=self.rw)
         self.read_cfg_btn     =  Button(self.frame_lastbtn,text='Read Config ',command=self.read_cfg)
         self.write_cfg_btn    =  Button(self.frame_lastbtn,text='Write Config',command=self.write_cfg)
         self.kill_proc_btn    =  Button(self.frame_lastbtn,text='Stop process',command=self.stop_process)
@@ -4470,55 +4617,58 @@ class Ortho4XP_Graphical(Tk):
         self.title_zl.grid(row=4,column=2,sticky=N+S+E+W,padx=5,pady=5)
         self.zl_combo.grid(row=4,column=3,columnspan=1,padx=5,pady=5,sticky=W)
         self.preview_btn.grid(row=4,column=4, columnspan=2,padx=5, pady=5,sticky=N+S+W+E)
-        self.title_water.grid(row=5,column=0,columnspan=1, padx=5,pady=5,sticky=N+S+E+W)
-        self.watertype1.grid(row=5,column=1,columnspan=2, pady=5,sticky=N+S+W)
-        self.watertype2.grid(row=6,column=1,columnspan=2, pady=5,sticky=N+S+W)
-        self.watertype3.grid(row=7,column=1,columnspan=2, pady=5,sticky=N+S+W)
-        self.title_ratio_water.grid(row=7,column=3,columnspan=1, padx=5, pady=5,sticky=N+S+W+E) 
-        self.ratio_water_entry.grid(row=7,column=4, padx=5, pady=5,sticky=N+S+W)
-        self.label_osm.grid(row=8,column=0,columnspan=6,sticky=W+E)
-        self.title_min_area.grid(row=9,column=0, padx=5, pady=5,sticky=W+E) 
-        self.min_area.grid(row=9,column=1, padx=5, pady=5,sticky=W)
-        self.del_osm_btn.grid(row=9,column=2, columnspan=2, pady=5,sticky=N+S+W)
-        self.get_osm_btn.grid(row=9,column=4, columnspan=2,padx=5, pady=5,sticky=N+S+W+E)
-        self.label_bm.grid(row=10,column=0,columnspan=6,sticky=W+E)
-        self.title_curv_tol.grid(row=11,column=0, padx=5, pady=5,sticky=W+E) 
-        self.curv_tol.grid(row=11,column=1, padx=5, pady=5,sticky=W)
-        self.min_angle_check.grid(row=11,column=2, padx=5, pady=5,sticky=W)
-        self.min_angle.grid(row=11,column=3, padx=5, pady=5,sticky=W)
-        self.build_mesh_btn.grid(row=11,column=4, columnspan=2,padx=5, pady=5,sticky=N+S+W+E)
-        self.custom_dem_check.grid(row=12,column=0,columnspan=2, padx=5, pady=5,sticky=W)
-        self.custom_dem_entry.grid(row=12,column=2,columnspan=4, padx=5, pady=5,sticky=N+S+E+W)
-        self.label_dsf.grid(row=13,column=0,columnspan=6,sticky=W+E)
-        self.skipdown_check.grid(row=14,column=0,columnspan=2, pady=5,sticky=N+S+E+W)
-        self.skipconv_check.grid(row=14,column=2,columnspan=1, pady=5,sticky=N+S+E+W)
-        self.verbose_check.grid(row=16,column=0,columnspan=2, pady=5,sticky=N+S+W)
-        self.cleantmp_check.grid(row=16,column=2,columnspan=1, pady=5,sticky=N+S+W)
-        self.cleanddster_check.grid(row=16,column=3,columnspan=2, pady=5,sticky=N+S+W)
-        self.build_tile_btn.grid(row=18,rowspan=3,column=4,columnspan=2,padx=5,sticky=N+S+W+E)
-        self.check_response.grid(row=14,column=3,columnspan=3,sticky=W)
-        self.sniff_check.grid(row=15,column=0,columnspan=2, pady=5,sticky=N+S+E+W)
-        self.sniff_dir_entry.grid(row=15,column=2,columnspan=3, padx=5, pady=5,sticky=N+S+E+W)
-        self.sniff_btn.grid(row=15,column=5,columnspan=1, padx=5, pady=5,sticky=N+S+E+W)
-        self.title_masks_width.grid(row=17,column=0, padx=5, pady=5,sticky=W+E) 
-        self.masks_width_e.grid(row=17,column=1, padx=5, pady=5,sticky=W)
-        self.build_masks_btn.grid(row=17,column=2,columnspan=2,padx=5,pady=5,sticky=N+S+W+E)
+        #self.title_water.grid(row=5,column=0,columnspan=1, padx=5,pady=5,sticky=N+S+E+W)
+        #self.watertype1.grid(row=5,column=1,columnspan=2, pady=5,sticky=N+S+W)
+        #self.watertype2.grid(row=6,column=1,columnspan=2, pady=5,sticky=N+S+W)
+        #self.watertype3.grid(row=7,column=1,columnspan=2, pady=5,sticky=N+S+W)
+        self.label_osm.grid(row=5,column=0,columnspan=6,sticky=W+E)
+        self.title_min_area.grid(row=6,column=0, padx=5, pady=5,sticky=W+E) 
+        self.min_area.grid(row=6,column=1, padx=5, pady=5,sticky=W)
+        self.del_osm_btn.grid(row=6,column=2, columnspan=2, pady=5,sticky=N+S+W)
+        self.get_osm_btn.grid(row=6,column=4, columnspan=2,padx=5, pady=5,sticky=N+S+W+E)
+        self.label_bm.grid(row=7,column=0,columnspan=6,sticky=W+E)
+        self.title_curv_tol.grid(row=8,column=0, padx=5, pady=5,sticky=W+E) 
+        self.curv_tol.grid(row=8,column=1, padx=5, pady=5,sticky=W)
+        self.min_angle_check.grid(row=8,column=2, padx=5, pady=5,sticky=W)
+        self.min_angle.grid(row=8,column=3, padx=5, pady=5,sticky=W)
+        self.build_mesh_btn.grid(row=8,column=4, columnspan=2,padx=5, pady=5,sticky=N+S+W+E)
+        self.custom_dem_check.grid(row=9,column=0,columnspan=2, padx=5, pady=5,sticky=W)
+        self.custom_dem_entry.grid(row=9,column=2,columnspan=4, padx=5, pady=5,sticky=N+S+E+W)
+        self.label_dsf.grid(row=10,column=0,columnspan=6,sticky=W+E)
+        self.skipdown_check.grid(row=11,column=0,columnspan=2, pady=5,sticky=N+S+E+W)
+        self.skipconv_check.grid(row=11,column=2,columnspan=1, pady=5,sticky=N+S+E+W)
+        self.check_response.grid(row=11,column=3,columnspan=3,sticky=W)
+        self.verbose_check.grid(row=12,column=0,columnspan=2, pady=5,sticky=N+S+W)
+        self.cleantmp_check.grid(row=12,column=2,columnspan=1, pady=5,sticky=N+S+W)
+        self.cleanddster_check.grid(row=12,column=3,columnspan=2, pady=5,sticky=N+S+W)
+        self.complexmasks_check.grid(row=13,column=0,columnspan=2, pady=5,sticky=N+S+W)
+        self.masksinland_check.grid(row=13,column=2,columnspan=1, pady=5,sticky=N+S+W)
+        self.title_masks_width.grid(row=14,column=0, padx=5, pady=5,sticky=W+E) 
+        self.masks_width_e.grid(row=14,column=1, padx=5, pady=5,sticky=W)
+        self.title_ratio_water.grid(row=14,column=2,columnspan=1, padx=5, pady=5,sticky=W) 
+        self.ratio_water_entry.grid(row=14,column=3, padx=5, pady=5,sticky=W)
+        self.build_masks_btn.grid(row=14,column=4,columnspan=2,padx=5,pady=5,sticky=N+S+W+E)
+        self.build_tile_btn.grid(row=15,rowspan=3,column=4,columnspan=2,padx=5,sticky=N+S+W+E)
         self.read_cfg_btn.grid(row=0,column=0,padx=5, pady=5,sticky=N+S+W+E)
         self.write_cfg_btn.grid(row=0,column=1,padx=5, pady=5,sticky=N+S+W+E)
         self.kill_proc_btn.grid(row=0,column=2,padx=5,pady=5,sticky=N+S+W+E)
         self.exit_btn.grid(row=0,column=3, padx=5, pady=5,sticky=N+S+W+E)
-        self.title_progress_a.grid(row=18,column=0,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
-        self.progressbar_attr.grid(row=18,column=2,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
-        self.title_progress_d.grid(row=19,column=0,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
-        self.progressbar_down.grid(row=19,column=2,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
-        self.title_progress_m.grid(row=20,column=0,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
-        self.progressbar_mont.grid(row=20,column=2,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
-        self.title_progress_c.grid(row=21,column=0,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
-        self.progressbar_conv.grid(row=21,column=2,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
+        self.title_progress_a.grid(row=15,column=0,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
+        self.progressbar_attr.grid(row=15,column=2,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
+        self.title_progress_d.grid(row=16,column=0,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
+        self.progressbar_down.grid(row=16,column=2,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
+        #self.title_progress_m.grid(row=20,column=0,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
+        #self.progressbar_mont.grid(row=20,column=2,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
+        self.title_progress_c.grid(row=17,column=0,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
+        self.progressbar_conv.grid(row=17,column=2,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
         # --> mth
-        self.title_comp_func.grid(row=22,column=0,columnspan=2,padx=5,pady=5,sticky=E+W)
-        self.comp_func_combo.grid(row=22,column=2,columnspan=2,padx=5,pady=5,sticky=E+W)
+        self.title_comp_func.grid(row=18,column=0,columnspan=2,padx=5,pady=5,sticky=E+W)
+        self.comp_func_combo.grid(row=18,column=2,columnspan=2,padx=5,pady=5,sticky=E+W)
         # <-- mth
+        self.label_overlay.grid(row=19,column=0,columnspan=6,sticky=W+E)
+        self.sniff_check.grid(row=20,column=0,columnspan=2, pady=5,sticky=N+S+E+W)
+        self.sniff_dir_entry.grid(row=20,column=2,columnspan=3, padx=5, pady=5,sticky=N+S+E+W)
+        self.sniff_btn.grid(row=20,column=5,columnspan=1, padx=5, pady=5,sticky=N+S+E+W)
         self.std_out.grid(row=0,column=0,padx=5,pady=5,sticky=N+S+E+W)
         # read default choices from config file 
         try:
@@ -4545,6 +4695,8 @@ class Ortho4XP_Graphical(Tk):
             self.zl_choice.set(default_zl)
             self.mw.set(masks_width)
             self.sniff_dir.set(default_sniff_dir)
+            self.complexmasks.set(complex_masks)
+            self.masksinland.set(use_masks_for_inland)
         except:
             print("\nWARNING : the main config file is incomplete or does not follow the syntax,")
             print("I could not initialize all the parameters to your wish.")
@@ -4598,10 +4750,11 @@ class Ortho4XP_Graphical(Tk):
         return 
     
     def choose_wt(self):
-        if self.water_type.get()==3:
+        if True:
+        #if self.water_type.get()==3:
             self.rw.set('0.2')
-        else:
-            self.rw.set('')
+        #else:
+        #    self.rw.set('')
         return
     
 
@@ -4609,7 +4762,7 @@ class Ortho4XP_Graphical(Tk):
         global build_dir,water_option,ratio_water,min_area,curvature_tol,\
                no_small_angles,smallest_angle,default_website,default_zl,\
                skip_downloads,skip_converts,verbose_output,clean_tmp_files,\
-               dds_or_png,check_tms_response,zone_list
+               dds_or_png,check_tms_response,complex_masks,use_masks_for_inland,zone_list
         [lat,lon]=self.load_latlon()
         if lat=='error':
             return
@@ -4619,6 +4772,8 @@ class Ortho4XP_Graphical(Tk):
             build_dir=Ortho4XP_dir+dir_sep+'zOrtho4XP_'+strlat+strlon
         else:
             build_dir=self.build_dir_entry.get()
+            if build_dir[-1]=='/':
+                build_dir=build_dir[:-1]+dir_sep+'zOrtho4XP_'+strlat+strlon
         try:
             exec(open(build_dir+dir_sep+'Ortho4XP.cfg').read(),globals())
         except:
@@ -4641,6 +4796,8 @@ class Ortho4XP_Graphical(Tk):
             self.skipc.set(skip_converts)
             self.cleantmp.set(clean_tmp_files)
             self.cleanddster.set(clean_unused_dds_and_ter_files)
+            self.complexmasks(complex_masks)
+            self.masksinland(use_masks_for_inland)
             self.verbose.set(verbose_output)
             if check_tms_response==True:
                 self.c_tms_r.set(1)
@@ -4673,6 +4830,8 @@ class Ortho4XP_Graphical(Tk):
             build_dir=Ortho4XP_dir+dir_sep+'zOrtho4XP_'+strlat+strlon
         else:
             build_dir=self.build_dir_entry.get()
+            if build_dir[-1]=='/':
+                build_dir=build_dir[:-1]+dir_sep+'zOrtho4XP_'+strlat+strlon
         try:
             fgen=open(Ortho4XP_dir+dir_sep+"Ortho4XP.cfg",'r')
             fbuild=open(build_dir+dir_sep+"Ortho4XP.cfg",'w')
@@ -4712,6 +4871,14 @@ class Ortho4XP_Graphical(Tk):
             fbuild.write("clean_unused_dds_and_ter_files=False\n")
         else:
             fbuild.write("clean_unused_dds_and_ter_files=True\n")
+        if self.complexmasks.get()==0:
+            fbuild.write("complex_masks=False\n")
+        else:
+            fbuild.write("complex_masks=True\n")
+        if self.masksinland.get()==0:
+            fbuild.write("use_masks_for_inland=False\n")
+        else:
+            fbuild.write("use_masks_for_inland=True\n")
         fbuild.write("min_area="+str(min_area)+"\n")
         fbuild.write("curvature_tol="+str(curvature_tol)+"\n")
         if self.minangc.get()==0:
@@ -4766,6 +4933,8 @@ class Ortho4XP_Graphical(Tk):
             build_dir=Ortho4XP_dir+dir_sep+'zOrtho4XP_'+strlat+strlon
         else:
             build_dir=self.build_dir_entry.get()
+            if build_dir[-1]=='/':
+                build_dir=build_dir[:-1]+dir_sep+'zOrtho4XP_'+strlat+strlon
         try:
             for f in os.listdir(build_dir):
                 if 'OSM_' in f:
@@ -4799,7 +4968,9 @@ class Ortho4XP_Graphical(Tk):
             build_dir=Ortho4XP_dir+dir_sep+'zOrtho4XP_'+strlat+strlon
         else:
             build_dir=self.build_dir_entry.get()
-        water_option= self.water_type.get()
+            if build_dir[-1]=='/':
+                build_dir=build_dir[:-1]+dir_sep+'zOrtho4XP_'+strlat+strlon
+        #water_option= self.water_type.get()
         print("\nStep 1 : Building OSM and patch data for tile "+strlat+strlon+" : ")
         print("--------\n")
         fargs_get_osm=[lat,lon,water_option,build_dir]
@@ -4818,6 +4989,8 @@ class Ortho4XP_Graphical(Tk):
             build_dir=Ortho4XP_dir+dir_sep+'zOrtho4XP_'+strlat+strlon
         else:
             build_dir=self.build_dir_entry.get()
+            if build_dir[-1]=='/':
+                build_dir=build_dir[:-1]+dir_sep+'zOrtho4XP_'+strlat+strlon
         try:
             curvature_tol=float(self.curv_tol.get())
             if curvature_tol < 0.01 or curvature_tol>100:
@@ -4879,7 +5052,7 @@ class Ortho4XP_Graphical(Tk):
     
     def build_tile_ifc(self):
         global lat,lon,build_dir,skip_downloads,skip_converts,verbose_output,\
-                clean_tmp_files,dds_or_png,water_overlay,ratio_water,ortho_list,zone_list
+                clean_tmp_files,dds_or_png,water_overlay,ratio_water,use_masks_for_inland,ortho_list,zone_list
         [lat,lon]=self.load_latlon()
         if lat=='error':
             return
@@ -4889,6 +5062,8 @@ class Ortho4XP_Graphical(Tk):
             build_dir=Ortho4XP_dir+dir_sep+'zOrtho4XP_'+strlat+strlon
         else:
             build_dir=self.build_dir_entry.get()
+            if build_dir[-1]=='/':
+                build_dir=build_dir[:-1]+dir_sep+'zOrtho4XP_'+strlat+strlon
         if self.skipd.get()==1:
             skip_downloads=True
         else:
@@ -4931,7 +5106,7 @@ class Ortho4XP_Graphical(Tk):
         return
     
     def build_masks_ifc(self):
-        global lat,lon,build_dir,water_overlay,masks_width
+        global lat,lon,build_dir,water_overlay,masks_width,compex_masks
         [lat,lon]=self.load_latlon()
         if lat=='error':
             return
@@ -4941,9 +5116,11 @@ class Ortho4XP_Graphical(Tk):
             build_dir=Ortho4XP_dir+dir_sep+'zOrtho4XP_'+strlat+strlon
         else:
             build_dir=self.build_dir_entry.get()
+            if build_dir[-1]=='/':
+                build_dir=build_dir[:-1]+dir_sep+'zOrtho4XP_'+strlat+strlon
         try:
             masks_width=int(self.masks_width_e.get())
-            if masks_width < 1 or masks_width>11048:
+            if masks_width < 1 or masks_width>1048:
                 print('\nFailure : masks_width off limits.')
                 print('_____________________________________________________________'+\
                 '____________________________________')
@@ -5019,6 +5196,22 @@ class Ortho4XP_Graphical(Tk):
             clean_unused_dds_and_ter_files=False
         else:
             clean_unused_dds_and_ter_files=True
+        return
+    
+    def set_complexmasks(self):
+        global complex_masks
+        if self.complexmasks.get()==0:
+            complex_masks=False
+        else:
+            complex_masks=True
+        return
+    
+    def set_masksinland(self):
+        global use_masks_for_inland
+        if self.masksinland.get()==0:
+            use_masks_for_inland=False
+        else:
+            use_masks_for_inland=True
         return
     
     def kill_process(self):
