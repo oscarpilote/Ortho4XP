@@ -67,7 +67,7 @@ def http_requests_form(til_x_left,til_y_top,zoomlevel,website):
     ####################################################
     elif website in["GO2","GO",'g2xpl_8','g2xpl_16']:
         server=random.randint(0,3) # can be quicker with a fixed number between 0 and 3
-        url="http://khms"+str(server)+".google.com/kh/v=709&x="+\
+        url="http://khms"+str(server)+".google.com/kh/v=715&x="+\
             str(til_x)+"&y="+str(til_y)+"&z="+str(zoomlevel)
         fake_headers={\
             'Host':'khms'+str(server)+'.google.com',\
@@ -86,7 +86,7 @@ def http_requests_form(til_x_left,til_y_top,zoomlevel,website):
     elif website=="Here":
         server=random.randint(1,4)
         url="https://"+str(server)+".aerial.maps.api.here.com/"+\
-            "maptile/2.1/maptile/3356e3cd65/satellite.day/"+str(zoomlevel)+"/"+\
+            "maptile/2.1/maptile/81fa6d370d/satellite.day/"+str(zoomlevel)+"/"+\
              str(til_x)+"/"+str(til_y)+"/256/jpg?app_id=xWVIueSv6JL0aJ5xqTxb&app_code=djPZyynKsbTjIUDOBcHZ2g"
         fake_headers=fake_headers_generic       
 
