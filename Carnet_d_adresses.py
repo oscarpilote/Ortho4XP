@@ -64,21 +64,13 @@ def http_requests_form(til_x_left,til_y_top,zoomlevel,website):
     ####################################################
     # Google (restrictive copyright, version as of 2015)
     # Viewer on maps.google.com
+    # https://mts1.google.com/vt/lyrs=s@186112443&hl=x-local&src=app&x=1325&y=3143&z=13
     ####################################################
     elif website in["GO2","GO",'g2xpl_8','g2xpl_16']:
         server=random.randint(0,3) # can be quicker with a fixed number between 0 and 3
-        url="http://khms"+str(server)+".google.com/kh/v=715&x="+\
+        url="http://mt"+str(server)+".google.com/vt/lyrs=s&x="+\
             str(til_x)+"&y="+str(til_y)+"&z="+str(zoomlevel)
-        fake_headers={\
-            'Host':'khms'+str(server)+'.google.com',\
-            'User-Agent': user_agent_generic,\
-            'Accept':'image/png,image/*;q=0.8,*/*;q=0.5',\
-            'Accept-Language':'fr,fr-FR;q=0.8,en-US;q=0.5,en;q=0.3',\
-            'Accept-Encoding':'gzip,deflate',\
-            'Referer':'https://www.google.fr',\
-            'Origin':'https://www.google.fr',\
-            'Connection':'keep-alive'\
-                }
+        fake_headers=fake_headers_generic
     
     ####################################################
     # Here.com (was asked for, similar to Bing in many places it seems) 
