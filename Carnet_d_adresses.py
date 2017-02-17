@@ -1,7 +1,10 @@
 ##############################################################################
 #                                                                            #
 #      The address book for Ortho4XP.                                        #
-#      Version from November 8th 2016                                        #
+#      "Norway source hack" based on the version from November 8th 2016      #
+#      Courtesy of Jaromaz with minor modifications by Daikan.               #
+#      Requires modified version of Ortho4XP.py (v119r2_norway_hack)         #
+#                                                                            #
 #                                                                            #
 #      You can expand it with your preferred providers, the following        #
 #      is just a sample one based on prior ideas or queries.                 #
@@ -16,6 +19,7 @@ try: # pyproj allows to deal with wms which don't accept wgs84 bounds, like 'SE2
     epsg['4326']=pyproj.Proj(init='epsg:4326')
     epsg['3006']=pyproj.Proj(init='epsg:3006')
     epsg['32632']=pyproj.Proj(init='epsg:32632')
+    epsg['32633']=pyproj.Proj(init='epsg:32633')
     epsg['2056']=pyproj.Proj(init='epsg:2056')
     epsg['25832']=pyproj.Proj(init='epsg:25832')
     epsg['102060']=pyproj.Proj(init='epsg:3912')
@@ -32,10 +36,46 @@ except:
 # 1) List of websites that use WGS84 TMS standard with 256x256 pixmaps.
 px256_list=['OSM','BI','GO2','Arc','Here','USA_2','FR','FRorth','FRom','FRsat','FRsat2','Top25','SP','CH','OST','SE','Hitta','CZ','AU_1','JP','NZ','ASK_1','ASK_2','F44','FRsatp','FO','g2xpl_8','g2xpl_16']                     
 # 2) List of WMS sites accepting 2048x2048 image requests
-wms2048_list=['DE','IT','PL','SLO','CRO','SE2','BE_Wa','NE','NE2','DK','USA_1','GE','EST'] 
+wms2048_list=['DE','IT','PL','SLO','CRO','SE2','BE_Wa','NE','NE2','DK','USA_1','GE','EST','NO'] 
 
 # If the provider uses a different projection than epsg:4326 indicate it here below
-st_proj_coord_dict={'USA_1':'2056','DE':'25832','SE2':'3006','SLO':'102060','GE':'2056','EST':'3301'}
+st_proj_coord_dict={'USA_1':'2056','DE':'25832','SE2':'3006','SLO':'102060','GE':'2056','EST':'3301','NO':'32633'}
+
+##############################################################################
+# NO ticket ID update task                                                   #
+# - Starts a background thread to update the ticket ID every 15 minutes      #
+##############################################################################
+##############################################################################
+
+# import urllib.request,re,time,threading
+import urllib.request,re
+endno = 0
+ticketno = ''
+def ticketgen():
+
+    # Ticket URL
+    ticketurl = 'http://www.norgeskart.no/ws/esk.py?wms.nib'
+    # Interval in minutes
+    tginterval = 15
+
+    global ticketno
+    global endno
+
+    if endno == 0:
+        threading.Timer((int(tginterval)*60), ticketgen).start()
+
+    ticketget = urllib.request.urlopen(ticketurl)
+    if ticketget.getcode() == 200:
+        ticketget = ticketget.read()
+        ticketget = str(ticketget)
+        ticketget = re.sub('"','', ticketget.rstrip())
+        ticketget = re.sub("b'",'', ticketget.rstrip())
+        ticketget = re.sub("'",'', ticketget.rstrip())
+        ticketget = ticketget[:-2];
+        ticketno = ticketget
+    return
+ticketgen()
+##############################################################################
 
 ##############################################################################
 def http_requests_form(til_x_left,til_y_top,zoomlevel,website):
@@ -450,10 +490,12 @@ def http_requests_form(til_x_left,til_y_top,zoomlevel,website):
    
     ####################################################
     # National geographical institute of Norway 
+    # Visible on norgeskart.no 
+    # Needs a ticket id which can be generated with
+    # http://www.norgeskart.no/ws/esk.py?wms.nib
     # Unsure about copyright
-    # !!! Doesn't work as of September 1st 2016 !!!
     ####################################################
-    elif website in ['NO','NO2']: 
+    elif website in ['NO']: 
         if not pyproj_loaded:
             return 'error'
         text_til_x_left=(til_x_left//16)*16
@@ -476,13 +518,26 @@ def http_requests_form(til_x_left,til_y_top,zoomlevel,website):
         maxx=minx+deltax/2.0
         miny=text_miny+(1-monty)*deltay/2.0
         maxy=miny+deltay/2.0
-        url="http://openwms.statkart.no/skwms1/wms.georef_nib?version=1.3.0&\
-             service=WMS&request=GetMap&layer=Georef-omlopsfoto_orto50&format=image/jpeg&\
-             STYLE=default&SRS=EPSG%3A32633&BBOX="+\
+        url="http://wms.geonorge.no/skwms1/wms.nib"+\
+            "?LAYERS=ortofoto"+\
+            "&TRANSPARENT=FALSE"+\
+            "&FORMAT=image%2Fjpeg"+\
+            "&SERVICE=WMS"+\
+            "&VERSION=1.1.1"+\
+            "&REQUEST=GetMap"+\
+            "&STYLES="+\
+            "&ticket="+ticketno+\
+            "&SRS=EPSG%3A32633"+\
+            "&BBOX="+\
              str(minx)+','+str(miny)+','+str(maxx)+','+str(maxy)+\
              "&WIDTH=2048&HEIGHT=2048"
-        fake_headers=fake_headers_generic
-    
+        fake_headers={\
+            'User-Agent':user_agent_generic,\
+            'Accept':'*/*',\
+            'Connection':'keep-alive',\
+            'Accept-Encoding':'gzip, deflate',\
+            'Referer':'http://norgeskart.no/geoportal/'\
+            }
 
     ####################################################
     # National geographical institute of Denmark
@@ -614,7 +669,7 @@ def http_requests_form(til_x_left,til_y_top,zoomlevel,website):
                 'Accept-Language':'en-US,en;q=0.5',\
                 'Accept-Encoding':'gzip,deflate',\
                 'Referer':'http://map.geo.admin.ch',\
-				'Origin':'http://map.geo.admin.ch',\
+                'Origin':'http://map.geo.admin.ch',\
                 'Connection':'keep-alive'\
                 }
     
@@ -626,7 +681,7 @@ def http_requests_form(til_x_left,til_y_top,zoomlevel,website):
     elif website=="CZ":
         server=random.randint(1,4)
         url="http://m"+str(server)+".mapserver.mapy.cz/ophoto-m/"+\
-        	str(zoomlevel)+"-"+str(til_x)+"-"+str(til_y)
+            str(zoomlevel)+"-"+str(til_x)+"-"+str(til_y)
         fake_headers=fake_headers_generic
     
     ####################################################
@@ -755,7 +810,7 @@ def http_requests_form(til_x_left,til_y_top,zoomlevel,website):
             [url,fake_headers]=APL_request(til_x_left,til_y_top,zoomlevel,website)
         except:
             print("The photo album \'"+website+"\' that you have requested "+\
-              "is not or no longer implemented in this release. You will get white tiles !!!")	   
+              "is not or no longer implemented in this release. You will get white tiles !!!")     
             return ['error','']
     return [url,fake_headers]
 ##############################################################################

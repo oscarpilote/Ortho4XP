@@ -1,9 +1,15 @@
 #!/usr/bin/env python3                                                       
 ##############################################################################
 # Ortho4XP : A base mesh creation tool for the X-Plane 10 flight simulator.  #
-# Version  : 1.19r2                                                          #
+# Version  : 1.19r2_norway_hack                                              #
 # Copyright 2016 Oscar Pilote                                                #
 # Thanks to all that have contributed to improvement of the code.            #
+##############################################################################
+#      "Norway source hack" based on the version from November 8th 2016      #
+#      Courtesy of Jaromaz with minor modifications by Daikan.               #
+#      Known issues:                                                         #
+#       - Ortho4XP might not shut down properly after exiting, e.g.          #
+#         the Python process must be terminated forcefully                  #
 ##############################################################################
 #                                                                            #
 #   LEGAL NOTICE :                                                           #
@@ -23,7 +29,7 @@
 #                                                                            #
 ##############################################################################
 
-version=' v119r2'
+version=' v119r2_norway_hack'
 
 import os
 import sys
@@ -2714,6 +2720,10 @@ def build_jpeg_ortho(strlat,strlon,til_x_left,til_y_top,zoomlevel,website):
     elif website in wms2048_list:
         for monty in [0,1]:
             for montx in [0,1]:
+                # BEGIN - Norway source hack
+                # Pause thread in order to throttle download bandwidth
+                time.sleep(1.0)
+                # END - Norway source hack
                 fargs=[til_x_left,til_y_top,zoomlevel,website,montx,monty,big_image]
                 connection_thread=threading.Thread(target=obtain_wms_part,\
                         args=fargs)
@@ -3247,6 +3257,9 @@ def convert_textures(strlat,strlon,build_dir):
             finished=True
             if nbr_done >= 1:
                 print("  Waiting for all convert threads to finish.")
+                # BEGIN - Norway source hack
+                endno=1
+                # END - Norway source hack
                 while busy_slots_conv > 0:
                     print("  ...")
                     time.sleep(3)
