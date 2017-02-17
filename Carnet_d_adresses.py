@@ -68,7 +68,7 @@ def http_requests_form(til_x_left,til_y_top,zoomlevel,website):
     ####################################################
     elif website in["GO2","GO",'g2xpl_8','g2xpl_16']:
         server=random.randint(0,3) # can be quicker with a fixed number between 0 and 3
-        url="http://mt"+str(server)+".google.com/vt/lyrs=s&x="+\
+        url="http://mts"+str(server)+".google.com/vt/lyrs=s&x="+\
             str(til_x)+"&y="+str(til_y)+"&z="+str(zoomlevel)
         fake_headers=fake_headers_generic
     
