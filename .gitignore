@@ -1,1 +1,8 @@
 .idea/
+/last_map_position.txt
+/Elevation_Data
+/Orthophotos
+/OSM_data
+/Overlay_sniff_dir
+/Tiles
+/yOrtho4XP_Overlays
