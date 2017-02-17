@@ -1,7 +1,7 @@
 #!/usr/bin/env python3                                                       
 ##############################################################################
 # Ortho4XP : A base mesh creation tool for the X-Plane 11 flight simulator.  #
-# Version  : 1.20_norway_hack                                                #
+# Version  : 1.20b_norway_hack                                                #
 # Copyright 2016 Oscar Pilote                                                #
 # Thanks to all that have contributed to improvement of the code.            #
 ##############################################################################
@@ -29,7 +29,7 @@
 #                                                                            #
 ##############################################################################
 
-version=' v1.20_norway_hack'
+version=' v1.20b_norway_hack'
 
 import os
 import sys
@@ -2373,7 +2373,10 @@ def build_3D_vertex_array(lat,lon,alt_dem,ndem,build_dir):
         vertices[5*i+2]=float(coordlist[3])
         vertices[5*i+3]=float(coordlist[4])
         vertices[5*i+4]=float(coordlist[5])
-        input_alt[i]=float(coordlist[6]) 
+        try:
+            input_alt[i]=float(coordlist[6])
+        except:
+            input_alt[i]=-32768
     f_node.close()
     # Now we modify the altitude we got from the DEM in certain 
     # circumstances, because we want flat water, flat (or correctly sloped
@@ -3830,6 +3833,7 @@ def build_dsf(lat0,lon0,ortho_list,water_overlay,\
         [lon3,lat3,z3,u3,v3]=pt_in[5*n3:5*n3+5]
         texture=attribute_texture(lat1,lon1,lat2,lon2,lat3,lon3,ortho_list,tri_type)
         if texture=='None':
+            continue
             pixx=int(((lon1+lon2+lon3)/3-lon0)*raster_resolution)     
             pixy=int((lat0+1-(lat1+lat2+lat3)/3)*raster_resolution)
             #print(pixx,pixy)
