@@ -1,8 +1,13 @@
-# Flykido's Ortho4XP
-
+# Unofficial Flykido's Ortho4XP
 Ortho4XP is a scenery generator for the X-Plane flight simulator, written by _**Oscar Pilote**_
 
-This repository holds my own version of his tool, where I intend to publish my contributions (and hopefully get them pulled upstream).
+It is a really amazing tool and just like many others, I got addicted to it :)
+
+**Please be aware that THIS IS NOT THE OFFICIAL Ortho4XP**.
+
+This repository contains my own modifications to his tool, which I hope will one day be included in the official one.
+
+**It may or may not work** for you, as this is all a work in progress for now.
 
 A few resources for the original Ortho4XP :
 - Forum : http://forums.x-plane.org/index.php?/forums/forum/322-ortho4xp/
@@ -22,6 +27,8 @@ My first intentions with this repository :
   - finally, maybe I'll refactor a bit more as I see fit.
     - config files and logging : use a more standard lib for that
 
+- add some tests along the way
+
 - implement a few evolutions :
   - multiple layers of ZL around airports (already have a dirty patch for this, will make a cleaner one)
     => next step, even better : I know someone has implemented something to have different ZL in the corridors along the runways, I should get in touch with him
@@ -31,4 +38,3 @@ My first intentions with this repository :
     - also, have a "tile manager" to manage the storage location of the tiles and overlays
 
 - maybe later, have my own go at an HMI revamp
-
