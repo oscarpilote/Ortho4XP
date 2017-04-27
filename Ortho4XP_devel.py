@@ -195,6 +195,8 @@ raster_resolution = 10000      # Image size for the raster of the sniffed landcl
 max_connect_retries=10
 max_baddata_retries=10
 custom_url_list=[]
+flatten_airports=True
+
 
 # Will be used as global variables
 download_to_do_list=[]
@@ -449,6 +451,8 @@ def build_poly_file(lat0,lon0,option,build_dir,airport_website=default_website):
         tags.append('way["natural"="coastline"]')
     else:  # Mixed
         print("-> Downloading airport and water/ground boundary data from Openstreetmap :")
+        tags.append('way["aeroway"="runway"]')  
+        tags.append('way["aeroway"="taxiway"]')
         tags.append('way["highway"="motorway"]')  
         tags.append('way["highway"="primary"]')  
         tags.append('way["highway"="secondary"]')  
@@ -545,8 +549,8 @@ def build_poly_file(lat0,lon0,option,build_dir,airport_website=default_website):
                     if keep_that_one==True:
                         keep_way(way,lat0,lon0,1,'airport',dico_nodes,\
                                 dico_edges)
-                        flat_airport_seeds.append([way,\
-                                pick_point_check(way,side,lat0,lon0),altitude])
+                        if flatten_airports: 
+                            flat_airport_seeds.append([way,pick_point_check(way,side,lat0,lon0),altitude])
                 else:
                     print("One of the airports within the tile is not correctly closed \n"+\
                           "on Openstreetmap ! Close to coordinates " + str(way[0]))
@@ -588,8 +592,8 @@ def build_poly_file(lat0,lon0,option,build_dir,airport_website=default_website):
                         side='right'
                     keep_way(waypts,lat0,lon0,1,'airport',dico_nodes,\
                                         dico_edges)
-                    flat_airport_seeds.append([waypts,\
-                            pick_point_check(waypts,side,lat0,lon0),altitude])
+                    if flatten_airports: 
+                        flat_airport_seeds.append([waypts,pick_point_check(waypts,side,lat0,lon0),altitude])
         elif 'way["natural"="coastline"]' in tag:
             total_sea_seeds=0
             for wayid in dicosmw:
@@ -611,7 +615,7 @@ def build_poly_file(lat0,lon0,option,build_dir,airport_website=default_website):
                             sea_equiv_seeds+=pick_points_safe(way,'right',lat0,lon0)
                         else:
                             sea_seeds+=pick_points_safe(way,'right',lat0,lon0)
-        elif 'highway' in tag or 'railway' in tag or 'pier' in tag:
+        elif 'highway' in tag or 'railway' in tag or 'pier' in tag or 'runway' in tag or 'taxiway' in tag:
             for wayid in dicosmw:
                 way=dicosmw[wayid]
                 keep_way(way,lat0,lon0,1,'road',dico_nodes,dico_edges)
@@ -2981,7 +2985,7 @@ def initialize_providers_dict():
                 elif key in ['wms_size','tile_size']:
                     try:
                         provider[key]=int(value)
-                        if provider[key]<256 or provider[key]>9192:
+                        if provider[key]<100 or provider[key]>9192:
                             print("Wm(t)s size for provider ",provider_code,"seems off limits, provider skipped.")
                     except:
                         print("Error in reading wms size for provider",provider_code)
@@ -3326,7 +3330,7 @@ def st_coord(lat,lon,tex_x,tex_y,zoomlevel,provider_code):
         t = t if t>=0 else 0
         t = t if t<=1 else 1
         return [s,t]
-    elif provider_code not in st_proj_coord_dict: # hence in epsg:4326
+    else: # provider_code not in st_proj_coord_dict: # hence in epsg:4326
         ratio_x=lon/180           
         ratio_y=log(tan((90+lat)*pi/360))/pi
         mult=2**(zoomlevel-5)
@@ -3337,27 +3341,27 @@ def st_coord(lat,lon,tex_x,tex_y,zoomlevel,provider_code):
         t = t if t>=0 else 0
         t = t if t<=1 else 1
         return [s,t]
-    else:
-        [latmax,lonmin]=gtile_to_wgs84(tex_x,tex_y,zoomlevel)
-        [latmin,lonmax]=gtile_to_wgs84(tex_x+16,tex_y+16,zoomlevel)
-        [ulx,uly]=pyproj.transform(epsg['4326'],epsg[st_proj_coord_dict[provider_code]],lonmin,latmax)
-        [urx,ury]=pyproj.transform(epsg['4326'],epsg[st_proj_coord_dict[provider_code]],lonmax,latmax)
-        [llx,lly]=pyproj.transform(epsg['4326'],epsg[st_proj_coord_dict[provider_code]],lonmin,latmin)
-        [lrx,lry]=pyproj.transform(epsg['4326'],epsg[st_proj_coord_dict[provider_code]],lonmax,latmin)
-        minx=min(ulx,llx)
-        maxx=max(urx,lrx)
-        miny=min(lly,lry)
-        maxy=max(uly,ury)
-        deltax=maxx-minx
-        deltay=maxy-miny
-        [x,y]=pyproj.transform(epsg['4326'],epsg[st_proj_coord_dict[provider_code]],lon,lat)
-        s=(x-minx)/deltax
-        t=(y-miny)/deltay
-        s = s if s>=0 else 0
-        s = s if s<=1 else 1
-        t = t if t>=0 else 0
-        t = t if t<=1 else 1
-        return [s,t]
+    #else:
+    #    [latmax,lonmin]=gtile_to_wgs84(tex_x,tex_y,zoomlevel)
+    #    [latmin,lonmax]=gtile_to_wgs84(tex_x+16,tex_y+16,zoomlevel)
+    #    [ulx,uly]=pyproj.transform(epsg['4326'],epsg[st_proj_coord_dict[provider_code]],lonmin,latmax)
+    #    [urx,ury]=pyproj.transform(epsg['4326'],epsg[st_proj_coord_dict[provider_code]],lonmax,latmax)
+    #    [llx,lly]=pyproj.transform(epsg['4326'],epsg[st_proj_coord_dict[provider_code]],lonmin,latmin)
+    #    [lrx,lry]=pyproj.transform(epsg['4326'],epsg[st_proj_coord_dict[provider_code]],lonmax,latmin)
+    #    minx=min(ulx,llx)
+    #    maxx=max(urx,lrx)
+    #    miny=min(lly,lry)
+    #    maxy=max(uly,ury)
+    #    deltax=maxx-minx
+    #    deltay=maxy-miny
+    #    [x,y]=pyproj.transform(epsg['4326'],epsg[st_proj_coord_dict[provider_code]],lon,lat)
+    #    s=(x-minx)/deltax
+    #    t=(y-miny)/deltay
+    #    s = s if s>=0 else 0
+    #    s = s if s<=1 else 1
+    #    t = t if t>=0 else 0
+    #   t = t if t<=1 else 1
+    #    return [s,t]
 ##############################################################################
 
 ##############################################################################
@@ -7200,7 +7204,10 @@ class Ortho4XP_Graphical(Tk):
         self.bdc             = IntVar()
         self.bdc.set(0)
         self.bd              = StringVar()
-        self.bd.set('')
+        try:
+            self.bd.set(default_build_dir)
+        except:
+            self.bd.set('')
         self.ma              = StringVar()
         self.ma.set('0.01')
         self.ct              = StringVar()
