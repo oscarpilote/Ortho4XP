@@ -1,8 +1,8 @@
 #!/usr/bin/env python3                                                       
 ##############################################################################
-# Ortho4XP : A base mesh creation tool for the X-Plane 10 flight simulator.  #
+# Ortho4XP : A base mesh creation tool for the X-Plane 11 flight simulator.  #
 # Version  : devel                                                           #
-# Copyright 2016 Oscar Pilote                                                #
+# Copyright 2017 Oscar Pilote                                                #
 # Thanks to all that have contributed to improvement of the code.            #
 ##############################################################################
 #                                                                            #
@@ -35,6 +35,7 @@ except:
 
 if getattr(sys,'frozen',False):
     Ortho4XP_dir        = '..'
+    os.environ["REQUESTS_CA_BUNDLE"] = os.path.join(os.getcwd(), "cacert.pem") # needed to access https providers with the bin version
 else:
     Ortho4XP_dir        = '.'
 
@@ -44,21 +45,21 @@ except:
     pass
 
 import requests
-
+import pyproj
 import threading,subprocess,time,gc,shutil,io
-from math import *
+from math import pi,floor,ceil,sqrt,log,exp,sin,cos,tan,atan,atanh
 import array,numpy
 import random
-import collections
+from collections import defaultdict
 import struct
 import hashlib
 from tkinter import *               # GUI
 from tkinter import filedialog
 import tkinter.ttk as ttk           # Themed Widgets
-from PIL import Image, ImageDraw, ImageFilter, ImageTk
+from PIL import Image, ImageDraw, ImageFilter, ImageEnhance, ImageOps, ImageTk
 Image.MAX_IMAGE_PIXELS = 1000000000 # Not a decompression bomb attack!   
 import subprocess 
-
+import queue
 
 try:
     import gdal
@@ -67,72 +68,133 @@ except:
     gdal_loaded = False
 
 
+########################################################################
+#
+# FACTORY DEFAULT VALUES 
+#
 # The following are initialisation of the variables, they are then superseded by your Ortho4XP.cfg file but are here
 # in case your config file misses some of then (evolution, edit, ...).  Do not modify them here but use your
 # config file instead.
 
+configvars=['default_website','default_zl','water_option','sea_texture_params','cover_airports_with_highres',\
+                 'cover_zl','cover_extent','min_area','sea_equiv','do_not_flatten_these_list','meshzl',\
+                 'insert_custom_zoom_in_mesh','poly_simplification_tol','overpass_server_list','overpass_server_choice',\
+                 # 
+                 'curvature_tol','no_small_angles','smallest_angle','hmin','hmax','tile_has_water_airport',\
+                 'water_smoothing','sea_smoothing',\
+                 # 
+                 'masks_width','complex_masks','use_masks_for_inland','legacy_masks','keep_old_pre_mask',\
+                 'maskszl','use_gimp','gimp_cmd',\
+                 # 
+                 'ratio_water','normal_map_strength','terrain_casts_shadows','use_decal_on_terrain',\
+                 'dds_or_png','use_bing_for_non_existent_data', 'max_convert_slots','be_nice_timer',\
+                 'skip_downloads','skip_converts','check_tms_response',\
+                 'verbose_output','clean_tmp_files','clean_unused_dds_and_ter_files',\
+                 'contrast_adjust','brightness_adjust','saturation_adjust',\
+                 'full_color_correction','g2xpl_8_prefix','g2xpl_8_suffix','g2xpl_16_prefix','g2xpl_16_suffix',\
+                 #
+                 'Custom_scenery_prefix','Custom_scenery_dir','default_sniff_dir',\
+                 'keep_orig_zuv','seven_zip','landclass_mesh_division','snap_to_z_grid','overlay_lod',\
+                 'keep_overlays'\
+                ]
 
-# Things that can be changed in the graphical interface
+configvars_strings=['default_website','overpass_server_choice','gimp_cmd','dds_or_png',\
+                    'g2xpl_8_prefix','g2xpl_8_suffix','g2xpl_16_prefix','g2xpl_16_suffix',\
+                    'Custom_scenery_prefix','Custom_scenery_dir','default_sniff_dir']
+
+configvars_defaults={\
+        'default_website':'BI',\
+        'default_zl':16,\
+        'water_option':3,\
+        'sea_texture_params':[],\
+        'cover_airports_with_highres':False,\
+        'cover_zl':18,\
+        'cover_extent':1,\
+        'min_area':0.01,\
+        'sea_equiv':[],\
+        'do_not_flatten_these_list':[],\
+        'meshzl':19,\
+        'insert_custom_zoom_in_mesh':False,\
+        'poly_simplification_tol':0.002,\
+        'overpass_server_list':{"1":"http://api.openstreetmap.fr/oapi/interpreter", "2":"http://overpass-api.de/api/interpreter","3":"http://overpass.osm.rambler.ru/cgi/interpreter"},\
+        'overpass_server_choice':1,\
+        'curvature_tol':3,\
+        'no_small_angles':False,\
+        'smallest_angle':5,\
+        'hmin':20,\
+        'hmax':2000,\
+        'tile_has_water_airport':False,\
+        'water_smoothing':2,\
+        'sea_smoothing':0,\
+        'masks_width':16,\
+        'complex_masks':False,\
+        'use_masks_for_inland':False,\
+        'legacy_masks':True,\
+        'keep_old_pre_mask':False,\
+        'maskszl':14,\
+        'use_gimp':False,\
+        'gimp_cmd':'',\
+        'ratio_water':0.3,\
+        'normal_map_strength':0.3,\
+        'terrain_casts_shadows':False,\
+        'use_decal_on_terrain':False,\
+        'dds_or_png':'dds',\
+        'use_bing_for_non_existent_data':False,\
+        'max_convert_slots':4,\
+        'be_nice_timer':0,\
+        'skip_downloads':False,\
+        'skip_converts':False,\
+        'check_tms_response':True,\
+        'verbose_output':True,\
+        'clean_tmp_files':True,\
+        'clean_unused_dds_and_ter_files':False,\
+        'contrast_adjust':{},\
+        'brightness_adjust':{},\
+        'saturation_adjust':{},\
+        'full_color_correction':{},\
+        'g2xpl_8_prefix':'g2xpl_8_',\
+        'g2xpl_8_suffix':'',\
+        'g2xpl_16_prefix':'g2xpl_16_',\
+        'g2xpl_16_suffix':'',\
+        'Custom_scenery_prefix':'',\
+        'Custom_scenery_dir':'',\
+        'default_sniff_dir':'',\
+        'keep_orig_zuv':True,\
+        'seven_zip':True,\
+        'landclass_mesh_division':8,\
+        'snap_to_z_grid':True,\
+        'overlay_lod':40000,\
+        'keep_overlays':True\
+        } 
+              
+explanation={}
+for item in configvars:
+    explanation[item]='TODO!'    
+try:
+    exec(open(Ortho4XP_dir+dir_sep+'Help.py').read(),globals())
+except:
+    pass    
+    
+for item in configvars:
+    try:
+        globals()[item]=configvars_defaults[item] 
+    except:
+        print("I could not set the variable",item,". Perhaps was there a typo ?")
+
+# These are not put in the interface
 build_dir           = "default"     
-default_website     = 'BI'
-default_zl          = 16
-sea_texture_params  = []       # example ['GO2',16], if you wish to use a different provider for the orthos over the sea (zonephoto tiles of french britany were done with this option)
-min_area            =  0.01                                                            
-curvature_tol       = 3
-no_small_angles     = False
-smallest_angle      = 5     # called min_angle in the graphical interface
-skip_downloads      = False
-skip_converts       = False
-check_tms_response  = True  # Available as a checkbox in the interface, with it set to True some providers will lead to a dead loop of missed requests if data is not available. On the other hand with it set to False you may end up some times with a few corrupted textures with some white squares. 
-verbose_output      = True
-clean_tmp_files     = True
-clean_unused_dds_and_ter_files = False
-complex_masks       = False   # is set to True the build_masks process will be longer (because mesh from all nearby tiles will be used), but will not "suffer" from boundary effects
-use_masks_for_inland= False   # if you want inland water to be treated like sea water (transparency based on a mask rather than fixed)
-masks_width         = 8       # one unit is approximately 10m
-ratio_water         = 0.3      
-default_sniff_dir   = ''
-
-#Things that are not in the interface
+tricky_provider_hack= 70000    # The minimum size a wms2048 image should be to be accepted (trying to avoid missed cached) 
 water_overlay       = True
-water_option        = 3            # 1 = X-Plane, 2 = Photoreal only, 3 = Mixed 
-sea_equiv           = []           # e.g. ['Étang de Berre','Estuaire de la Gironde','Lac Léman']
-do_not_flatten_these_list  = []    # e.g. ['LFPG','LFMN'] , these will be kept as computed from the elevation file (and probably a bit bumpy)
-tile_has_water_airport     = False # Put to True if an airport with a water boundary does not turn flat correctly
-# NOTE that 'convert' from imagemagick is needed for the next color correction !!!
-contrast_adjust       = {} # example {'BI':0,'FR':5,'IT':5}                                                       
-brightness_adjust     = {} # example {'BI':0,'FR':-5,'IT':5}                                                     
-saturation_adjust     = {} # example {'BI':0,'FR':10,'IT':10}                                                      
-full_color_correction = {} # example {'CH':' -channel R -level 0%,100%,1.05 -channel B -level 0%,100%,0.97 '}
-use_gimp=False
-gimp_cmd="gimp "
-Custom_scenery_dir=""
-custom_scenery_prefix=""            # links in custom scenery will be of the form "custom_scenery_prefix"+zOrtho4XP_blablabla 
-meshzl                      = 19    # The maximum ZL which the mesh will support (you can put a lower number if you do not need such zl)
-hmin                        = 20    # Smallest triangle side-length
-hmax                        = 2000  # Largest triangle side-length
-water_smoothing             = 2     # increase if you find the rivers are not smooth enough
-keep_old_pre_mask           = False # If set to True, then old unblured masks (whole_tile.png) are used directly without being regenerated before the bluring is made  (speed increase if set to True)
-use_additional_water_shader = False # remainder of a test, which was not that succesful
-use_decal_on_terrain        = False # if you want to use decal on top of the orthophoto, they can look good at small altitude
-use_bing_for_non_existent_data = False # when using providers with local coverage only, if you ask for a zone not covered then Bing will be used there instead
-overpass_server_list={"1":"http://api.openstreetmap.fr/oapi/interpreter", "2":"http://overpass-api.de/api/interpreter","3":"http://overpass.osm.rambler.ru/cgi/interpreter"}
-overpass_server_choice="1"
-keep_old_pre_mask   = False
-use_additional_water_shader = False # remainder of a test, which was not that succesful
-use_decal_on_terrain = False        # if you want to use decal on top of the orthophoto, they can look good at small altitude
-dds_or_png          = 'dds'
-tricky_provider_hack= 70000         # The minimum size a wms2048 image should be to be accepted (trying to avoid missed cached with white squares) 
-wms_timeout         = 60
-max_convert_slots   = 4     # Trying to use multi_core to convert jpegs into dds, adapt to your cpu capabilities
-pools_max_points    = 65536 # do not change this !
-normal_map_strength = 0.3   # shading due to slope is normally already present in an orthophoto, so 0 is orthophoto shade only and 1 is full additional shade
-shutdown_timer      = 60    # Time in seconds to close program / shutdown computer after completition
-shutd_msg_interval  = 15    # Shutdown message display interval
-cover_airports_with_highres = False # If True then a high(er) ZL square zone around each airport (found at Step 1) will be added as a custom zoomlevel list 
-cover_extent = 1            # extent (km) of the highres zone added to the bbox containing the airport 
-cover_zl = 18
-raster_resolution = 10000   # image size for the raster of the sniffed landclass terrain
+http_timeout        = 10
+pools_max_points    = 65536    # do not change this !
+shutdown_timer      = 60       # Time in seconds to close program / shutdown computer after completition
+shutd_msg_interval  = 15       # Shutdown message display interval
+raster_resolution = 10000      # Image size for the raster of the sniffed landclass terrain, not yet used
+
+#!!!!!!!!!!!!! To put in a better place !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+max_connect_retries=10
+max_baddata_retries=10
+custom_url_list=[]
 
 # Will be used as global variables
 download_to_do_list=[]
@@ -148,18 +210,13 @@ if 'dar' in sys.platform:
     rename_cmd      = "mv "
     unzip_cmd       = "7z "
     convert_cmd     = "convert " 
-    convert_cmd_bis = Ortho4XP_dir+dir_sep+"Utils"+dir_sep+"nvcompress"+dir_sep+"nvcompress-osx -bc1 -fast " 
+    dds_convert_cmd = Ortho4XP_dir+dir_sep+"Utils"+dir_sep+"nvcompress"+dir_sep+"nvcompress-osx -bc1 -fast " 
     gimp_cmd        = "gimp "
     devnull_rdir    = " >/dev/null 2>&1"
-    use_gimp        = False
-    # --> mth
     shutdown_cmd    = 'sudo shutdown -h now'
-    # <-- mth
     os.system('chmod a+x '+Ortho4XP_dir+dir_sep+'Utils/DSFTool.app')
     os.system('chmod a+x '+Ortho4XP_dir+dir_sep+'Utils/Triangle4XP.app')
     os.system('chmod a+x '+Ortho4XP_dir+dir_sep+'Utils/nvcompress/nvcompress-osx')
-
-
 elif 'win' in sys.platform: 
     dir_sep         = '\\'
     Triangle4XP_cmd = Ortho4XP_dir+dir_sep+"Utils"+dir_sep+"Triangle4XP.exe "
@@ -167,16 +224,15 @@ elif 'win' in sys.platform:
     delete_cmd      = "del "
     rename_cmd      = "move "
     unzip_cmd       = Ortho4XP_dir+dir_sep+"Utils"+dir_sep+"7z.exe "
-    convert_cmd     = "convert " 
-    convert_cmd_bis = Ortho4XP_dir+dir_sep+"Utils"+dir_sep+"nvcompress"+dir_sep+"nvcompress.exe -bc1 -fast " 
+    if os.path.isfile(Ortho4XP_dir+dir_sep+"Utils"+dir_sep+"convert.exe"):
+        convert_cmd = Ortho4XP_dir+dir_sep+"Utils"+dir_sep+"convert.exe " 
+    else:    
+        convert_cmd = "convert " 
+    dds_convert_cmd = Ortho4XP_dir+dir_sep+"Utils"+dir_sep+"nvcompress"+dir_sep+"nvcompress.exe -bc1 -fast " 
     gimp_cmd        = "c:\\Program Files\\GIMP 2\\bin\\gimp-console-2.8.exe "
     showme_cmd      = Ortho4XP_dir+"/Utils/showme.exe "
     devnull_rdir    = " > nul  2>&1"
-    use_gimp        = False
-     # --> mth
     shutdown_cmd    = 'shutdown /s /f /t 0'
-    # <-- mth
-
 else:
     dir_sep         = '/'
     Triangle4XP_cmd = Ortho4XP_dir+"/Utils/Triangle4XP "
@@ -185,33 +241,42 @@ else:
     rename_cmd      = "mv "
     unzip_cmd       = "7z "
     convert_cmd     = "convert " 
-    convert_cmd_bis     = "nvcompress -fast -bc1a " 
+    dds_convert_cmd = "nvcompress -fast -bc1a " 
     gimp_cmd        = "gimp "
     devnull_rdir    = " >/dev/null 2>&1 "
-    use_gimp        = False
-    # --> mth
     shutdown_cmd    = 'sudo shutdown -h now'
-    # <-- mth
     os.system('chmod a+x '+Ortho4XP_dir+dir_sep+'Utils/DSFTool')
     os.system('chmod a+x '+Ortho4XP_dir+dir_sep+'Utils/Triangle4XP')
 
+#
+#   END OF FACTORY DEFAULT VALUES
+#
 ##############################################################################
 
 dico_edge_markers   = {'outer':'1','inner':'1','coastline':'2',\
                        'tileboundary':'3','orthogrid':'3',\
-                       'airport':'4','runway':'5','patch':'6'}
+                       'airport':'4','runway':'5','patch':'6','road':'3'}
 dico_tri_markers    = {'water':'1','sea':'2','sea_equiv':'3','altitude':'4'} 
 
-try:
-    exec(open(Ortho4XP_dir+dir_sep+'Carnet_d_adresses.py').read())
-except:
-    print("The file Carnet_d_adresses.py does not follow the syntactic rules.")
-    time.sleep(5)
-    sys.exit()
-try:
-    exec(open(Ortho4XP_dir+dir_sep+'APL_scripts.py').read())
-except:
-    pass
+user_agent_generic="Mozilla/5.0 (X11; Linux x86_64; rv:38.0) "+\
+                       "Gecko/20100101 Firefox/38.0 Iceweasel/38.2.1"
+fake_headers_generic={\
+            'User-Agent':user_agent_generic,\
+            'Accept':'image/png,image/*;q=0.8,*/*;q=0.5',\
+            'Connection':'keep-alive',\
+            'Accept-Encoding':'gzip, deflate'\
+            }
+
+#try:
+#    exec(open(Ortho4XP_dir+dir_sep+'Carnet_d_adresses.py').read())
+#except:
+#    print("The file Carnet_d_adresses.py does not follow the syntactic rules.")
+#    time.sleep(5)
+#    sys.exit()
+#try:
+#    exec(open(Ortho4XP_dir+dir_sep+'APL_scripts.py').read())
+#except:
+#    pass
 
 ##############################################################################
 # Minimalist error messages.                                                 #
@@ -242,8 +307,15 @@ def usage(reason,do_i_quit=True):
     return
 ##############################################################################
 
-def build_landclass_poly_file(lat0,lon0,build_dir,file_to_sniff,dem_alternative=''):
+#######################
+#
+# For future use
+#
+def build_landclass_poly_file(lat0,lon0,build_dir,file_to_sniff,dem_alternative=False):
 
+    re_encode_dsf(lat0,lon0,build_dir,file_to_sniff,True,dem_alternative,True)
+    return
+    # Don't go further now !
     t1=time.time()
     if not os.path.exists(build_dir):
         os.makedirs(build_dir)
@@ -263,14 +335,15 @@ def build_landclass_poly_file(lat0,lon0,build_dir,file_to_sniff,dem_alternative=
     sloped_patch_seeds=[]
     alt_seeds=[]
 
+    zone_list=[] # !!!!!!!!!!!!!!!!!!!!!!!!
     poly_list=[region[0] for region in zone_list]
     bbox_list=[compute_bbox(poly) for poly in poly_list]
-    print("-> Analzing patch data ")
+    print("-> Analyzing patch data ")
     include_patch_data(lat0,lon0,patch_dir,dico_nodes,dico_edges,flat_patch_seeds,sloped_patch_seeds,alt_seeds,poly_list,bbox_list)
     print(poly_list)
-    time.sleep(10)
     print("-> Analyzing input landclass mesh ")
-    (tri_list,ter_list,tri_list_kept,hole_seeds)=read_and_split_dsf_mesh(lat0,lon0,build_dir,file_to_sniff,poly_list,bbox_list,dem_alternative)
+    (tri_list,ter_list,tri_list_kept,hole_seeds,textures)=read_dsf(lat0,lon0,build_dir,file_to_sniff,poly_list,bbox_list,dem_alternative)
+    return textures
     #hole_seeds=[]
     print("tri_list :",len(tri_list))
     print("ter_list :",len(ter_list))
@@ -376,15 +449,23 @@ def build_poly_file(lat0,lon0,option,build_dir,airport_website=default_website):
         tags.append('way["natural"="coastline"]')
     else:  # Mixed
         print("-> Downloading airport and water/ground boundary data from Openstreetmap :")
+        tags.append('way["highway"="motorway"]')  
+        tags.append('way["highway"="primary"]')  
+        tags.append('way["highway"="secondary"]')  
+        #tags.append('way["highway"="tertiary"]')  
+        #tags.append('way["highway"="service"]')  
+        #tags.append('way["highway"="unclassified"]')  
+        tags.append('way["railway"="rail"]')  
+        tags.append('way["man_made"="pier"]')  
         tags.append('way["aeroway"="aerodrome"]')                                         
         tags.append('rel["aeroway"="aerodrome"]')                                         
         tags.append('way["aeroway"="heliport"]')                                         
-        tags.append('way["natural"="water"]["tidal"!="yes"]')                                         
-        tags.append('rel["natural"="water"]["tidal"!="yes"]')                                         
+        tags.append('way["waterway"="dock"]')
         tags.append('way["waterway"="riverbank"]')                                    
         tags.append('rel["waterway"="riverbank"]')                                    
+        tags.append('way["natural"="water"]["tidal"!="yes"]')                                         
+        tags.append('rel["natural"="water"]["tidal"!="yes"]')                                         
         tags.append('way["natural"="coastline"]')
-        tags.append('way["waterway"="dock"]')
     try:
         application.red_flag.set(0)
     except:
@@ -399,11 +480,11 @@ def build_poly_file(lat0,lon0,option,build_dir,airport_website=default_website):
         except:
             pass
         subtags=tag.split('"')
-        osm_filename=Ortho4XP_dir+dir_sep+"OSM_data"+dir_sep+strlat+strlon+dir_sep+strlat+strlon+'_'+subtags[0][0:-1]+'_'+\
+        osm_file_name=Ortho4XP_dir+dir_sep+"OSM_data"+dir_sep+strlat+strlon+dir_sep+strlat+strlon+'_'+subtags[0][0:-1]+'_'+\
                 subtags[1]+'_'+subtags[3]+'.osm'
-        osm_errors_filename=Ortho4XP_dir+dir_sep+"OSM_data"+dir_sep+strlat+strlon+dir_sep+strlat+strlon+'_'+subtags[0][0:-1]+'_'+\
+        osm_errors_file_name=Ortho4XP_dir+dir_sep+"OSM_data"+dir_sep+strlat+strlon+dir_sep+strlat+strlon+'_'+subtags[0][0:-1]+'_'+\
                 subtags[1]+'_'+subtags[3]+'_detected_errors.txt'
-        if not os.path.isfile(osm_filename):
+        if not os.path.isfile(osm_file_name):
             print("    Obtaining OSM data for "+tag)
             s=requests.Session()
             osm_download_ok = False
@@ -414,24 +495,26 @@ def build_poly_file(lat0,lon0,option,build_dir,airport_website=default_website):
                     osm_download_ok=True
                 else:
                     print("      OSM server was busy, new tentative...")
-            osmfile=open(osm_filename,'wb')
+                    time.sleep(1)
+            osmfile=open(osm_file_name,'wb')
             osmfile.write(r.content)
             osmfile.close()
             print("     Done.")
         else:
             print("    Recycling OSM data for "+tag)
         if 'way[' in tag:
-            [dicosmw,dicosmw_name,dicosmw_icao,dicosmw_ele]=osmway_to_dicos(osm_filename)
+            [dicosmw,dicosmw_name,dicosmw_icao,dicosmw_ele]=osmway_to_dicos(osm_file_name)
         elif 'rel[' in tag:
-            [dicosmr,dicosmrinner,dicosmrouter,dicosmr_name,dicosmr_icao,dicosmr_ele]=osmrel_to_dicos(osm_filename,osm_errors_filename)
+            [dicosmr,dicosmrinner,dicosmrouter,dicosmr_name,dicosmr_icao,dicosmr_ele]=osmrel_to_dicos(osm_file_name,osm_errors_file_name)
 
         # we shall treat osm data differently depending on tag 
         if tag=='way["aeroway"="aerodrome"]' or tag=='way["aeroway"="heliport"]':
             sloped_airports_list=[]
             if os.path.exists(patch_dir):
-                for pfilename in os.listdir(patch_dir):
-                    if (pfilename[-10:] == '.patch.osm') or os.path.isdir(patch_dir+dir_sep+pfilename):
-                        sloped_airports_list.append(pfilename[:4])
+                for pfile_name in os.listdir(patch_dir):
+                    if (pfile_name[-10:] == '.patch.osm') or os.path.isdir(patch_dir+dir_sep+pfile_name):
+                        sloped_airports_list.append(pfile_name[:4])
+            #print(sloped_airports_list)
             for wayid in dicosmw:
                 way=dicosmw[wayid]
                 # we only treat closed ways, non closed should not exist in 
@@ -470,9 +553,9 @@ def build_poly_file(lat0,lon0,option,build_dir,airport_website=default_website):
         elif tag=='rel["aeroway"="aerodrome"]':
             sloped_airports_list=[]
             if os.path.exists(patch_dir):
-                for pfilename in os.listdir(patch_dir):
-                    if pfilename[-10:] == '.patch.osm':
-                        sloped_airports_list.append(pfilename[:4])
+                for pfile_name in os.listdir(patch_dir):
+                    if pfile_name[-10:] == '.patch.osm':
+                        sloped_airports_list.append(pfile_name[:4])
             for relid in dicosmr:
                 keep_that_one=True
                 if (relid in dicosmr_icao):
@@ -488,6 +571,10 @@ def build_poly_file(lat0,lon0,option,build_dir,airport_website=default_website):
                     altitude=dicosmr_ele[relid]
                 else:
                     altitude='unknown'
+                if (relid in dicosmr_icao):
+                        if (dicosmr_icao[relid] in sloped_airports_list) or (dicosmr_icao[relid] in do_not_flatten_these_list):
+                            print("          I will not flatten "+dicosmr_icao[relid]+ " airport.")
+                            keep_that_one=False
                 if keep_that_one==False:
                     continue
                 for waypts in dicosmrinner[relid]:
@@ -524,8 +611,12 @@ def build_poly_file(lat0,lon0,option,build_dir,airport_website=default_website):
                             sea_equiv_seeds+=pick_points_safe(way,'right',lat0,lon0)
                         else:
                             sea_seeds+=pick_points_safe(way,'right',lat0,lon0)
+        elif 'highway' in tag or 'railway' in tag or 'pier' in tag:
+            for wayid in dicosmw:
+                way=dicosmw[wayid]
+                keep_way(way,lat0,lon0,1,'road',dico_nodes,dico_edges)
         elif ('way["natural"="water"]' in tag) or ('way["waterway"="riverbank"]' in tag) or ('way["waterway"="dock"]' in tag) :
-            efile=open(osm_errors_filename,'w')
+            efile=open(osm_errors_file_name,'w')
             osm_errors_found=False
             for wayid in dicosmw:
                 #print(wayid)
@@ -560,9 +651,9 @@ def build_poly_file(lat0,lon0,option,build_dir,airport_website=default_website):
                             sea_equiv_seeds+=points_checked
             efile.close()
             if osm_errors_found:
-                print("     !!!Some OSM errors were detected!!!\n        They are listed in "+str(osm_errors_filename))
+                print("     !!!Some OSM errors were detected!!!\n        They are listed in "+str(osm_errors_file_name))
             else:
-                os.remove(osm_errors_filename)
+                os.remove(osm_errors_file_name)
         elif 'rel[' in tag:
             for relid in dicosmr:
                 sea_rel=False
@@ -625,8 +716,12 @@ def build_poly_file(lat0,lon0,option,build_dir,airport_website=default_website):
                         dico_edges_tmp)
     dico_edges=dico_edges_tmp
     print("-> Adding patch data for the mesh, ")
-
     include_patch_data(lat0,lon0,patch_dir,dico_nodes,dico_edges,flat_patch_seeds,sloped_patch_seeds,alt_seeds)
+    
+    if zone_list and insert_custom_zoom_in_mesh: 
+        print("-> Adding of edges related to the custom zoomlevel and computation of\n"
+          "     their intersections with OSM edges,")
+        dico_edges=cut_edges_with_zone(lat0,lon0,dico_nodes,dico_edges,zone_list) 
     
     print("-> Adding of edges related to the orthophoto grid and computation of\n"
           "     their intersections with OSM edges,")
@@ -653,10 +748,11 @@ def build_poly_file(lat0,lon0,option,build_dir,airport_website=default_website):
                     flat_airport_seeds,flat_patch_seeds,sloped_patch_seeds,alt_seeds)
     # adding airports high zl zone to zone_list if needed
     try:
-        if cover_airports_with_highres==True and (zone_list==[] or (zone_list[-1][0][0]==zone_list[-1][0][2]==zone_list[-1][0][8])):  # i.e. airports claimed but not already in zone_list (since write_cfg puts them there)
+        if cover_airports_with_highres==True: #and (zone_list==[] or (zone_list[-1][0][0]==zone_list[-1][0][2]==zone_list[-1][0][8])):  # i.e. airports claimed but not already in zone_list (since write_cfg puts them there)
+            filed_some=False
             with open(build_dir+dir_sep+"Data"+strlat+strlon+'.apt') as fapt:
                 for line in fapt:
-                    if 'Airport' in line or 'patch' in line:
+                    if 'Airport' in line: # or 'patch' in line:
                         nbr_points=int(line.split()[3])
                         skip=fapt.readline()
                         latmin=90
@@ -678,12 +774,14 @@ def build_poly_file(lat0,lon0,option,build_dir,airport_website=default_website):
                         [c,d]=wgs84_to_texture(latmin,lonmax,cover_zl,'BI')
                         [latmax,lonmin]=gtile_to_wgs84(a-16*e,b-16*e,cover_zl)
                         [latmin,lonmax]=gtile_to_wgs84(c+16*(1+e),d+16*(1+e),cover_zl)
-                        zone_list.append([[latmin,lonmin,latmin,lonmax,latmax,lonmax,latmax,lonmin,latmin,lonmin],str(cover_zl),str(airport_website)])
-            print('-> Airport areas have been added to the custom zoomlevel list with ZL' +str(cover_zl)+' and approx radius of '+str(cover_extent)+' km.')
+                        new_entry=[[latmin,lonmin,latmin,lonmax,latmax,lonmax,latmax,lonmin,latmin,lonmin],str(cover_zl),str(airport_website)]
+                        if new_entry not in zone_list:
+                            zone_list.append(new_entry)
+                            filed_some=True
+            if filed_some: print('-> Airports and patched areas have been added to the custom zoomlevel list with ZL' +str(cover_zl)+' and approx radius of '+str(cover_extent)+' km.')
     except:
         pass
-    
-    
+        
     print('\nCompleted in '+str('{:.2f}'.format(time.time()-t1))+\
                 'sec.')
     print('_____________________________________________________________'+\
@@ -731,9 +829,14 @@ def write_poly_file(poly_file,airport_file,lat0,lon0,dico_nodes,dico_edges,\
                 len(flat_airport_seeds)+len(flat_patch_seeds)+\
                 len(sloped_patch_seeds)+len(alt_seeds)
     if total_seeds==0:
-        if sea_texture_params==[]:
+        print("-> No OSM data for this tile, loading altitude data to decide between sea or land.")
+        [alt_dem,ndem]=load_altitude_matrix(lat0,lon0)
+        land =(alt_dem.max()-alt_dem.min())>=20 
+        if land: #sea_texture_params==[]:
+            print("   Decided for a land tile.") 
             water_seeds.append([1000,1000])
         else:
+            print("   Decided for a sea tile.") 
             sea_seeds.append([lon0+0.5,lat0+0.5])
         total_seeds=1
     f.write('\n'+str(total_seeds)+' 1\n')
@@ -808,8 +911,8 @@ def write_poly_file(poly_file,airport_file,lat0,lon0,dico_nodes,dico_edges,\
 ##############################################################################
 
 ##############################################################################
-def osmway_to_dicos(osm_filename):
-    pfile=open(osm_filename,'r',encoding="utf-8")
+def osmway_to_dicos(osm_file_name):
+    pfile=open(osm_file_name,'r',encoding="utf-8")
     dicosmn={}
     dicosmw={}
     dicosmw_name={}
@@ -824,7 +927,6 @@ def osmway_to_dicos(osm_filename):
         separator='"'
     while not finished_with_file==True:
         items=pfile.readline().split(separator)
-        #if items[0]=='  <node id=':
         if '<node id=' in items[0]:
             id=items[1]
             for j in range(0,len(items)):
@@ -832,38 +934,38 @@ def osmway_to_dicos(osm_filename):
                     slat=items[j+1]
                 elif items[j]==' lon=':
                     slon=items[j+1]
-            #slat=items[3]
-            #slon=items[5]
             dicosmn[id]=[slat,slon]
-        #elif items[0]=='  <way id=':
         elif '<way id=' in items[0]:
             in_way=True
             wayid=items[1]
             dicosmw[wayid]=[]  
-        #elif items[0]=='    <nd ref=':
         elif '<nd ref=' in items[0]:
             dicosmw[wayid].append(dicosmn[items[1]])
-        #elif items[0]=='    <tag k=' and in_way and items[1]=='name':
         elif '<tag k=' in items[0] and in_way and items[1]=='name':
             dicosmw_name[wayid]=items[3]
-        #elif items[0]=='    <tag k=' and in_way and items[1]=='icao':
         elif '<tag k=' in items[0] and in_way and items[1]=='icao':
             dicosmw_icao[wayid]=items[3]
-        #elif items[0]=='    <tag k=' and in_way and items[1]=='ele':
         elif '<tag k=' in items[0] and in_way and items[1]=='ele':
             dicosmw_ele[wayid]=items[3]
-        #elif items[0]=='</osm>\n':
         elif '</osm>' in items[0]:
             finished_with_file=True
     pfile.close()
+  
+   # (Thanks Tony Wroblewski) Remove ways with no nodes (Can happen when editing in JOSM or from bad data)
+    for wayid in list(dicosmw.keys()):
+        if not dicosmw[wayid]:
+            del dicosmw[wayid]
+
+
     print("     A total of "+str(len(dicosmn))+" node(s) and "+str(len(dicosmw))+" way(s).")
     return [dicosmw,dicosmw_name,dicosmw_icao,dicosmw_ele]
 ##############################################################################
 
+
 ##############################################################################
-def osmrel_to_dicos(osm_filename,osm_errors_filename):
-    pfile=open(osm_filename,'r',encoding="utf-8")
-    efile=open(osm_errors_filename,'w')
+def osmrel_to_dicos(osm_file_name,osm_errors_file_name):
+    pfile=open(osm_file_name,'r',encoding="utf-8")
+    efile=open(osm_errors_file_name,'w')
     osm_errors_found=False
     dicosmn={}
     dicosmw={}
@@ -883,7 +985,6 @@ def osmrel_to_dicos(osm_filename,osm_errors_filename):
         separator='"'
     while not finished_with_file==True:
         items=pfile.readline().split(separator)
-        #if items[0]=='  <node id=':
         if '<node id=' in items[0]:
             id=items[1]
             for j in range(0,len(items)):
@@ -892,14 +993,11 @@ def osmrel_to_dicos(osm_filename,osm_errors_filename):
                 elif items[j]==' lon=':
                     slon=items[j+1]
             dicosmn[id]=[slat,slon]
-        #elif items[0]=='  <way id=':
         elif '<way id=' in items[0]:
             wayid=items[1]
             dicosmw[wayid]=[]  
-        #elif items[0]=='    <nd ref=':
         elif '<nd ref=' in items[0]:
             dicosmw[wayid].append(items[1])
-        #elif items[0]=='  <relation id=':
         elif '<relation id=' in items[0]:
             relid=items[1]
             in_rel=True
@@ -907,7 +1005,6 @@ def osmrel_to_dicos(osm_filename,osm_errors_filename):
             dicosmrinner[relid]=[]
             dicosmrouter[relid]=[]
             dicoendpt={}
-        #elif items[0]=='    <member type=':
         elif '<member type=' in items[0]:
             if items[1]!='way':
                 efile.write("Relation id="+str(relid)+" contains member "+items[1]+" which was not treated because it is not a way.\n")
@@ -941,16 +1038,12 @@ def osmrel_to_dicos(osm_filename,osm_errors_filename):
                 osm_errors_found=True
                 continue
             dicosmr[relid].append(items[3]) 
-        #elif items[0]=='    <tag k=' and in_rel and items[1]=='name':
         elif '<tag k=' in items[0] and in_rel and items[1]=='name':
             dicosmr_name[relid]=items[3]
-        #elif items[0]=='    <tag k=' and in_rel and items[1]=='icao':
         elif '<tag k=' in items[0] and in_rel and items[1]=='icao':
             dicosmr_icao[relid]=items[3]
-        #elif items[0]=='    <tag k=' and in_rel and items[1]=='ele':
         elif '<tag k=' in items[0] and in_rel and items[1]=='ele':
             dicosmr_ele[relid]=items[3]
-        #elif items[0]=='  </relation>\n':
         elif '</relation>' in items[0]:
             bad_rel=False
             for endpt in dicoendpt:
@@ -992,39 +1085,38 @@ def osmrel_to_dicos(osm_filename,osm_errors_filename):
                 dicosmrouter[relid].append(waypts)
                 dicoendpt.pop(endptinit,'None')
             dicoendpt={}
-        #elif items[0]=='</osm>\n':
         elif '</osm>' in items[0]:
             finished_with_file=True
     pfile.close()
     efile.close()
     print("     A total of "+str(len(dicosmn))+" node(s) and "+str(len(dicosmr))+" relation(s).")
     if osm_errors_found:
-        print("     !!!Some OSM errors were detected!!!\n        They are listed in "+str(osm_errors_filename))
+        print("     !!!Some OSM errors were detected!!!\n        They are listed in "+str(osm_errors_file_name))
     else:
-        os.remove(osm_errors_filename)
+        os.remove(osm_errors_file_name)
     return [dicosmr,dicosmrinner,dicosmrouter,dicosmr_name,dicosmr_icao,dicosmr_ele]
 ##############################################################################
 
 #############################################################################
 def strcode(node):
-   return node[0]+'_'+node[1]
+    return '{:.9f}'.format(float(node[0]))+'_'+'{:.9f}'.format(float(node[1]))
 #############################################################################
 
 
 #############################################################################
 def keep_node(node,lat0,lon0,dico_nodes,attribute=-32768):
-   dico_nodes[strcode(node)]=attribute
-   return
+    dico_nodes[strcode(node)]=attribute
+    return
 #############################################################################
    
 #############################################################################
 def keep_edge(node0,node,marker,dico_edges):
-   if strcode(node0) != strcode(node):
-       if strcode(node)+'|'+strcode(node0) in dico_edges:
-           dico_edges[strcode(node)+'|'+strcode(node0)]=marker
-       else:
-           dico_edges[strcode(node0)+'|'+strcode(node)]=marker
-   return
+    if strcode(node0) != strcode(node):
+        if strcode(node)+'|'+strcode(node0) in dico_edges:
+            dico_edges[strcode(node)+'|'+strcode(node0)]=marker
+        else:
+            dico_edges[strcode(node0)+'|'+strcode(node)]=marker
+    return
 #############################################################################
 
 #############################################################################
@@ -1040,6 +1132,20 @@ def keep_edge_unique(node0,node,marker,dico_edges):
    dico_edges[strcode(node0)+'|'+strcode(node)]=marker
    return
 #############################################################################
+
+#############################################################################
+def keep_edge_str(strcode1,strcode2,marker,dico_edges,overwrite=True):
+    if overwrite:
+        if strcode2+'|'+strcode1 in dico_edges:
+            dico_edges[strcode2+'|'+strcode1]=marker  
+        else:
+            dico_edges[strcode1+'|'+strcode2]=marker  
+    elif (strcode2+'|'+strcode1 not in dico_edges) and (strcode1+'|'+strcode2 not in dico_edges):
+        dico_edges[strcode1+'|'+strcode2]=marker  
+    return
+#############################################################################
+
+
 
 #############################################################################
 def keep_way(way,lat0,lon0,sign,marker,dico_nodes,dico_edges,attribute=-32768):
@@ -1062,7 +1168,8 @@ def keep_way(way,lat0,lon0,sign,marker,dico_nodes,dico_edges,attribute=-32768):
    
 #############################################################################
 def strxy(x,y,lat0,lon0):
-    return str(y+lat0)+'_'+str(x+lon0)
+    return '{:.9f}'.format(y+lat0)+'_'+'{:.9f}'.format(x+lon0)
+    #return str(y+lat0)+'_'+str(x+lon0)
 #############################################################################
 
 #############################################################################
@@ -1074,8 +1181,10 @@ def keep_node_xy(x,y,lat0,lon0,dico_nodes,attribute=-32768):
 #############################################################################
 def xycoords(strcode,lat0,lon0):
     [slat,slon]=strcode.split('_')
-    return [float(slon)-lon0,float(slat)-lat0]
+    return [float('{:.9f}'.format(float(slon)-lon0)),float('{:.9f}'.format(float(slat)-lat0))]
 #############################################################################
+
+
 
 #############################################################################
 def keep_edge_str_tmp(strcode1,strcode2,marker,dico_edges_tmp):
@@ -1086,148 +1195,160 @@ def keep_edge_str_tmp(strcode1,strcode2,marker,dico_edges_tmp):
 #############################################################################
 def include_patch_data(lat0,lon0,patch_dir,dico_nodes,dico_edges,flat_patch_seeds,sloped_patch_seeds,alt_seeds,poly_list=None,bbox_list=None):
     if not os.path.exists(patch_dir): return
-    for pfilename in os.listdir(patch_dir):
-        if pfilename[-10:]!='.patch.osm':
+    for pfile_name in os.listdir(patch_dir):
+        if pfile_name[-10:]!='.patch.osm':
             continue
-        print("     "+pfilename)
-        pfile=open(patch_dir+dir_sep+pfilename,"r")
-        firstline=pfile.readline()
-        secondline=pfile.readline()
-        minlat=90
-        maxlat=-90
-        minlon=180
-        maxlon=-180
-        finished_with_nodes=False
-        started_with_nodes=False
-        nodes_codes={}
-        while not finished_with_nodes==True:
-            items=pfile.readline().split()
-            if '<node' in items:
-                started_with_nodes=True
-                for item in items:
-                    if 'id=' in item:
-                        id=item[3:]
-                    elif 'lat=' in item:
-                        slat=item[5:-1]
-                    elif 'lon=' in item:
-                        slon=item[5:-1]
-                dico_nodes[slat+'_'+slon]=-32768 #[float(slon)-lon0,float(slat)-lat0]
-                nodes_codes[id]=slat+'_'+slon
-            elif started_with_nodes==True:
-                finished_with_nodes=True
-        finished_with_ways=False
-        while finished_with_ways != True:
-            newwaycodes=[]
-            finished_with_newway=False
-            flat_patch=False
-            sloped_patch=False
-            way_profile='atanh'
-            way_steepness='3.5'
-            way_cell_size='5'
-            while finished_with_newway!=True:
-                line=pfile.readline().split()
-                if '<nd' in line:
-                    newnodeid=line[1][4:]
-                    newwaycodes.append(nodes_codes[newnodeid])
-                else:
-                    if "k='altitude'" in line:
-                        flat_patch=True
-                        if line[2][3:-1]=='mean':
-                            way_altitude='mean'
+        print("     "+pfile_name)
+        try:
+            pfile=open(patch_dir+dir_sep+pfile_name,"r")
+            firstline=pfile.readline()
+            secondline=pfile.readline()
+            minlat=90
+            maxlat=-90
+            minlon=180
+            maxlon=-180
+            finished_with_nodes=False
+            started_with_nodes=False
+            nodes_codes={}
+            while not finished_with_nodes==True:
+                items=pfile.readline().split()
+                if '<node' in items:
+                    started_with_nodes=True
+                    for item in items:
+                        if 'id=' in item:
+                            id=item[3:]
+                        elif 'lat=' in item:
+                            slat=item[5:-1]
+                        elif 'lon=' in item:
+                            slon=item[5:-1]
+                    dico_nodes[strcode([slat,slon])]=-32768 #[float(slon)-lon0,float(slat)-lat0]
+                    nodes_codes[id]=strcode([slat,slon]) #slat+'_'+slon
+                elif started_with_nodes==True:
+                    finished_with_nodes=True
+            finished_with_ways=False
+            while finished_with_ways != True:
+                newwaycodes=[]
+                finished_with_newway=False
+                flat_patch=False
+                sloped_patch=False
+                way_profile='plane'
+                way_steepness='3.5'
+                way_cell_size='5'
+                while finished_with_newway!=True:
+                    line=pfile.readline().split()
+                    if '<nd' in line:
+                        newnodeid=line[1][4:]
+                        newwaycodes.append(nodes_codes[newnodeid])
+                    else:
+                        if "k='altitude'" in line:
+                            flat_patch=True
+                            if line[2][3:-1]=='mean':
+                                way_altitude='mean'
+                            else:
+                                way_altitude=float(line[2][3:-1])
+                        elif "k='altitude_high'" in line:
+                            sloped_patch=True
+                            if line[2][3:-1]=='mean':
+                                way_altitude_high='mean'
+                            else: 
+                                way_altitude_high=float(line[2][3:-1]) 
+                        elif "k='altitude_low'" in line:
+                            if line[2][3:-1]=='mean':
+                                way_altitude_low='mean'
+                            else: 
+                                way_altitude_low=float(line[2][3:-1]) 
+                        elif "k='profile'" in line:
+                            way_profile=line[2][3:-1]
+                        elif "k='steepness'" in line:
+                            way_steepness=line[2][3:-1]
+                        elif "k='cell_size'" in line:
+                            way_cell_size=line[2][3:-1]
+                        elif '</way>' in line:
+                            finished_with_newway=True
                         else:
-                            way_altitude=float(line[2][3:-1])
-                    elif "k='altitude_high'" in line:
-                        sloped_patch=True
-                        way_altitude_high=float(line[2][3:-1]) 
-                    elif "k='altitude_low'" in line:
-                        way_altitude_low=float(line[2][3:-1])
-                    elif "k='profile'" in line:
-                        way_profile=line[2][3:-1]
-                    elif "k='steepness'" in line:
-                        way_steepness=line[2][3:-1]
-                    elif "k='cell_size'" in line:
-                        way_cell_size=line[2][3:-1]
-                    elif '</way>' in line:
-                        finished_with_newway=True
-                    else:
-                        pass
-            if flat_patch==True:
-                seed=keep_patch(newwaycodes,lat0,lon0,dico_edges)
-                flat_patch_seeds.append([seed,way_altitude,newwaycodes])
-            elif sloped_patch==True:
-                [seed,xi,yi,xf,yf]=keep_sloped_patch(newwaycodes,\
-                        float(way_cell_size)/100000,dico_nodes,\
-                        dico_edges,lat0,lon0)
-                sloped_patch_seeds.append([seed,xi,yi,xf,yf,\
-                        way_altitude_high,way_altitude_low,\
-                        way_profile,way_steepness,way_cell_size])
-            else:
-                seed=keep_patch(newwaycodes,lat0,lon0,dico_edges)
-            if poly_list is not None:
-                way_poly=[]
-                for strnode in newwaycodes:
-                    [wplat,wplon]=[float(x) for x in strnode.split('_')]
-                    way_poly+=[wplat,wplon]
-                    minlat = wplat if wplat<minlat else minlat
-                    maxlat = wplat if wplat>maxlat else maxlat
-                    minlon = wplon if wplon<minlon else minlon
-                    maxlon = wplon if wplon>maxlon else maxlon
-                [wplat,wplon]=[float(x) for x in newwaycodes[0].split('_')]
-                way_poly+=[wplat,wplon]
-                poly_list.append(way_poly) 
-            line=pfile.readline().split()
-            if '</osm>' in line:
-                finished_with_ways=True
-        # Now we need to sanitize edges because the cuts which we made
-        # on the short sides of sloped patches may be encroached with
-        # sides of flat patches.
-        pfile.seek(0)
-        finished_with_nodes=False
-        started_with_nodes=False
-        while not finished_with_nodes==True:
-            items=pfile.readline().split()
-            if '<node' in items:
-                started_with_nodes=True
-            elif started_with_nodes==True:
-                finished_with_nodes=True
-        finished_with_ways=False
-        while finished_with_ways != True:
-            newwaycodes=[]
-            finished_with_newway=False
-            sloped_patch=False
-            while finished_with_newway!=True:
-                line=pfile.readline().split()
-                if '<nd' in line:
-                    newnodeid=line[1][4:]
-                    newwaycodes.append(nodes_codes[newnodeid])
+                            pass
+                if flat_patch==True:
+                    seed=keep_patch(newwaycodes,lat0,lon0,dico_edges)
+                    flat_patch_seeds.append([seed,way_altitude,newwaycodes])
+                elif sloped_patch==True:
+                    [seed,xi,yi,xf,yf]=keep_sloped_patch(newwaycodes,\
+                            float(way_cell_size)/100000,dico_nodes,\
+                            dico_edges,lat0,lon0)
+                    sloped_patch_seeds.append([seed,xi,yi,xf,yf,\
+                            way_altitude_high,way_altitude_low,\
+                            way_profile,way_steepness,way_cell_size])
                 else:
-                    if "k='altitude_high'" in line:
-                        sloped_patch=True
-                    elif '</way>' in line:
-                        finished_with_newway=True
+                    seed=keep_patch(newwaycodes,lat0,lon0,dico_edges)
+                if poly_list is not None:
+                    way_poly=[]
+                    for strnode in newwaycodes:
+                        [wplat,wplon]=[float(x) for x in strnode.split('_')]
+                        way_poly+=[wplat,wplon]
+                        minlat = wplat if wplat<minlat else minlat
+                        maxlat = wplat if wplat>maxlat else maxlat
+                        minlon = wplon if wplon<minlon else minlon
+                        maxlon = wplon if wplon>maxlon else maxlon
+                    [wplat,wplon]=[float(x) for x in newwaycodes[0].split('_')]
+                    way_poly+=[wplat,wplon]
+                    poly_list.append(way_poly) 
+                line=pfile.readline().split()
+                if '</osm>' in line:
+                    finished_with_ways=True
+            # Now we need to sanitize edges because the cuts which we made
+            # on the short sides of sloped patches may be encroached with
+            # sides of flat patches.
+            pfile.seek(0)
+            finished_with_nodes=False
+            started_with_nodes=False
+            while not finished_with_nodes==True:
+                items=pfile.readline().split()
+                if '<node' in items:
+                    started_with_nodes=True
+                elif started_with_nodes==True:
+                    finished_with_nodes=True
+            finished_with_ways=False
+            while finished_with_ways != True:
+                newwaycodes=[]
+                finished_with_newway=False
+                sloped_patch=False
+                while finished_with_newway!=True:
+                    line=pfile.readline().split()
+                    if '<nd' in line:
+                        newnodeid=line[1][4:]
+                        newwaycodes.append(nodes_codes[newnodeid])
                     else:
-                        pass
-            if sloped_patch==True:
-                dico_edges.pop(newwaycodes[0]+'|'+newwaycodes[3],None)
-                dico_edges.pop(newwaycodes[3]+'|'+newwaycodes[0],None)
-                dico_edges.pop(newwaycodes[1]+'|'+newwaycodes[2],None)
-                dico_edges.pop(newwaycodes[2]+'|'+newwaycodes[1],None)
-            line=pfile.readline().split()
-            if '</osm>' in line:
-                finished_with_ways=True
-        pfile.close()
-        if poly_list is not None:
-            bbox_list.append([minlat-0.01,maxlat+0.01,minlon-0.01,maxlon+0.01])
-    for pdirname in os.listdir(patch_dir):
-        if not os.path.isdir(patch_dir+dir_sep+pdirname): continue
-        print("     "+pdirname)
+                        if "k='altitude_high'" in line:
+                            sloped_patch=True
+                        elif '</way>' in line:
+                            finished_with_newway=True
+                        else:
+                            pass
+                if sloped_patch==True:
+                    dico_edges.pop(newwaycodes[0]+'|'+newwaycodes[3],None)
+                    dico_edges.pop(newwaycodes[3]+'|'+newwaycodes[0],None)
+                    dico_edges.pop(newwaycodes[1]+'|'+newwaycodes[2],None)
+                    dico_edges.pop(newwaycodes[2]+'|'+newwaycodes[1],None)
+                line=pfile.readline().split()
+                if '</osm>' in line:
+                    finished_with_ways=True
+            pfile.close()
+            if poly_list is not None:
+                bbox_list.append([minlat-0.01,maxlat+0.01,minlon-0.01,maxlon+0.01])
+        except:
+            print("     Error in treating ",pfile_name,". Skipping that one.") 
+    for pdir_name in os.listdir(patch_dir):
+        if not os.path.isdir(patch_dir+dir_sep+pdir_name): continue
+        print("     "+pdir_name)
         bbox=[90,-90,180,-180]
-        for pfilename in os.listdir(patch_dir+dir_sep+pdirname):
-            pfilenamelong=patch_dir+dir_sep+pdirname+dir_sep+pfilename
-            pfile=open(pfilenamelong,"r")
+        for pfile_name in os.listdir(patch_dir+dir_sep+pdir_name):
+            pfile_namelong=patch_dir+dir_sep+pdir_name+dir_sep+pfile_name
+            try:
+                pfile=open(pfile_namelong,"r")
+            except:
+                continue
             firstline=pfile.readline()
             if not 'ANCHOR' in firstline: 
-                print("Objetc ",pfilename, " is missing and ANCHOR in first line, skipping") 
+                print("Objetc ",pfile_name, " is missing and ANCHOR in first line, skipping") 
                 continue
             pfile.close()
             try:
@@ -1237,9 +1358,9 @@ def include_patch_data(lat0,lon0,patch_dir,dico_nodes,dico_edges,flat_patch_seed
                     [lon_anchor,lat_anchor,heading_anchor]=[float(x) for x in firstline.split()[1:]]
                     alt_anchor=1858 # TODO !!!!!!!!!!!!!!!
                 except:
-                    print("Anchor wrongly encode for : ",pfilename," skipping that one.")
+                    print("Anchor wrongly encode for : ",pfile_name," skipping that one.")
                     continue  
-            bbox_loc=keep_obj8(lat0,lon0,lat_anchor,lon_anchor,alt_anchor,heading_anchor,pfilenamelong,dico_nodes,dico_edges,alt_seeds)
+            bbox_loc=keep_obj8(lat0,lon0,lat_anchor,lon_anchor,alt_anchor,heading_anchor,pfile_namelong,dico_nodes,dico_edges,alt_seeds)
             bbox[0]=(bbox_loc[0]<bbox[0]) and bbox_loc[0] or bbox[0]
             bbox[1]=(bbox_loc[1]>bbox[1]) and bbox_loc[1] or bbox[1]
             bbox[2]=(bbox_loc[2]<bbox[2]) and bbox_loc[2] or bbox[2]
@@ -1291,8 +1412,8 @@ def keep_sloped_patch(waycodes,cell_size,dico_nodes,dico_edges,lat0,lon0):
             nlon=xcoord+lon0
             if (nx!=0 or ny!=0) and (nx!=0 or ny!=Ny) and \
                     (nx!=Nx or ny!=0) and (nx!=Nx or ny!=Ny):
-                dico_nodes[str(nlat)+'_'+str(nlon)]=-32768 #[xcoord,ycoord]
-                sdn[(nx,ny)]=str(nlat)+'_'+str(nlon) 
+                dico_nodes[strcode([nlat,nlon])]=-32768 #[xcoord,ycoord]
+                sdn[(nx,ny)]=strcode([nlat,nlon]) #str(nlat)+'_'+str(nlon) 
     sdn[(0,0)]=waycodes[0]
     sdn[(0,Ny)]=waycodes[1]
     sdn[(Nx,Ny)]=waycodes[2]
@@ -1329,7 +1450,7 @@ def keep_sloped_patch(waycodes,cell_size,dico_nodes,dico_edges,lat0,lon0):
 #############################################################################
 
 #############################################################################
-def keep_obj8(lat,lon,lat_anchor,lon_anchor,alt_anchor,heading_anchor,objfilename,dico_nodes,dico_edges,alt_seeds):
+def keep_obj8(lat,lon,lat_anchor,lon_anchor,alt_anchor,heading_anchor,objfile_name,dico_nodes,dico_edges,alt_seeds):
     dico_idx_nodes={}
     idx_node=0
     dico_index={}
@@ -1341,7 +1462,7 @@ def keep_obj8(lat,lon,lat_anchor,lon_anchor,alt_anchor,heading_anchor,objfilenam
     latmax=-90
     lonmin=180
     lonmax=-180
-    f=open(objfilename,'r')
+    f=open(objfile_name,'r')
     for line in f.readlines():
         if line[0:2]=='VT':
             [x,y,z]=[float(s) for s in line.split()[1:4]]
@@ -1355,12 +1476,12 @@ def keep_obj8(lat,lon,lat_anchor,lon_anchor,alt_anchor,heading_anchor,objfilenam
             latmax= (latmax<flat) and flat or latmax
             lonmin= (lonmin>flon) and flon or lonmin
             lonmax= (lonmax<flon) and flon or lonmax
-            if slat+'_'+slon in dico_nodes:
-                if dico_nodes[slat+'_'+slon]>float(y)+alt_anchor:
-                   dico_nodes[slat+'_'+slon]=float(y)+alt_anchor  
+            if strcode([slat,slon]) in dico_nodes:
+                if dico_nodes[strcode([slat,slon])]>float(y)+alt_anchor:
+                   dico_nodes[strcode([slat,slon])]=float(y)+alt_anchor  
             else:
-                   dico_nodes[slat+'_'+slon]=float(y)+alt_anchor  
-            dico_idx_nodes[str(idx_node)]=slat+'_'+slon
+                   dico_nodes[strcode([slat,slon])]=float(y)+alt_anchor  
+            dico_idx_nodes[str(idx_node)]=strcode([slat,slon]) #slat+'_'+slon
             idx_node+=1
         elif line[0:3]=='IDX':
             dico_index[index]=line.split()[1:]
@@ -1397,6 +1518,67 @@ def keep_obj8(lat,lon,lat_anchor,lon_anchor,alt_anchor,heading_anchor,objfilenam
                 pass
     f.close()
     return [latmin,latmax,lonmin,lonmax]
+#############################################################################
+
+#############################################################################
+def cut_edges_with_zone(lat0,lon0,dico_nodes,dico_edges,zone_list):
+    for zone in zone_list:
+        zone=zone[0] 
+        for k in range(0,len(zone)//2-1):
+            #print("inserting one edge ",k)
+            dico_edges=insert_edge(zone[2*k:2*k+4],dico_nodes,dico_edges,'orthogrid')
+    return dico_edges 
+#############################################################################
+    
+#############################################################################
+def insert_edge(new_edge,dico_nodes,dico_edges,tag):
+    dico_edges_tmp={}
+    [lata,lona,latb,lonb]=new_edge
+    alpha_list=[]
+    # we first take care of the existing edges, those might be splitted
+    for edge in dico_edges:
+        [nodec,noded]=edge.split('|')
+        [latc,lonc]=[float(x) for x in nodec.split('_')]
+        [latd,lond]=[float(x) for x in noded.split('_')]
+        if do_intersect_transverse([lata,lona],[latb,lonb],[latc,lonc],[latd,lond]):
+            A=numpy.array([[lonb-lona, lonc-lond],[latb-lata,latc-latd]])
+            F=numpy.array([lonc-lona,latc-lata])
+            [alpha,beta]=numpy.linalg.solve(A,F)
+            alpha_list.append(alpha)
+            #print(alpha)
+            newlat=alpha*latb+(1-alpha)*lata
+            newlon=alpha*lonb+(1-alpha)*lona
+            newnode=strcode([str(newlat),str(newlon)])
+            #print(newnode)
+            attribute=''
+            try:
+                attribute=(1-beta)*dico_nodes[nodec] + beta*dico_nodes[noded]
+                #print(attribute)
+            except:
+                pass
+            dico_nodes[newnode]=attribute
+            keep_edge_str(newnode,nodec,dico_edges[edge],dico_edges_tmp)
+            keep_edge_str(newnode,noded,dico_edges[edge],dico_edges_tmp)
+        else:
+            dico_edges_tmp[edge]=dico_edges[edge]
+    # now we encode the (possibly splitted) new edge
+    strcodeinit=strcode([str(lata),str(lona)])
+    strcodeend=strcode([str(latb),str(lonb)])
+    if strcodeinit not in dico_nodes: dico_nodes[strcodeinit]=-32768
+    if strcodeend not in dico_nodes: dico_nodes[strcodeend]=-32768
+    alpha_list+=[0,1]
+    alpha_list=sorted(set(alpha_list))
+    for k in range(0,len(alpha_list)-1):
+        [alpha1,alpha2]=alpha_list[k:k+2]
+        newlat1=alpha1*latb+(1-alpha1)*lata
+        newlon1=alpha1*lonb+(1-alpha1)*lona
+        newlat2=alpha2*latb+(1-alpha2)*lata
+        newlon2=alpha2*lonb+(1-alpha2)*lona
+        strcode1=strcode([str(newlat1),str(newlon1)])
+        strcode2=strcode([str(newlat2),str(newlon2)])
+        #print(strcode1,strcode2)
+        keep_edge_str(strcode1,strcode2,tag,dico_edges_tmp,overwrite=False)
+    return dico_edges_tmp
 #############################################################################
 
 #############################################################################
@@ -1439,19 +1621,19 @@ def cut_edges_with_grid(lat0,lon0,dico_nodes,dico_edges):
     # keeping track of the intersections of the vertical and horizontal lines
     # between themselves.
     for x in xgrid:
-        ycuts[x]=ygrid
+        ycuts[x]=ygrid[:]  # nasty bug without the [:] !!!!!!
     for y in ygrid:
-        xcuts[y]=xgrid
-    # adding boundary points every 25m (roughly) to prevent tear between tiles
-    for k in range(1,4000):
-        keep_node_xy(0.0,k/4000.0,lat0,lon0,dico_nodes)
-        keep_node_xy(1.0,k/4000.0,lat0,lon0,dico_nodes)
-        keep_node_xy(k/4000.0,0.0,lat0,lon0,dico_nodes)
-        keep_node_xy(k/4000.0,1.0,lat0,lon0,dico_nodes)
-        xcuts[0.0]=xcuts[0.0]+[k/4000.0]
-        xcuts[1.0]=xcuts[1.0]+[k/4000.0]
-        ycuts[0.0]=ycuts[0.0]+[k/4000.0]
-        ycuts[1.0]=ycuts[1.0]+[k/4000.0]
+        xcuts[y]=xgrid[:]  # nasty bug without the [:] !!!!!!
+    # adding boundary points every 50m (roughly) to prevent tear between tiles
+    for k in range(1,2048):
+        keep_node_xy(0.0,k/2048.0,lat0,lon0,dico_nodes)
+        keep_node_xy(1.0,k/2048.0,lat0,lon0,dico_nodes)
+        keep_node_xy(k/2048.0,0.0,lat0,lon0,dico_nodes)
+        keep_node_xy(k/2048.0,1.0,lat0,lon0,dico_nodes)
+        xcuts[0.0]=xcuts[0.0]+[k/2048.0]
+        xcuts[1.0]=xcuts[1.0]+[k/2048.0]
+        ycuts[0.0]=ycuts[0.0]+[k/2048.0]
+        ycuts[1.0]=ycuts[1.0]+[k/2048.0]
     # we compute the intersection of osm edges with horizontal tile boundaries 
     for edge in dico_edges:
         initpt=edge.split('|')[0]
@@ -1587,8 +1769,8 @@ def cut_edges_with_grid(lat0,lon0,dico_nodes,dico_edges):
         til_yf=(til_yf//16)*16
         if til_yi != til_yf:
             #if abs(til_yi-til_yf) != 16:
-               #print("arête coupant plusieurs lignes horizontales de la grilles : \n")
-               #print(str(abs(til_yi-til_yf))+"\n")
+            #   print("arête coupant plusieurs lignes horizontales de la grilles : \n")
+            #   print(str(abs(til_yi-til_yf))+"\n")
             til_y0=max(til_yi,til_yf)
             y0=360/pi*atan(exp(pi*(1-(til_y0)/(2**(meshzl-1)))))-90-lat0
             xcross= (y0-yf)/(yi-yf)*xi+(yi-y0)/(yi-yf)*xf
@@ -1625,8 +1807,8 @@ def cut_edges_with_grid(lat0,lon0,dico_nodes,dico_edges):
         til_xf=(til_xf//16)*16
         if til_xi != til_xf:
             #if abs(til_xi-til_xf) != 16:
-                #print("arête coupant plusieurs lignes verticales de la grilles\n")
-                #print(str(xi)+' '+str(yi)+' '+str(xf)+' '+str(yf)+"\n")
+            #    print("arête coupant plusieurs lignes verticales de la grilles\n")
+            #    print(str(xi)+' '+str(yi)+' '+str(xf)+' '+str(yf)+"\n")
             til_x0=max(til_xi,til_xf)
             x0=(til_x0/(2**(meshzl-1))-1)*180-lon0
             ycross= (x0-xf)/(xi-xf)*yi+(xi-x0)/(xi-xf)*yf
@@ -1652,7 +1834,6 @@ def cut_edges_with_grid(lat0,lon0,dico_nodes,dico_edges):
     # AND also the values of dico_nodes if needed, e.g. at grid intersections
     # falling inside a patch zone
     for y in xcuts:
-        #xcuts[y].sort()
         xcuts[y]=sorted(set(xcuts[y]))
         for k in range(0,len(xcuts[y])-1):
             node0=strxy(xcuts[y][k],y,lat0,lon0)
@@ -1665,10 +1846,12 @@ def cut_edges_with_grid(lat0,lon0,dico_nodes,dico_edges):
             p2=strxy(xcuts[y][k-1],y,lat0,lon0)
             p3=strxy(xcuts[y][k+1],y,lat0,lon0)
             alpha=(xcuts[y][k]-xcuts[y][k-1])/(xcuts[y][k+1]-xcuts[y][k-1])
-            if dico_nodes[p1]==-32768 and dico_nodes[p2]!=-32768 and dico_nodes[p3]!=-32768:
-                dico_nodes[p1]=(1-alpha)*dico_nodes[p2] + alpha*dico_nodes[p3]
-    for x in ycuts:
-        #ycuts[x].sort()
+            try:
+                if dico_nodes[p1]==-32768 and dico_nodes[p2]!=-32768 and dico_nodes[p3]!=-32768:
+                    dico_nodes[p1]=(1-alpha)*dico_nodes[p2] + alpha*dico_nodes[p3]
+            except:
+                print("Some issue in cut_edges_with_grid !")
+    for x in xgrid: #ycuts:
         ycuts[x]=sorted(set(ycuts[x]))
         for k in range(0,len(ycuts[x])-1):
             node0=strxy(x,ycuts[x][k],lat0,lon0)
@@ -1681,9 +1864,11 @@ def cut_edges_with_grid(lat0,lon0,dico_nodes,dico_edges):
             p2=strxy(x,ycuts[x][k-1],lat0,lon0)
             p3=strxy(x,ycuts[x][k+1],lat0,lon0)
             alpha=(ycuts[x][k]-ycuts[x][k-1])/(ycuts[x][k+1]-ycuts[x][k-1])
-            if dico_nodes[p1]==-32768 and dico_nodes[p2]!=-32768 and dico_nodes[p3]!=-32768:
-                dico_nodes[p1]=(1-alpha)*dico_nodes[p2] + alpha*dico_nodes[p3]
-    
+            try:
+                if dico_nodes[p1]==-32768 and dico_nodes[p2]!=-32768 and dico_nodes[p3]!=-32768:
+                    dico_nodes[p1]=(1-alpha)*dico_nodes[p2] + alpha*dico_nodes[p3]
+            except:
+                print("Some issue in cut_edges_with_grid !")
     return dico_edges_tmp
 #############################################################################
 
@@ -1909,15 +2094,11 @@ def pick_points_safe(way,side,lat0,lon0,check=False):
        return return_list
 #############################################################################
 
-
-
-
-
 ##############################################################################
 # La construction des noms des fichiers d'altitudes, sera amené à changer 
 # si de meilleures sources libres de DEM voient le jour. 
 ##############################################################################
-def downloaded_dem_filename(lat,lon,source):
+def downloaded_dem_file_name(lat,lon,source):
     if source=='SRTMv3_1(void filled)':
         if (lat >= 0):
             hemisphere='N'
@@ -1927,7 +2108,7 @@ def downloaded_dem_filename(lat,lon,source):
             greenwichside='E'
         else:
             greenwichside='W'
-        filename="SRTMv3_1_"+hemisphere+'{:.0f}'.format(abs(lat)).zfill(2)+\
+        file_name="SRTMv3_1_"+hemisphere+'{:.0f}'.format(abs(lat)).zfill(2)+\
                 greenwichside+'{:.0f}'.format(abs(lon)).zfill(3)+'.tif'
     if source=='SRTMv3_3(void filled)':
         if (lat >= 0):
@@ -1938,7 +2119,7 @@ def downloaded_dem_filename(lat,lon,source):
             greenwichside='E'
         else:
             greenwichside='W'
-        filename="SRTMv3_3_"+hemisphere+'{:.0f}'.format(abs(lat)).zfill(2)+\
+        file_name="SRTMv3_3_"+hemisphere+'{:.0f}'.format(abs(lat)).zfill(2)+\
                 greenwichside+'{:.0f}'.format(abs(lon)).zfill(3)+'.tif'
     elif source=='de_Ferranti':
         if (lat >= 0):
@@ -1949,12 +2130,12 @@ def downloaded_dem_filename(lat,lon,source):
             greenwichside='E'
         else:
             greenwichside='W'
-        filename=hemisphere+'{:.0f}'.format(abs(lat)).zfill(2)+\
+        file_name=hemisphere+'{:.0f}'.format(abs(lat)).zfill(2)+\
                 greenwichside+'{:.0f}'.format(abs(lon)).zfill(3)+\
                 '.hgt'
     elif source=='FR':
-        filename='' # for future use maybe
-    return Ortho4XP_dir+"/Elevation_data/"+filename
+        file_name='' # for future use maybe
+    return Ortho4XP_dir+"/Elevation_data/"+file_name
 ##############################################################################
 
 
@@ -1962,17 +2143,17 @@ def downloaded_dem_filename(lat,lon,source):
 #  Chargement en mémoire des DEM. Si aucun fichier spécifié de Ferranti a la 
 #   priorité sur SRTM là où   il est disponible.
 ##############################################################################
-def load_altitude_matrix(lat,lon,filename=''):
-    filename_srtm1=downloaded_dem_filename(lat,lon,'SRTMv3_1(void filled)')
-    filename_srtm3=downloaded_dem_filename(lat,lon,'SRTMv3_3(void filled)')
-    filename_viewfinderpanorama=downloaded_dem_filename(lat,lon,'de_Ferranti')
-    if filename=='':
-        if os.path.isfile(filename_viewfinderpanorama):
-            filename=filename_viewfinderpanorama
-        elif os.path.isfile(filename_srtm1):
-            filename=filename_srtm1
-        elif os.path.isfile(filename_srtm3):
-            filename=filename_srtm3
+def load_altitude_matrix(lat,lon,file_name=''):
+    file_name_srtm1=downloaded_dem_file_name(lat,lon,'SRTMv3_1(void filled)')
+    file_name_srtm3=downloaded_dem_file_name(lat,lon,'SRTMv3_3(void filled)')
+    file_name_viewfinderpanorama=downloaded_dem_file_name(lat,lon,'de_Ferranti')
+    if file_name=='':
+        if os.path.isfile(file_name_viewfinderpanorama):
+            file_name=file_name_viewfinderpanorama
+        elif os.path.isfile(file_name_srtm1):
+            file_name=file_name_srtm1
+        elif os.path.isfile(file_name_srtm3):
+            file_name=file_name_srtm3
         else:
             print("   No elevation file found, I download it from viewfinderpanorama (J. de Ferranti)")
             deferranti_nbr=31+lon//6
@@ -1989,6 +2170,7 @@ def load_altitude_matrix(lat,lon,filename=''):
             tentative=0
             while dem_download_ok != True and tentative<10:
                 url="http://viewfinderpanoramas.org/dem3/"+deferranti_letter+deferranti_nbr+".zip"
+                
                 r=s.get(url)
                 if ('Response [20' in str(r)):
                     print("   Done. The zip archive will now be extracted in the Elevation_data dir.") 
@@ -2005,13 +2187,13 @@ def load_altitude_matrix(lat,lon,filename=''):
             os.system(unzip_cmd+' e -y -o'+Ortho4XP_dir+dir_sep+'Elevation_data'+' "'+\
               Ortho4XP_dir+dir_sep+'tmp'+dir_sep+deferranti_letter+deferranti_nbr+'.zip"')
             os.system(delete_cmd+' '+Ortho4XP_dir+dir_sep+'tmp'+dir_sep+deferranti_letter+deferranti_nbr+'.zip')
-            filename=filename_viewfinderpanorama
+            file_name=file_name_viewfinderpanorama
             #usage('dem_files',do_i_quit=False) 
             #return 'error'
-    if ('.hgt') in filename or ('.HGT' in filename):
+    if ('.hgt') in file_name or ('.HGT' in file_name):
         try:
-            ndem=int(round(sqrt(os.path.getsize(filename)/2)))
-            f = open(filename, 'rb')
+            ndem=int(round(sqrt(os.path.getsize(file_name)/2)))
+            f = open(file_name, 'rb')
             format = 'h'
             alt = array.array(format)
             alt.fromfile(f,ndem*ndem)
@@ -2021,10 +2203,10 @@ def load_altitude_matrix(lat,lon,filename=''):
             return [numpy.zeros([1201,1201],dtype=numpy.float32),1201]
         alt.byteswap()
         alt=numpy.asarray(alt,dtype=numpy.float32).reshape((ndem,ndem))
-    elif ('.raw') in filename or ('.RAW' in filename):
+    elif ('.raw') in file_name or ('.RAW' in file_name):
         try:
-            ndem=int(round(sqrt(os.path.getsize(filename)/2)))
-            f = open(filename, 'rb')
+            ndem=int(round(sqrt(os.path.getsize(file_name)/2)))
+            f = open(file_name, 'rb')
             format = 'h'
             alt = array.array(format)
             alt.fromfile(f,ndem*ndem)
@@ -2034,10 +2216,10 @@ def load_altitude_matrix(lat,lon,filename=''):
             return [numpy.zeros([1201,1201],dtype=numpy.float32),1201]
         alt=numpy.asarray(alt,dtype=numpy.float32).reshape((ndem,ndem))
         alt=alt[::-1]  
-    elif ('.tif' in filename) or ('.TIF' in filename):
+    elif ('.tif' in file_name) or ('.TIF' in file_name):
         if gdal_loaded == True:
             try:
-                ds=gdal.Open(filename)
+                ds=gdal.Open(file_name)
                 alt=numpy.float32(ds.GetRasterBand(1).ReadAsArray())
                 ndem=ds.RasterXSize
             except:
@@ -2048,9 +2230,9 @@ def load_altitude_matrix(lat,lon,filename=''):
                 # geotiff file do not seem to be easily treated by PIL,
                 # smashing them through convert is a weird workaround
                 # since it removes some of the tags layer, but it works.     
-                os.system(convert_cmd+' "'+filename+'" "'+filename +'" '+\
+                os.system(convert_cmd+' "'+file_name+'" "'+file_name +'" '+\
                         devnull_rdir)
-                im=Image.open(filename)
+                im=Image.open(file_name)
                 alt=numpy.float32(im)
                 alt=alt-65536*(alt>10000)
                 if alt.shape[0]==alt.shape[1]:
@@ -2066,7 +2248,7 @@ def load_altitude_matrix(lat,lon,filename=''):
         return [numpy.zeros([1201,1201],dtype=numpy.float32),1201]
     if alt.min()==-32768:
         print("")
-        print("WARNING : The elevation file "+filename+" has some 'no data' zones, ")
+        print("WARNING : The elevation file "+file_name+" has some 'no data' zones, ")
         print("          I am filling the holes using a nearest neighbour approach.") 
         is_filled=False
         step=0
@@ -2152,6 +2334,36 @@ def altitude_vec(x,y,alt_dem,ndem):
     return ((1-rx)*t1+ry*t2+(rx-ry)*t3)*(rx>=ry)+((1-ry)*t1+rx*t2+(ry-rx)*t4)*(rx<ry)
 ##############################################################################
 
+##############################################################################
+# Same as above but with normals in addition
+##############################################################################
+def altitude_and_normals_vec(x,y,alt_dem,ndem):
+    N=ndem-1
+    x=numpy.maximum.reduce([x,numpy.zeros(x.shape)])
+    x=numpy.minimum.reduce([x,numpy.ones(x.shape)])
+    y=numpy.maximum.reduce([y,numpy.zeros(y.shape)])
+    y=numpy.minimum.reduce([y,numpy.ones(y.shape)])
+    px=x*N
+    py=y*N
+    nx=px.astype(numpy.uint16)
+    Nminusny=N-py.astype(numpy.uint16)
+    rx=px-nx
+    ry=py+Nminusny-N
+    t1=numpy.array([alt_dem[i][j] for i,j in zip(Nminusny,nx)],dtype=numpy.float32)
+    t2=numpy.array([alt_dem[i][j] for i,j in zip((Nminusny-1)*(Nminusny>=1),(nx+1)*(nx<N)+N*(nx==N))],dtype=numpy.float32)
+    t3=numpy.array([alt_dem[i][j] for i,j in zip(Nminusny,(nx+1)*(nx<N)+N*(nx==N))],dtype=numpy.float32)
+    t4=numpy.array([alt_dem[i][j] for i,j in zip((Nminusny-1)*(Nminusny>=1),nx)],dtype=numpy.float32)
+    D31=t1-t3
+    D12=t3-t2
+    D31b=t1-t4
+    D12b=t4-t2
+    normvector= numpy.sqrt(D31*D31+D12*D12+(100000/ndem)**2)
+    normvectorb= numpy.sqrt(D31b*D31b+D12b*D12b+(100000/ndem)**2)
+    z=((1-rx)*t1+ry*t2+(rx-ry)*t3)*(rx>=ry)+((1-ry)*t1+rx*t2+(ry-rx)*t4)*(rx<ry)
+    u=D31/normvector*(rx>=ry)+D12b/normvectorb*(rx<ry) 
+    v=D12/normvector*(rx>=ry)+D31b/normvectorb*(rx<ry) 
+    return (z,u,-v)
+##############################################################################
 
 
 ##############################################################################
@@ -2162,13 +2374,13 @@ def altitude_vec(x,y,alt_dem,ndem):
 def build_3D_vertex_array(lat,lon,alt_dem,ndem,build_dir):
     strlat='{:+.0f}'.format(lat).zfill(3)
     strlon='{:+.0f}'.format(lon).zfill(4)
-    node_filename = build_dir+dir_sep+'Data'+strlat+strlon+'.1.node'
-    ele_filename  = build_dir+dir_sep+'Data'+strlat+strlon+'.1.ele'
-    apt_filename  = build_dir+dir_sep+'Data'+strlat+strlon+'.apt'
-    f_node = open(node_filename,'r')
-    f_ele  = open(ele_filename,'r')
+    node_file_name = build_dir+dir_sep+'Data'+strlat+strlon+'.1.node'
+    ele_file_name  = build_dir+dir_sep+'Data'+strlat+strlon+'.1.ele'
+    apt_file_name  = build_dir+dir_sep+'Data'+strlat+strlon+'.apt'
+    f_node = open(node_file_name,'r')
+    f_ele  = open(ele_file_name,'r')
     try:
-        f_apt  = open(apt_filename,'r')
+        f_apt  = open(apt_file_name,'r')
         f_apt_loaded=True
     except:
         f_apt_loaded=False
@@ -2183,7 +2395,10 @@ def build_3D_vertex_array(lat,lon,alt_dem,ndem,build_dir):
         vertices[5*i+2]=float(coordlist[3])
         vertices[5*i+3]=float(coordlist[4])
         vertices[5*i+4]=float(coordlist[5])
-        input_alt[i]=float(coordlist[6]) 
+        try:
+            input_alt[i]=float(coordlist[6]) 
+        except:
+            input_alt[i]=-32768
     f_node.close()
     # Now we modify the altitude we got from the DEM in certain 
     # circumstances, because we want flat water, flat (or correctly sloped
@@ -2193,7 +2408,7 @@ def build_3D_vertex_array(lat,lon,alt_dem,ndem,build_dir):
     print("-> Flattening of oceans and seas, smoothing of lakes and rivers (1st pass)")
     # Here we put all nodes belonging to at least one sea triangle
     # i.e. (with ele marker = 2) to zero altitude. 
-    f_ele=open(ele_filename,'r')
+    f_ele=open(ele_file_name,'r')
     nbr_tri=int(f_ele.readline().split()[0])
     for i in range(0,nbr_tri):
         idx=f_ele.readline().split()
@@ -2201,9 +2416,20 @@ def build_3D_vertex_array(lat,lon,alt_dem,ndem,build_dir):
         v2=(int(idx[2])-1)
         v3=(int(idx[3])-1)
         if idx[4] == dico_tri_markers['sea']:
-            vertices[5*v1+2]=0
-            vertices[5*v2+2]=0
-            vertices[5*v3+2]=0
+            if sea_smoothing==0:
+                vertices[5*v1+2]=0
+                vertices[5*v2+2]=0
+                vertices[5*v3+2]=0
+            elif sea_smoothing==1:
+                zmean=(vertices[5*v1+2]+vertices[5*v2+2]+vertices[5*v3+2])/3
+                vertices[5*v1+2]=zmean
+                vertices[5*v2+2]=zmean
+                vertices[5*v3+2]=zmean
+            else:
+                vertices[5*v1+2]=max(vertices[5*v1+2],0)
+                vertices[5*v2+2]=max(vertices[5*v2+2],0)
+                vertices[5*v3+2]=max(vertices[5*v3+2],0)
+                continue
         elif idx[4] in [dico_tri_markers['water'],\
                 dico_tri_markers['sea_equiv']]:
             zmean=(vertices[5*v1+2]+vertices[5*v2+2]+vertices[5*v3+2])/3
@@ -2234,6 +2460,7 @@ def build_3D_vertex_array(lat,lon,alt_dem,ndem,build_dir):
             vertices[5*v3+2]=input_alt[v3]
             #if input_alt[v3]==-32768: print(v3)
         elif (100 <= int(idx[4])) and (int(idx[4])<1000) and f_apt_loaded:
+            #continue 
             if idx[4] in dico_alt_ap:
                 height=dico_alt_ap[idx[4]]
                 vertices[5*v1+2]=height
@@ -2324,8 +2551,14 @@ def build_3D_vertex_array(lat,lon,alt_dem,ndem,build_dir):
             yi=float(tmplist[4])
             xf=float(tmplist[5])
             yf=float(tmplist[6])
-            zi=float(tmplist[7])
-            zf=float(tmplist[8])
+            if tmplist[7]=='mean':
+               zi=altitude(xi,yi,alt_dem,ndem)
+            else:
+                zi=float(tmplist[7])
+            if tmplist[8]=='mean':
+               zf=altitude(xf,yf,alt_dem,ndem)
+            else:
+                zf=float(tmplist[8])
             x1=vertices[5*v1]-lon
             y1=vertices[5*v1+1]-lat
             x2=vertices[5*v2]-lon
@@ -2354,7 +2587,8 @@ def build_3D_vertex_array(lat,lon,alt_dem,ndem,build_dir):
                 vertices[5*v2+2]=zi+(zf-zi)*rat2**2
                 vertices[5*v3+2]=zi+(zf-zi)*rat3**2
             else:
-                print("One of the patch profiles is unknown to me, I use a plane one instead.")
+                # by default we take a plane
+                #print("One of the patch profiles is unknown to me, I use a plane one instead.")
                 vertices[5*v1+2]=zi+rat1*(zf-zi)
                 vertices[5*v2+2]=zi+rat2*(zf-zi)
                 vertices[5*v3+2]=zi+rat3*(zf-zi)
@@ -2387,15 +2621,15 @@ def build_3D_vertex_array(lat,lon,alt_dem,ndem,build_dir):
 ##############################################################################
 # Write of the mesh file based on .1.ele, .1.node and vertices
 ##############################################################################
-def build_mesh_file(lat,lon,vertices,mesh_filename,build_dir):
-    print("-> Writing of the final mesh to the file "+mesh_filename)
+def build_mesh_file(lat,lon,vertices,mesh_file_name,build_dir):
+    print("-> Writing of the final mesh to the file "+mesh_file_name)
     strlat='{:+.0f}'.format(lat).zfill(3)
     strlon='{:+.0f}'.format(lon).zfill(4)
-    ele_filename  = build_dir+dir_sep+'Data'+strlat+strlon+'.1.ele'
-    f_ele  = open(ele_filename,'r')
+    ele_file_name  = build_dir+dir_sep+'Data'+strlat+strlon+'.1.ele'
+    f_ele  = open(ele_file_name,'r')
     nbr_vert=len(vertices)//5
     nbr_tri=int(f_ele.readline().split()[0])
-    f=open(mesh_filename,"w")
+    f=open(mesh_file_name,"w")
     f.write("MeshVersionFormatted 1\n")
     f.write("Dimension 3\n\n")
     f.write("Vertices\n")
@@ -2421,41 +2655,142 @@ def build_mesh_file(lat,lon,vertices,mesh_filename,build_dir):
 ##############################################################################
 
 ##############################################################################
+# Write of the wavefront obj file based on .1.ele, .1.node and vertices
+##############################################################################
+def build_obj_file(lat,lon,vertices,obj_file_name,build_dir):
+    print("-> Writing of the final mesh to the file "+obj_file_name)
+    strlat='{:+.0f}'.format(lat).zfill(3)
+    strlon='{:+.0f}'.format(lon).zfill(4)
+    ele_file_name  = build_dir+dir_sep+'Data'+strlat+strlon+'.1.ele'
+    f_ele  = open(ele_file_name,'r')
+    nbr_vert=len(vertices)//5
+    nbr_tri=int(f_ele.readline().split()[0])
+    f=open(obj_file_name,"w")
+    for i in range(0,nbr_vert):
+        f.write("v "+'{:.9f}'.format(vertices[5*i])+" "+\
+                '{:.9f}'.format(vertices[5*i+1])+" "+\
+                '{:.9f}'.format(vertices[5*i+2]/100000)+"\n") 
+    f.write("\n")
+    for i in range(0,nbr_vert):
+        f.write("vn "+'{:.9f}'.format(vertices[5*i+3])+" "+\
+                '{:.9f}'.format(vertices[5*i+4])+" "+'{:.9f}'.format(sqrt(1-vertices[5*i+3]**2-vertices[5*i+4]**2))+" \n")
+    f.write("\n")
+    for i in range(0,nbr_tri):
+        [one,two,three]=f_ele.readline().split()[1:4]
+        f.write("f "+one+"//"+one+" "+two+"//"+two+" "+three+"//"+three+"\n")
+    f_ele.close()
+    f.close()
+    return
+##############################################################################
+
+##############################################################################
+# Transform a mesh file to a wavefront obj file with possible cut region
+##############################################################################
+# Under construction (?)
+def mesh_to_obj(lat,lon,mesh_file_name,obj_file_name,latmin,latmax,lonmin,lonmax):
+    strlat='{:+.0f}'.format(lat).zfill(3)
+    strlon='{:+.0f}'.format(lon).zfill(4)
+    f_mesh=open(mesh_file_name,"r")
+    for i in range(0,4):
+        f_mesh.readline()
+    nbr_pt_in=int(f_mesh.readline())
+    pt_in=numpy.zeros(5*nbr_pt_in,'float')
+    for i in range(0,nbr_pt_in):
+        tmplist=f_mesh.readline().split()
+        pt_in[5*i]=float(tmplist[0])
+        pt_in[5*i+1]=float(tmplist[1])
+        pt_in[5*i+2]=float(tmplist[2])
+    for i in range(0,3):
+        f_mesh.readline()
+    for i in range(0,nbr_pt_in):
+        tmplist=f_mesh.readline().split()
+        pt_in[5*i+3]=float(tmplist[0])
+        pt_in[5*i+4]=float(tmplist[1])
+    for i in range(0,2): # skip 2 lines
+        f_mesh.readline()
+    nbr_tri_in=int(f_mesh.readline()) # read nbr of tris
+    len_dico_new_pt=0
+    for i in range(0,nbr_tri_in):
+        tmplist=f_mesh.readline().split()
+        # look for the texture that will possibly cover the tri
+        n1=int(tmplist[0])-1
+        n2=int(tmplist[1])-1
+        n3=int(tmplist[2])-1
+        tri_type=tmplist[3] 
+        [lon1,lat1,z1,u1,v1]=pt_in[5*n1:5*n1+5]
+        [lon2,lat2,z2,u2,v2]=pt_in[5*n2:5*n2+5]
+        [lon3,lat3,z3,u3,v3]=pt_in[5*n3:5*n3+5]
+        if is_in_region((lat1+lat2+lat3)/3.0,(lon1+lon2+lon3)/3.0,latmin,latmax,lonmin,lonmax):
+            if tmplist[0] in dico_new_pt:
+                n1new=dico_new_pt[tmplist[0]]
+            else:
+                dico_new_pt[tmplist[0]]=len_dico_new_pt
+                len_dico_new_pt+=1 
+            if tmplist[1] in dico_new_pt:
+                n2new=dico_new_pt[tmplist[1]]
+            else:
+                dico_new_pt[tmplist[1]]=len_dico_new_pt
+                len_dico_new_pt+=1 
+            if tmplist[2] in dico_new_pt:
+                n3new=dico_new_pt[tmplist[2]]
+            else:
+                dico_new_pt[tmplist[2]]=len_dico_new_pt
+                len_dico_new_pt+=1 
+
+                    
+    f_mesh  = open(mesh_file_name,'r')
+    nbr_vert=len(vertices)//5
+    nbr_tri=int(f_ele.readline().split()[0])
+    f=open(obj_file_name,"w")
+    for i in range(0,nbr_vert):
+        f.write("v "+'{:.9f}'.format(vertices[5*i])+" "+\
+                '{:.9f}'.format(vertices[5*i+1])+" "+\
+                '{:.9f}'.format(vertices[5*i+2]/100000)+"\n") 
+    f.write("\n")
+    for i in range(0,nbr_vert):
+        f.write("vn "+'{:.9f}'.format(vertices[5*i+3])+" "+\
+                '{:.9f}'.format(vertices[5*i+4])+" "+'{:.9f}'.format(sqrt(1-vertices[5*i+3]**2-vertices[5*i+4]**2))+" \n")
+    f.write("\n")
+    for i in range(0,nbr_tri):
+        [one,two,three]=f_ele.readline().split()[1:4]
+        f.write("f "+one+"//"+one+" "+two+"//"+two+" "+three+"//"+three+"\n")
+    f_ele.close()
+    f.close()
+    return
+##############################################################################
+
+##############################################################################
 def build_mesh(lat,lon,build_dir):
     t2=time.time()
     strlat='{:+.0f}'.format(lat).zfill(3)
     strlon='{:+.0f}'.format(lon).zfill(4)
-    alt_filename  = build_dir+dir_sep+'Data'+strlat+strlon+'.alt'
-    node_filename = build_dir+dir_sep+'Data'+strlat+strlon+'.1.node'
-    ele_filename  = build_dir+dir_sep+'Data'+strlat+strlon+'.1.ele'
+    alt_file_name  = build_dir+dir_sep+'Data'+strlat+strlon+'.alt'
+    node_file_name = build_dir+dir_sep+'Data'+strlat+strlon+'.1.node'
+    ele_file_name  = build_dir+dir_sep+'Data'+strlat+strlon+'.1.ele'
     poly_file     = build_dir+dir_sep+'Data'+strlat+strlon+'.poly'
-    apt_filename  = build_dir+dir_sep+'Data'+strlat+strlon+'.apt'
-    if os.path.isfile(apt_filename)!=True or os.path.isfile(poly_file)!=True:
+    apt_file_name  = build_dir+dir_sep+'Data'+strlat+strlon+'.apt'
+    if os.path.isfile(apt_file_name)!=True or os.path.isfile(poly_file)!=True:
         print("You must first build OSM data !")
         return
-    mesh_filename = build_dir+dir_sep+'Data'+strlat+strlon+".mesh"
+    mesh_file_name = build_dir+dir_sep+'Data'+strlat+strlon+".mesh"
+    obj_file_name = build_dir+dir_sep+'Data'+strlat+strlon+".obj"
     print('-> Loading of elevation data.')
     try:
         if application.cdc.get()!=0:
-            load_result=load_altitude_matrix(lat,lon,filename=application.cde.get())
+            load_result=load_altitude_matrix(lat,lon,file_name=application.cde.get())
         else:
             load_result=load_altitude_matrix(lat,lon)
     except:
         load_result=load_altitude_matrix(lat,lon)
-    #if load_result=='error':
-    #    print('\nFailure.')
-    #    print('_____________________________________________________________'+\
-    #        '____________________________________')
-    #    return
     [alt_dem,ndem]=load_result
-    alt_dem.tofile(alt_filename)
+    alt_dem.tofile(alt_file_name)
     print("-> Start of the mesh algorithm Triangle4XP :\n") 
     if no_small_angles==True:
         Tri_option = ' -pq'+str(smallest_angle)+'uAYPQ '
     else:
         Tri_option = ' -pAuYPQ '
     mesh_cmd=[Triangle4XP_cmd.strip(),Tri_option.strip(),str(ndem),str(curvature_tol),\
-            str(hmax/100000),str(hmin/100000),alt_filename,poly_file]
+            str(hmax/100000),str(hmin/100000),alt_file_name,poly_file]
     fingers_crossed=subprocess.Popen(mesh_cmd,stdout=subprocess.PIPE,bufsize=0)
     while True:
         line = fingers_crossed.stdout.readline()
@@ -2464,7 +2799,8 @@ def build_mesh(lat,lon,build_dir):
         else:
             print(line.decode("utf-8")[:-1])
     vertices=build_3D_vertex_array(lat,lon,alt_dem,ndem,build_dir)
-    build_mesh_file(lat,lon,vertices,mesh_filename,build_dir)
+    build_mesh_file(lat,lon,vertices,mesh_file_name,build_dir)
+    #build_obj_file(lat,lon,vertices,obj_file_name,build_dir)
     print('\nCompleted in '+str('{:.2f}'.format(time.time()-t2))+\
               'sec.')
     print('_____________________________________________________________'+\
@@ -2475,17 +2811,352 @@ def build_mesh(lat,lon,build_dir):
 
 ##############################################################################
 #                                                                            #
+# IV : Initialisation des fournisseurs, des étendues et des filtres couleur  #
+#                                                                            #
+##############################################################################
+
+providers_dict={}
+combined_providers_dict={}
+local_combined_providers_dict={}
+extents_dict={'global':{}}
+color_filters_dict={'none':[]}
+epsg={}
+epsg['4326']=pyproj.Proj(init='epsg:4326')
+epsg['3857']=pyproj.Proj(init='epsg:3857')
+
+def read_tilematrixsets(file_name):
+    f=open(file_name,'r')
+    def xml_decode(line):
+        field=line.split('<')[1].split('>')[0]
+        str_value=line.split('>')[1].split('<')[0]
+        return [field,str_value]
+
+    tilematrixsets=[]
+    
+    line=f.readline()
+    while line:
+        if line.strip()=='<TileMatrixSet>':
+            tilematrixset={}
+            tilematrixset['tilematrices']=[]
+            line=f.readline()
+            while not line.strip()=='</TileMatrixSet>':
+                if line.strip()=='<TileMatrix>':
+                    tilematrix={}
+                    line=f.readline()
+                    while not line.strip()=='</TileMatrix>':
+                        field,str_value=xml_decode(line)
+                        if 'Identifier' in field: field='identifier'
+                        tilematrix[field]=str_value
+                        line=f.readline()
+                    tilematrixset['tilematrices'].append(tilematrix)
+                elif 'Identifier' in line:
+                    field,str_value=xml_decode(line)
+                    tilematrixset['identifier']=str_value
+                line=f.readline()
+            tilematrixsets.append(tilematrixset)
+        else:
+            pass
+        line=f.readline()
+    f.close()
+    return tilematrixsets
+
+def initialize_extents_dict():
+    for file_name in os.listdir(os.path.join(Ortho4XP_dir,"active_extents")):
+            if '.' not in file_name or file_name.split('.')[-1]!='ext': continue
+            extent_code=file_name.split('.')[0]
+            extent={}
+            f=open(os.path.join(Ortho4XP_dir,"active_extents",file_name),'r')
+            valid_extent=True
+            for line in f.readlines():
+                line=line[:-1]
+                if "#" in line: line=line.split('#')[0]
+                if ("=" not in line): continue
+                try:
+                    key=line.split("=")[0]
+                    value=line[len(key)+1:]
+                    extent[key]=value
+                except:
+                    print("Error for extent",extent_code,"in line",line)
+                    continue
+                # structuring data
+                if key=='epsg_code':
+                    try:
+                        epsg[value]=pyproj.Proj(init='epsg:'+value)
+                    except:
+                        print("Error in epsg code for provider",provider_code)
+                        valid_extent=False
+                elif key=='mask_bounds':
+                    try:
+                        extent[key]=[float(x) for x in value.split(",")]
+                    except:
+                        print("Error in reading mask bounds for extent",extent_code)
+                        valid_extent=False
+            if valid_extent:
+                extent['code']=extent_code
+                extents_dict[extent_code]=extent
+            else:
+                print("Error in reading extent definition file for",file_name)
+                pass
+            f.close()
+
+def initialize_color_filters_dict():
+    for file_name in os.listdir(os.path.join(Ortho4XP_dir,"active_filters")):
+            if '.' not in file_name or file_name.split('.')[-1]!='flt': continue
+            color_code=file_name.split('.')[0]
+            extent={}
+            f=open(os.path.join(Ortho4XP_dir,"active_filters",file_name),'r')
+            valid_color_filters=True
+            color_filters=[]
+            for line in f.readlines():
+                line=line[:-1]
+                if "#" in line: line=line.split('#')[0]
+                if not line: continue
+                try:
+                    items=line.split()            
+                    if items[0] in ['contrast','saturation','brightness','sharpness']:
+                        color_filters.append([items[0],float(items[1])])
+                    elif items[0] == 'rgb':
+                        color_filters.append([items[0]]+[float(x) for x in items[1:10]])
+                except:
+                    valid_color_filters=False
+            if valid_color_filters:
+                color_filters_dict[color_code]=color_filters
+            else:
+                print("Could not understand color filter ",color_code,", skipping it.") 
+                pass
+            f.close()
+
+# Look for lay files
+def initialize_providers_dict():
+    for dir_name in os.listdir(os.path.join(Ortho4XP_dir,"active_providers")):
+        if not os.path.isdir(os.path.join(Ortho4XP_dir,"active_providers",dir_name)):
+            continue
+        for file_name in os.listdir(os.path.join(Ortho4XP_dir,"active_providers",dir_name)):
+            if '.' not in file_name or file_name.split('.')[-1]!='lay': continue
+            provider_code=file_name.split('.')[0]
+            provider={}
+            f=open(os.path.join(Ortho4XP_dir,"active_providers",dir_name,file_name),'r')
+            valid_provider=True
+            for line in f.readlines():
+                line=line[:-1]
+                if "#" in line: line=line.split('#')[0]
+                if ("=" not in line): continue
+                try:
+                    key=line.split("=")[0]
+                    value=line[len(key)+1:]
+                    provider[key]=value
+                except:
+                    print("Error for provider",provider_code,"in line",line)
+                    continue
+                # structuring data
+                if key=='request_type' and value not in ['wms','wmts','tms','local_tms']:
+                    print("Unknown request_type field for provider",provider_code,":",value)
+                    valid_provider=False
+                if key=='grid_type' and value not in ['webmercator']:
+                    print("Unknown grid_type field for provider",provider_code,":",value)
+                    valid_provider=False
+                elif key=='fake_headers':
+                    try:
+                        provider[key]=eval(value)
+                        if type(provider[key]) is not dict:
+                            print("Definition of fake headers for provider",provider_code,"not valid.")
+                            valid_provider=False
+                    except:
+                        print("Definition of fake headers for provider",provider_code,"not valid.")
+                        valid_provider=False
+                elif key=='epsg_code':
+                    try:
+                        epsg[value]=pyproj.Proj(init='epsg:'+value)
+                    except:
+                        print("Error in epsg code for provider",provider_code)
+                        valid_provider=False
+                elif key=='image_type':
+                    pass
+                elif key=='url_prefix':
+                    pass
+                elif key=='url_template':
+                    pass
+                elif key=='layers':
+                    pass
+                elif key in ['wms_size','tile_size']:
+                    try:
+                        provider[key]=int(value)
+                        if provider[key]<256 or provider[key]>9192:
+                            print("Wm(t)s size for provider ",provider_code,"seems off limits, provider skipped.")
+                    except:
+                        print("Error in reading wms size for provider",provider_code)
+                        valid_provider=False
+                elif key in ['wms_version','wmts_version']:
+                    if len(value.split('.'))<2: 
+                        print("Error in reading wms version for provider",provider_code)
+                        valid_provider=False
+                elif key=='top_left_corner':
+                    try:
+                        provider[key]=[numpy.array([float(x) for x in value.split()]) for _ in range(0,21)]
+                    except:
+                        print("Error in reading top left corner for provider",provider_code)
+                        valid_provider=False
+                    pass 
+                elif key == 'tilematrixset':
+                    pass
+                elif key=='resolutions':
+                    try:
+                        provider[key]=numpy.array([float(x) for x in value.split()])
+                    except:
+                        print("Error in reading resolutions for provider",provider_code)
+                        valid_provider=False
+                elif key=='max_threads':
+                    try:
+                        provider[key]=int(value)
+                    except:
+                        pass            
+                elif key=='extent':
+                    pass
+                elif key=='color_filters':
+                    pass
+                elif key=='imagery_dir':
+                   pass
+            if 'request_type' in provider and provider['request_type']=='wmts':
+                try: 
+                    tilematrixsets=read_tilematrixsets(os.path.join(Ortho4XP_dir,'active_providers',dir_name,'capabilities.xml'))
+                    tms_found=False
+                    for tilematrixset in tilematrixsets:
+                        if tilematrixset['identifier']==provider['tilematrixset']:
+                            provider['tilematrixset']=tilematrixset
+                            tms_found=True
+                            break
+                    if tms_found: 
+                        provider['scaledenominator']=numpy.array([float(x['ScaleDenominator']) for x in provider['tilematrixset']['tilematrices']]) 
+                        provider['top_left_corner']=[[float(x) for x in y['TopLeftCorner'].split()] for y in provider['tilematrixset']['tilematrices']] 
+                    else:
+                        print("no tilematrixset found")  
+                        valid_provider=False
+                except:
+                    print("Error in reading capabilities for provider",provider_code) 
+            if valid_provider:
+                provider['code']=provider_code
+                provider['directory']=dir_name
+                if 'image_type' not in provider: 
+                    provider['image_type']='jpeg'
+                if 'extent' not in provider: 
+                    provider['extent']='global'
+                if 'color_filters' not in provider: 
+                    provider['color_filters']='none'
+                if 'imagery_dir' not in provider:
+                    provider['imagery_dir']=provider['code']
+                if 'scaledenominator' in provider:
+                    units_per_pix=0.00028 if provider['epsg_code'] not in ['4326'] else 2.5152827955e-09 
+                    provider['resolutions']=units_per_pix*provider['scaledenominator']
+                if 'grid_type' in provider and provider['grid_type']=='webmercator':
+                    provider['request_type']='tms'
+                    provider['tile_size']=256
+                    provider['epsg_code']='3857'
+                    provider['top_left_corner']=[-20037508.34, 20037508.34] 
+                    provider['resolutions']=numpy.array([20037508.34/(128*2**i) for i in range(0,21)])
+                providers_dict[provider_code]=provider
+            else:
+                print("Error in reading provider definition file for",file_name)
+                pass
+            f.close()
+
+def initialize_combined_providers_dict():   
+    for file_name in os.listdir("active_providers"):
+        if '.' not in file_name or file_name.split('.')[-1]!='comb': continue
+        provider_code=file_name.split('.')[0]
+        try:
+            comb_list=[]
+            f=open(os.path.join(Ortho4XP_dir,"active_providers",file_name),'r')
+            for line in f.readlines():
+                if '#' in line: line=line.split('#')[0]
+                if not line[:-1]: continue
+                layer_code,extent_code,color_code,priority=line[:-1].split()
+                if layer_code not in providers_dict:
+                    print("Unknown provider in combined provider",provider_code,":",layer_code)
+                    continue
+                if extent_code=='default':
+                    extent_code=providers_dict[layer_code]['extent']
+                if extent_code not in extents_dict:
+                    print("Unknown extent in combined provider",provider_code,":",extent_code)
+                    continue
+                if color_code=='default':
+                    color_code=providers_dict[layer_code]['color_filters']
+                if color_code not in color_filters_dict:
+                    print("Unknown color filter in combined provider",provider_code,":",color_code)
+                    continue
+                if priority not in ['low','medium','high']:
+                    print("Unknown priority in combined provider",provider_code,":",priority)
+                    continue
+                comb_list.append({'layer_code':layer_code,'extent_code':extent_code,'color_code':color_code,'priority':priority})
+            f.close()
+            if comb_list:
+                combined_providers_dict[provider_code]=comb_list
+            else:
+                print("Combined provider",provider_code,"did not contained valid providers, skipped.")
+        except:
+            print("Error reading definition of combined provider",provider_code)
+                
+def has_data(bbox_4326,extent_code,return_mask=False,mask_size=(4096,4096),blur_radius=20):
+    # This function checks wether a given provider has data instersection the given bbox in epsg:4326
+    try:
+        if extent_code=='global':
+            return (not return_mask) or Image.new('L',mask_size,'white')
+        if extent_code[0]=='!': 
+            extent_code=extent_code[1:]
+            negative=True 
+        else:
+            negative=False 
+        (x0,y0,x1,y1)=bbox_4326
+        (xmin,ymin,xmax,ymax)=extents_dict[extent_code]['mask_bounds']
+        if x0>xmax or x1<xmin or y0<ymin or y1>ymax:
+            return negative
+        mask_im=Image.open(os.path.join(Ortho4XP_dir,"active_extents",extents_dict[extent_code]['code']+".png")).convert("L")
+        (sizex,sizey)=mask_im.size
+        pxx0=int((x0-xmin)/(xmax-xmin)*sizex)
+        pxx1=int((x1-xmin)/(xmax-xmin)*sizex)
+        pxy0=int((ymax-y0)/(ymax-ymin)*sizey)
+        pxy1=int((ymax-y1)/(ymax-ymin)*sizey)
+        small_im=mask_im.crop((pxx0,pxy0,pxx1,pxy1))
+        if negative: small_im=ImageOps.invert(small_im)
+        if small_im.getbbox():
+            if return_mask:
+                return small_im.resize(mask_size).filter(ImageFilter.GaussianBlur(blur_radius))
+            else: 
+                return True
+        else:
+            return False
+    except:
+        print("Could not test coverage of ",extent_code," !!!!!!!!!!!!")
+        return False
+
+def initialize_local_combined_providers_dict(lat,lon,ortho_list):
+    # This function will select from list of providers the only
+    # ones whose coverage intersect the given tile.
+    global local_combined_providers_dict
+    local_combined_providers_dict={} 
+    test_set=set()
+    for region in ortho_list[:]:
+        test_set.add(region[2])
+    for provider_code in test_set.intersection(combined_providers_dict):
+            comb_list=[]
+            for rlayer in combined_providers_dict[provider_code]:
+                if True: #has_data((lon,lat+1,lon+1,lat),rlayer['extent_code']):
+                    comb_list.append(rlayer)
+            if comb_list:
+                local_combined_providers_dict[provider_code]=comb_list
+            else:
+                print("Combined provider",provider_code,"did not contained data for this tile, skipping it.")
+                ortho_list.remove(region)
+
+##############################################################################
+#                                                                            #
 # IV : Toutes les méthodes à vocation géographique, essentiellement ce       #
 #      qui concerne les changements de référentiel (WGS84 - Lambert - UTM)   #
 #      ou la numérotation des vignettes (TMS - Quadkey).                     #
-#      J'appelle "vignette" les images de 256x256 ou 512x512 pixels qui      #
-#      contiennent des orthophotos et que l'on pourra télécharger à la       #
-#      chaîne chez nos amis du fichier Carnet_d_adresses.py                  #
 #                                                                            #
 ##############################################################################
+
 ##############################################################################
 def wgs84_to_gtile(lat,lon,zoomlevel):                                          
-    half_meridian=pi*6378137
     rat_x=lon/180           
     rat_y=log(tan((90+lat)*pi/360))/pi
     pix_x=round((rat_x+1)*(2**(zoomlevel+7)))
@@ -2497,7 +3168,6 @@ def wgs84_to_gtile(lat,lon,zoomlevel):
 
 ##############################################################################
 def wgs84_to_pix(lat,lon,zoomlevel):                                          
-    half_meridian=pi*6378137
     rat_x=lon/180           
     rat_y=log(tan((90+lat)*pi/360))/pi
     pix_x=round((rat_x+1)*(2**(zoomlevel+7)))
@@ -2549,33 +3219,65 @@ def gtile_to_quadkey(til_x,til_y,zoomlevel):
 
 ##############################################################################
 #                                                                            #
-# V  :  Une texture est un fichier image de 4096x4096 pixels, obtenu à       #
-#       partir de 256 vignettes accolées en 16 lignes et 16 colonnes.        #
-#       Ce sont elles qui seront chargées ensuite par X-Plane.               #
-#       La section qui suit propose entre autres des méthodes pour           #
-#       télécharger et créer ces textures, déterminer si un masque alpha     #
-#       de bord de mer est nécessaire, écrire les fichiers .ter ou encore    #
-#       associer un pixel à un point géographique, et inversément.           #
+# V  :  Une texture est un fichier image de 4096x4096 pixels, dont l'emprise #
+#       géographie correspond nécessairement au tilematrixset web-mercator   #
+#       utilisé notamment par les grands fournisseurs tels Google et Bing.   #
+#       Les imageries utilisant d'autres projections ou découpages devront   #
+#       être reprojetées/redécoupées suivant cette grille (le programme s'en #
+#       charge tout seul.                                                    #
 #                                                                            #
 ##############################################################################
 
 ##############################################################################
 #  Comment appeler le bébé ?
 ##############################################################################
-def filename_from_attributes(strlat,strlon,til_x_left,til_y_top,\
-                             zoomlevel,website):
-    file_dir=Ortho4XP_dir+dir_sep+"Orthophotos"+dir_sep+strlat+strlon+\
-                    dir_sep+website+'_'+str(zoomlevel)+dir_sep
-    if website=='g2xpl_8':
-        file_name='g2xpl_8_'+str(zoomlevel)+'_'+str(til_x_left)+'_'+\
-                str(2**zoomlevel-8-til_y_top)
-    elif website=='g2xpl_16':
-        file_name='g2xpl_16_'+str(zoomlevel)+'_'+str(til_x_left)+'_'+\
-                str(2**zoomlevel-16-til_y_top)
+    
+def short_latlon(lat,lon):
+    strlat='{:+.0f}'.format(lat).zfill(3)
+    strlon='{:+.0f}'.format(lon).zfill(4)
+    return strlat+strlon
+
+def round_latlon(lat,lon):
+    strlatround='{:+.0f}'.format(floor(lat/10)*10).zfill(3)
+    strlonround='{:+.0f}'.format(floor(lon/10)*10).zfill(4)
+    return strlatround+strlonround
+
+def long_latlon(lat,lon):
+    strlat='{:+.0f}'.format(lat).zfill(3)
+    strlon='{:+.0f}'.format(lon).zfill(4)
+    strlatround='{:+.0f}'.format(floor(lat/10)*10).zfill(3)
+    strlonround='{:+.0f}'.format(floor(lon/10)*10).zfill(4)
+    return os.path.join(strlatround+strlonround,strlat+strlon)
+
+def dds_file_name_from_attributes(til_x_left,til_y_top,zoomlevel,provider_code,file_ext='dds'):
+    if provider_code=='g2xpl_8':
+        file_name=g2xpl_8_prefix+str(zoomlevel)+'_'+str(til_x_left)+'_'+\
+                str(2**zoomlevel-8-til_y_top)+g2xpl_8_suffix+"."+file_ext
+    elif provider_code=='g2xpl_16':
+        file_name=g2xpl_16_prefix+str(zoomlevel)+'_'+str(til_x_left)+'_'+\
+                str(2**zoomlevel-16-til_y_top)+g2xpl_16_suffix+"."+file_ext
     else:
-        file_name=str(til_y_top)+"_"+str(til_x_left)+"_"+website+str(zoomlevel)   
-    file_ext=".jpg"
-    return [file_dir,file_name,file_ext]
+        file_name=str(til_y_top)+"_"+str(til_x_left)+"_"+provider_code+str(zoomlevel)+"."+file_ext   
+    return file_name
+
+def jpeg_file_name_from_attributes(lat,lon,til_x_left,til_y_top,zoomlevel,provider_code,file_ext='jpg'):
+    if providers_dict[provider_code]['imagery_dir']=='normal':
+        tmp_dir=short_latlon(lat,lon)
+    elif providers_dict[provider_code]['imagery_dir']=='grouped':
+        tmp_dir=long_latlon(lat,lon)
+    else:
+        tmp_dir=providers_dict[provider_code]['imagery_dir']
+    file_dir=os.path.join(Ortho4XP_dir,"Orthophotos",\
+                 tmp_dir,provider_code+'_'+str(zoomlevel))
+    if provider_code=='g2xpl_8':
+        file_name=g2xpl_8_prefix+str(zoomlevel)+'_'+str(til_x_left)+'_'+\
+                str(2**zoomlevel-8-til_y_top)+g2xpl_8_suffix+"."+file_ext
+    elif provider_code=='g2xpl_16':
+        file_name=g2xpl_16_prefix+str(zoomlevel)+'_'+str(til_x_left)+'_'+\
+                str(2**zoomlevel-16-til_y_top)+g2xpl_16_suffix+"."+file_ext
+    else:
+        file_name=str(til_y_top)+"_"+str(til_x_left)+"_"+provider_code+str(zoomlevel)+"."+file_ext   
+    return (file_dir,file_name)
 ##############################################################################
 
 ##############################################################################
@@ -2590,10 +3292,10 @@ def is_in_region(lat,lon,latmin,latmax,lonmin,lonmax):
 ##############################################################################
 
 ##############################################################################
-def wgs84_to_texture(lat,lon,zoomlevel,website):
+def wgs84_to_texture(lat,lon,zoomlevel,provider_code):
     ratio_x=lon/180           
     ratio_y=log(tan((90+lat)*pi/360))/pi
-    if website=='g2xpl_8':
+    if provider_code=='g2xpl_8':
         mult=2**(zoomlevel-4)
         til_x=int((ratio_x+1)*mult)*8
         til_y=int((1-ratio_y)*mult)*8
@@ -2609,11 +3311,11 @@ def wgs84_to_texture(lat,lon,zoomlevel,website):
 # l'intérieur d'une texture avec (0,0) en bas à gauche et (1,1) en haut à 
 # droite.
 ##############################################################################
-def st_coord(lat,lon,tex_x,tex_y,zoomlevel,website):                        
+def st_coord(lat,lon,tex_x,tex_y,zoomlevel,provider_code):                        
     """
     ST coordinates of a point in a texture
     """
-    if website=='g2xpl_8':
+    if provider_code=='g2xpl_8':
         ratio_x=lon/180           
         ratio_y=log(tan((90+lat)*pi/360))/pi
         mult=2**(zoomlevel-4)
@@ -2624,7 +3326,7 @@ def st_coord(lat,lon,tex_x,tex_y,zoomlevel,website):
         t = t if t>=0 else 0
         t = t if t<=1 else 1
         return [s,t]
-    elif website not in st_proj_coord_dict: # hence in epsg:4326
+    elif provider_code not in st_proj_coord_dict: # hence in epsg:4326
         ratio_x=lon/180           
         ratio_y=log(tan((90+lat)*pi/360))/pi
         mult=2**(zoomlevel-5)
@@ -2638,17 +3340,17 @@ def st_coord(lat,lon,tex_x,tex_y,zoomlevel,website):
     else:
         [latmax,lonmin]=gtile_to_wgs84(tex_x,tex_y,zoomlevel)
         [latmin,lonmax]=gtile_to_wgs84(tex_x+16,tex_y+16,zoomlevel)
-        [ulx,uly]=pyproj.transform(epsg['4326'],epsg[st_proj_coord_dict[website]],lonmin,latmax)
-        [urx,ury]=pyproj.transform(epsg['4326'],epsg[st_proj_coord_dict[website]],lonmax,latmax)
-        [llx,lly]=pyproj.transform(epsg['4326'],epsg[st_proj_coord_dict[website]],lonmin,latmin)
-        [lrx,lry]=pyproj.transform(epsg['4326'],epsg[st_proj_coord_dict[website]],lonmax,latmin)
+        [ulx,uly]=pyproj.transform(epsg['4326'],epsg[st_proj_coord_dict[provider_code]],lonmin,latmax)
+        [urx,ury]=pyproj.transform(epsg['4326'],epsg[st_proj_coord_dict[provider_code]],lonmax,latmax)
+        [llx,lly]=pyproj.transform(epsg['4326'],epsg[st_proj_coord_dict[provider_code]],lonmin,latmin)
+        [lrx,lry]=pyproj.transform(epsg['4326'],epsg[st_proj_coord_dict[provider_code]],lonmax,latmin)
         minx=min(ulx,llx)
         maxx=max(urx,lrx)
         miny=min(lly,lry)
         maxy=max(uly,ury)
         deltax=maxx-minx
         deltay=maxy-miny
-        [x,y]=pyproj.transform(epsg['4326'],epsg[st_proj_coord_dict[website]],lon,lat)
+        [x,y]=pyproj.transform(epsg['4326'],epsg[st_proj_coord_dict[provider_code]],lon,lat)
         s=(x-minx)/deltax
         t=(y-miny)/deltay
         s = s if s>=0 else 0
@@ -2662,24 +3364,20 @@ def st_coord(lat,lon,tex_x,tex_y,zoomlevel,website):
 def attribute_texture(lat1,lon1,lat2,lon2,lat3,lon3,ortho_list,tri_type):
     bary_lat=(lat1+lat2+lat3)/3
     bary_lon=(lon1+lon2+lon3)/3
-    asked_for=False
     if tri_type in ['2','3']:
         if sea_texture_params!=[]:
-            website=sea_texture_params[0]
+            provider_code=sea_texture_params[0]
             zoomlevel=sea_texture_params[1]
-            return wgs84_to_texture(bary_lat,bary_lon,zoomlevel,website)+\
-                [zoomlevel]+[website]
+            return wgs84_to_texture(bary_lat,bary_lon,zoomlevel,provider_code)+\
+                [zoomlevel]+[provider_code]
     for region in ortho_list:
         if point_in_polygon([bary_lat,bary_lon],region[0]):
             zoomlevel=int(region[1])
-            website=str(region[2])
-            asked_for=True
-            break
-    if asked_for==False:
-        return 'None'
-    else:
-        return wgs84_to_texture(bary_lat,bary_lon,zoomlevel,website)+\
-                [zoomlevel]+[website]
+            provider_code=str(region[2])
+            return wgs84_to_texture(bary_lat,bary_lon,zoomlevel,provider_code)+\
+                [zoomlevel]+[provider_code]
+    print("No provider for ",lat1,lon1,lat2,lon2,lat3,lon3,bary_lat,bary_lon)
+    return 'None'
 ##############################################################################
 
 
@@ -2688,190 +3386,410 @@ def attribute_texture(lat1,lon1,lat2,lon2,lat3,lon3,ortho_list,tri_type):
 #  The process depend on the provider.
 ##############################################################################
 
-
-
-def build_jpeg_ortho(strlat,strlon,til_x_left,til_y_top,zoomlevel,website):
-    
-    jobs=[]
-    
-    try:
-        APL_feed(til_x_left,til_y_top,zommlevel,website)
-    except:
-        pass
-                
-    if website=='g2xpl_8': 
-        big_image=Image.new('RGB',(2048,2048)) 
-    else:                
-        big_image=Image.new('RGB',(4096,4096)) 
-    
-    if website=='g2xpl_8':
-        for til_y in range(til_y_top,til_y_top+16):
-            fargs=[til_x_left,til_y_top,til_y,zoomlevel,website,big_image]
-            connection_thread=threading.Thread(target=obtain_jpeg_row,\
-                          args=fargs)
-            jobs.append(connection_thread)
-    elif website in px256_list:
-        for til_y in range(til_y_top,til_y_top+16):
-            fargs=[til_x_left,til_y_top,til_y,zoomlevel,website,big_image]
-            connection_thread=threading.Thread(target=obtain_jpeg_row,\
-                          args=fargs)
-            jobs.append(connection_thread)
-    elif website in wms2048_list:
-        for monty in [0,1]:
-            for montx in [0,1]:
-                fargs=[til_x_left,til_y_top,zoomlevel,website,montx,monty,big_image]
-                connection_thread=threading.Thread(target=obtain_wms_part,\
-                        args=fargs)
-                jobs.append(connection_thread)
-    else:
-        print("!!! The requested provider no longer seems to be activated in your address book !!!")
-        return
-    for j in jobs:
-        j.start()
-    for j in jobs:
-        j.join()
-    [file_dir,file_name,file_ext]=\
-            filename_from_attributes(strlat,strlon,til_x_left,til_y_top,\
-                                          zoomlevel,website)
-    if not os.path.exists(file_dir):
-        os.makedirs(file_dir)
-    big_image.save(file_dir+file_name+file_ext)
-    return
-
-
-def obtain_jpeg_row(til_x_left,til_y_top,til_y,zoomlevel,website,big_image):
-    """
-    Obtain 16 gtiles in a row, http transactions take time so better 
-    stay in line for a few consecutive tiles. We shall thread these calls in 
-    the next function.
-    """
-    if website=='g2xpl_8':
-        nbr=8
-    else:
-        nbr=16 
-    s=requests.Session()
-    for til_x in range(til_x_left,til_x_left+nbr):
-        [url,fake_headers]=http_requests_form(til_x,til_y,zoomlevel,website)
-        if url=='error':
-            small_image=Image.open(Ortho4XP_dir+dir_sep+'Utils'+dir_sep+\
-                      'white.jpg')
-            big_image.paste(small_image,((til_x-til_x_left)*256,(til_y-til_y_top)*256))
-            continue
-        successful_download=False
-        while successful_download==False:
-            try:
-                r=s.get(url, headers=fake_headers,timeout=10)
-                if 'image' in r.headers['Content-Type'] or check_tms_response==False:
-                    successful_download=True
-                else:
-                    try:
-                        if application.red_flag.get()==1:
-                            print("Download process interrupted.")
-                            return
-                    except:
-                        pass
-                    if use_bing_for_non_existent_data==True:
-                        [url,fake_headers]=http_requests_form(til_x,til_y,zoomlevel,'BI')
-                    else:
-                        print("Presumably a missed cache or non existent data, will try again in 1sec...")
-                        print("(--> Uncheck 'Check against white textures' now if you want to bypass this <--)")
-                        #print(r.headers)
-                        #print(r)
-                        #print(r.content)
-                        time.sleep(1)                        
-            except requests.exceptions.RequestException as e:   
-                print(e)
-                print("We will try again in 1sec...")
-                try:
-                    if application.red_flag.get()==1:
-                        print("Download process interrupted.")
-                        return
-                except:
-                    pass
-                time.sleep(1)
-        if ('Response [20' in str(r)):
-            small_image=Image.open(io.BytesIO(r.content))
-            big_image.paste(small_image,((til_x-til_x_left)*256,(til_y-til_y_top)*256))
-        else:
-            small_image=Image.open(Ortho4XP_dir+dir_sep+'Utils'+dir_sep+\
-                      'white.jpg')
-            big_image.paste(small_image,((til_x-til_x_left)*256,(til_y-til_y_top)*256))
-    return
-##############################################################################
-
-
-
-##############################################################################
-# Obtain a piece of texture from a wms 
-##############################################################################
-def obtain_wms_part(til_x_left,til_y_top,zoomlevel,website,montx,monty,big_image):
-    til_x=til_x_left+montx*8
-    til_y=til_y_top+monty*8
-    [url,fake_headers]=http_requests_form(til_x,til_y,zoomlevel,website)
-    file_ext=".jpg" 
-    successful_download=False
-    tentatives=0
-    while successful_download==False:
-        s=requests.Session()
-        try:
-            r=s.get(url, headers=fake_headers,timeout=wms_timeout)
-            if ('Response [20' in str(r)):
-                if 'image' in r.headers['Content-Type']:
-                    if len(r.content)>=tricky_provider_hack or tentatives>=5:
-                        small_image=Image.open(io.BytesIO(r.content))
-                        big_image.paste(small_image,(montx*2048,monty*2048))
-                        successful_download=True
-                    else:
-                        tentatives+=1
-                else:
-                    print("server "+str(url[10])+" error, len(r.content)="+\
-                          str(len(r.content))+", : retrying in 2 secs...")
-                    try:
-                        if application.red_flag.get()==1:
-                            print("Download process interrupted.")
-                            return
-                    except:
-                        pass
-                    #print(r.content)
-                    # let's try another random server...
-                    [url,fake_headers]=http_requests_form(til_x,til_y,zoomlevel,website)
-                    time.sleep(2)
-            else:
-                print("Server said no data : ", r," , using white square instead")
-                small_image=Image.open(Ortho4XP_dir+dir_sep+'Utils'+dir_sep+\
-                      'white2048.jpg')
-                big_image.paste(small_image,(montx*2048,monty*2048))
-                successful_download=True
-                successful_download=True
-        except requests.exceptions.RequestException as e:    
-            print(e)
-            print("We will try again in 2sec...")
-            # let's try another random server...
+class parallel_worker(threading.Thread):
+    def __init__(self,task,queue):
+        threading.Thread.__init__(self)
+        self._task=task
+        self._queue=queue
+    def run(self):
+        while True:
+            args=self._queue.get()
+            if isinstance(args,str) and args=='quit':
+                break
+            self._task(*args)
             try:
                 if application.red_flag.get()==1:
-                    print("Download process interrupted.")
-                    return
+                    break
             except:
-                    pass
-            [url,fake_headers]=http_requests_form(til_x,til_y,zoomlevel,website)
-            time.sleep(2)
+                pass
+   
+def parallel_execute(task,queue,nbr_workers):
+    workers=[]
+    for _ in range(nbr_workers):
+        queue.put('quit')
+        worker=parallel_worker(task,queue)
+        worker.start()
+        workers.append(worker)
+    for worker in workers:
+        worker.join() 
+     
+
+
+def build_texture_from_tilbox(tilbox,zoomlevel,provider):
+    t=time.time() 
+    (til_x_min,til_y_min,til_x_max,til_y_max)=tilbox
+    parts_x=til_x_max-til_x_min
+    parts_y=til_y_max-til_y_min
+    width=height=provider['tile_size']
+    big_image=Image.new('RGB',(width*parts_x,height*parts_y)) 
+    # we set-up the queue of downloads
+    http_session=requests.Session() 
+    download_queue=queue.Queue()
+    for monty in range(0,parts_y):
+        for montx in range(0,parts_x):
+            x0=montx*width
+            y0=monty*height
+            fargs=[zoomlevel,til_x_min+montx,til_y_min+monty,provider,big_image,x0,y0,http_session]
+            download_queue.put(fargs)
+    # then the number of workers
+    if 'max_threads' in provider: 
+        max_threads=int(provider['max_threads'])
+    else:
+        max_threads=16
+    # and finally activate them
+    parallel_execute(get_and_paste_wmts_part,download_queue,max_threads)
+    # once out big_image has been filled and we return it
+    if provider['code'] in ['BD5m','GeoSud15'] and zoomlevel>15: 
+        big_image=big_image.resize((4096//2**(zoomlevel-15),4096//2**(zoomlevel-15)),Image.BICUBIC).resize((4096,4096),Image.BICUBIC)
+    return big_image
+
+
+def build_texture_from_bbox_and_size(t_bbox,t_epsg,t_size,provider):
+    # warp will be needed and proections not parallel to 3857
+    # if warp is not needed, crop could still be needed if the grids do not match
+    warp_needed=crop_needed=False
+    (ulx,uly,lrx,lry)=t_bbox
+    (t_sizex,t_sizey)=t_size 
+    [s_ulx,s_uly]=pyproj.transform(epsg[str(t_epsg)],epsg[provider['epsg_code']],ulx,uly)
+    [s_urx,s_ury]=pyproj.transform(epsg[t_epsg],epsg[provider['epsg_code']],lrx,uly)
+    [s_llx,s_lly]=pyproj.transform(epsg[t_epsg],epsg[provider['epsg_code']],ulx,lry)
+    [s_lrx,s_lry]=pyproj.transform(epsg[t_epsg],epsg[provider['epsg_code']],lrx,lry)
+    if s_ulx!=s_llx or s_uly!=s_ury or s_lrx!=s_urx or s_lly!=s_lry:
+        s_ulx=min(s_ulx,s_llx)
+        s_uly=max(s_uly,s_ury)
+        s_lrx=max(s_urx,s_lrx)
+        s_lry=min(s_lly,s_lry)
+        warp_needed=True
+    x_range=s_lrx-s_ulx
+    y_range=s_uly-s_lry
+    if provider['request_type']=='wms':
+        wms_size=int(provider['wms_size'])
+        parts_x=int(ceil(t_sizex/wms_size))
+        #width=t_sizex//parts_x
+        width=wms_size
+        parts_y=int(ceil(t_sizey/wms_size))
+        #height=t_sizey//parts_y
+        height=wms_size
+    elif provider['request_type'] in ['wmts','tms','local_tms']:
+        asked_resol=max(x_range/t_sizex,y_range/t_sizey)
+        if verbose_output>=2: print("asked_resol",asked_resol)
+        wmts_tilematrix=numpy.argmax(provider['resolutions']<=asked_resol)  
+        wmts_resol=provider['resolutions'][wmts_tilematrix]   # in s_epsg unit per pix !
+        if verbose_output>=2: print("wmts_resol",wmts_resol)
+        width=height=provider['tile_size']
+        cell_size=wmts_resol*width
+        [wmts_x0,wmts_y0]=provider['top_left_corner'][wmts_tilematrix]  
+        til_x_min=int((s_ulx-wmts_x0)//cell_size)
+        til_x_max=int((s_lrx-wmts_x0)//cell_size)
+        til_y_min=int((wmts_y0-s_uly)//cell_size)
+        til_y_max=int((wmts_y0-s_lry)//cell_size)
+        parts_x=til_x_max-til_x_min+1
+        parts_y=til_y_max-til_y_min+1
+        s_box_ulx=wmts_x0+cell_size*til_x_min
+        s_box_uly=wmts_y0-cell_size*til_y_min
+        s_box_lrx=wmts_x0+cell_size*(til_x_max+1)
+        s_box_lry=wmts_y0-cell_size*(til_y_max+1)
+        if s_box_ulx!=s_ulx or s_box_uly!=s_uly or s_box_lrx!=s_lrx or s_box_lry!=s_lry:
+            crop_x0=int(round((s_ulx-s_box_ulx)/wmts_resol))
+            crop_y0=int(round((s_box_uly-s_uly)/wmts_resol))
+            crop_x1=int(round((s_lrx-s_box_ulx)/wmts_resol))
+            crop_y1=int(round((s_box_uly-s_lry)/wmts_resol))
+            s_ulx=s_box_ulx    
+            s_uly=s_box_uly    
+            s_lrx=s_box_lrx
+            s_lry=s_box_lry
+            crop_needed=True
+        downscale=int(min(log(width*parts_x/t_sizex),log(height/t_sizey))/log(2))-1
+        if downscale>=1:
+            width/=2**downscale
+            height/=2**downscale
+            subt_size=(width,height) 
+        else:
+            subt_size=None
+    big_image=Image.new('RGB',(width*parts_x,height*parts_y)) 
+    http_session=requests.Session()
+    download_queue=queue.Queue()
+    for monty in range(0,parts_y):
+        for montx in range(0,parts_x):
+            x0=montx*width
+            y0=monty*height
+            if provider['request_type']=='wms':
+                p_ulx=s_ulx+montx*x_range/parts_x
+                p_uly=s_uly-monty*y_range/parts_y
+                p_lrx=p_ulx+x_range/parts_x
+                p_lry=p_uly-y_range/parts_y
+                p_bbox=[p_ulx,p_uly,p_lrx,p_lry]
+                fargs=[p_bbox[:],width,height,provider,big_image,x0,y0,http_session]
+            elif provider['request_type'] in ['wmts','tms','local_tms']:
+                fargs=[wmts_tilematrix,til_x_min+montx,til_y_min+monty,provider,big_image,x0,y0,http_session,subt_size]
+            download_queue.put(fargs)
+    # We execute the downloads and subimage pastes
+    if 'max_threads' in provider: 
+        max_threads=int(provider['max_threads'])
+    else:
+        max_threads=16
+    if provider['request_type']=='wms':
+        parallel_execute(get_and_paste_wms_part,download_queue,max_threads)
+    elif provider['request_type'] in ['wmts','tms','local_tms']:
+        parallel_execute(get_and_paste_wmts_part,download_queue,max_threads)
+    # We modify big_image if necessary
+    if warp_needed:
+        if verbose_output>=2: print("warp_needed!!!!!!!!!!!!!!!")
+        big_image=gdalwarp_alternative((s_ulx,s_uly,s_lrx,s_lry),provider['epsg_code'],big_image,t_bbox,t_epsg,t_size)
+    elif crop_needed:
+        if verbose_output>=2: print("crop_needed!!!!!!!!!!!!!!!")
+        big_image=big_image.crop((crop_x0,crop_y0,crop_x1,crop_y1))
+    if big_image.size!=t_size:
+        if verbose_output>=2: print("resize_needed!!!!!!!!!!!!!!!")
+        big_image=big_image.resize(t_size,Image.BICUBIC)
+    return big_image
+
+def build_texture_from_bbox_and_resol(t_bbox,t_epsg,t_resol,provider):
     return
-##############################################################################
+
+
+def gdalwarp_alternative(s_bbox,s_epsg,s_im,t_bbox,t_epsg,t_size):
+        [s_ulx,s_uly,s_lrx,s_lry]=s_bbox
+        [t_ulx,t_uly,t_lrx,t_lry]=t_bbox
+        (s_w,s_h)=s_im.size
+        (t_w,t_h)=t_size
+        t_quad = (0, 0, t_w, t_h)
+        meshes = []
+        def cut_quad_into_grid(quad, steps):
+            w = quad[2]-quad[0]
+            h = quad[3]-quad[1]
+            x_step = w / float(steps)
+            y_step = h / float(steps)
+            y = quad[1]
+            for k in range(steps):
+                x = quad[0]
+                for l in range(steps):
+                    yield (int(x), int(y), int(x+x_step), int(y+y_step))
+                    x += x_step
+                y += y_step
+        for quad in cut_quad_into_grid(t_quad,64):
+            s_quad=[]
+            for (t_pixx,t_pixy) in [(quad[0],quad[1]),(quad[0],quad[3]),(quad[2],quad[3]),(quad[2],quad[1])]:
+                t_x=t_ulx+t_pixx/t_w*(t_lrx-t_ulx)
+                t_y=t_uly-t_pixy/t_h*(t_uly-t_lry)
+                (s_x,s_y)=pyproj.transform(epsg[t_epsg],epsg[s_epsg],t_x,t_y)
+                s_pixx=int(round((s_x-s_ulx)/(s_lrx-s_ulx)*s_w))    
+                s_pixy=int(round((s_uly-s_y)/(s_uly-s_lry)*s_h))
+                s_quad.extend((s_pixx,s_pixy))
+            meshes.append((quad,s_quad))    
+        return s_im.transform(t_size,Image.MESH,meshes,Image.BICUBIC)
+
+
+def get_and_paste_wms_part(bbox,width,height,provider,big_image,x0,y0,http_session):
+    small_image=get_wms_image(bbox,width,height,provider,http_session)
+    big_image.paste(small_image,(x0,y0))
+    return
+
+def get_and_paste_wmts_part(tilematrix,til_x,til_y,provider,big_image,x0,y0,http_session,subt_size=None):
+    small_image=get_wmts_image(tilematrix,til_x,til_y,provider,http_session)
+    if not subt_size:
+        big_image.paste(small_image,(x0,y0))
+    else:
+        big_image.paste(small_image.resize(subt_size,Image.BICUBIC),(x0,y0))
+    return
+
+
+def get_wms_image(bbox,width,height,provider,http_session):
+    if provider['code'] in custom_url_list:
+        url=custom_url_request(bbox,width,height,provider)
+    else:
+        [minx,maxy,maxx,miny]=bbox
+        if provider['wms_version'].split('.')[1]=="3":
+            bbox_string=str(miny)+','+str(minx)+','+str(maxy)+','+str(maxx)
+            _RS='CRS'
+        else:
+            bbox_string=str(minx)+','+str(miny)+','+str(maxx)+','+str(maxy) 
+            _RS='SRS' 
+        url=provider['url_prefix']+"SERVICE=WMS&VERSION="+provider['wms_version']+"&FORMAT=image/"+provider['image_type']+\
+                "&REQUEST=GetMap&LAYERS="+provider['layers']+"&STYLES=&"+_RS+"=EPSG:"+str(provider['epsg_code'])+\
+                "&WIDTH="+str(width)+"&HEIGHT="+str(height)+\
+                "&BBOX="+bbox_string 
+    if 'fake_headers' in provider:
+        fake_headers=provider['fake_headers']
+    else:
+        fake_headers=fake_headers_generic 
+    if verbose_output>2: print("One wms image ok")
+    return http_request_to_image(width,height,url,fake_headers,http_session)
+
+
+def get_wmts_image(tilematrix,til_x,til_y,provider,http_session):
+    if provider['request_type']=='tms':
+        url=provider['url_template'].replace('{zoom}',str(tilematrix))
+        url=url.replace('{x}',str(til_x)) 
+        url=url.replace('{y}',str(til_y)) 
+        url=url.replace('{-y}',str(2**tilematrix-1-til_y))
+        url=url.replace('{quadkey}',gtile_to_quadkey(til_x,til_y,tilematrix))
+        if '{switch:' in url:
+            (url_0,tmp)=url.split('{switch:')
+            (tmp,url_2)=tmp.split('}')
+            server_list=tmp.split(',')
+            url_1=random.choice(server_list).strip()
+            url=url_0+url_1+url_2 
+    elif provider['request_type']=='wmts': #wmts
+        url=provider['url_prefix']+"&SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetTile&LAYER="+\
+            provider['layers']+"&STYLE=&FORMAT=image/"+provider['image_type']+"&TILEMATRIXSET="+provider['tilematrixset']['identifier']+\
+            "&TILEMATRIX="+provider['tilematrixset']['tilematrices'][tilematrix]['identifier']+"&TILEROW="+str(til_y)+"&TILECOL="+str(til_x)
+    elif provider['request_type']=='local_tms':
+        url_local=provider['url_template'].replace('{x}',str(til_x).zfill(4)) # ! Too much specific, needs to be changed by a x,y-> file_name lambda fct
+        url_local=url_local.replace('{y}',str(-1*til_y).zfill(4))
+        if os.path.isfile(url_local):
+            return(Image.open(url_local))
+        else:
+            if verbose_output>=1: print("!!!!!!! File ",url_local,"absent, using white texture instead !!!!!!!!!!")
+            return(Image.new('RGB',(provider['tile_size'],provider['tile_size']),'white'))
+    if 'fake_headers' in provider:
+        fake_headers=provider['fake_headers']
+    else:
+        fake_headers=fake_headers_generic
+    width=height=provider['tile_size'] 
+    return http_request_to_image(width,height,url,fake_headers,http_session)
+    
+def http_request_to_image(width,height,url,fake_headers,http_session):
+    if verbose_output>=3: print(url)
+    tentative_request=0
+    tentative_image=0
+    r=False
+    reason=''
+    while True:
+        try:
+            r=http_session.get(url, headers=fake_headers,timeout=http_timeout)
+            if ('Response [20' in str(r)) and ('image' in r.headers['Content-Type']):
+                try:
+                    small_image=Image.open(io.BytesIO(r.content))
+                    return small_image
+                except:
+                    if verbose_output: print("Server said all is correct but did not send us a valid image :",r,r.headers)
+            elif b'was not found on this server' in r.content:
+                if verbose_output>=2: print("Server said it has no data for",url)
+                reason='data was not found on this server'
+                break
+            else:      
+                if verbose_output: 
+                    print("Server did not send us an image and his answer is not known, retrying in 2 secs")
+                    print("(--> Uncheck 'Check against white textures' now if you want to bypass this <--)")
+                if verbose_output>=2:
+                    print(url) 
+                    print(r.content)
+                reason='not an image, unknown message'
+                if not check_tms_response:
+                    break 
+                time.sleep(1)
+            try:
+                if application.red_flag.get()==1:
+                    return Image.new('RGB',(width,height),'red')
+            except:
+                pass
+            tentative_image+=1  
+        except requests.exceptions.RequestException as e:    
+            if not check_tms_response:
+                break
+            if verbose_output: 
+                print("Server could not be connected, retrying in 2 secs")
+                print("(--> Uncheck 'Check against white textures' now if you want to bypass this <--)")
+            if verbose_output>=2:
+                print(e)
+            # trying a new session ? 
+            http_session=requests.Session()
+            time.sleep(2)
+            reason='no response from server'
+            try:
+                if application.red_flag.get()==1:
+                    return Image.new('RGB',(width,height),'red')
+            except:
+                pass
+            tentative_request+=1
+        if tentative_request==max_connect_retries or tentative_image==max_baddata_retries: break 
+    if verbose_output>=2: print("Part of an image could not be constructed, the reason seems to be :",reason,", using a red texture for notice.") 
+    return Image.new('RGB',(width,height),'red')
+
+def build_jpeg_ortho(file_dir,file_name,til_x_left,til_y_top,zoomlevel,provider_code,super_resol_factor=1):
+    provider=providers_dict[provider_code]
+    if 'super_resol_factor' in provider and super_resol_factor==1: super_resol_factor=int(provider['super_resol_factor'])
+    # we treat first the case of webmercator grid type servers
+    if 'max_zl' in provider and zoomlevel>int(provider['max_zl']):
+        max_zl=int(provider['max_zl'])
+        super_resol_factor=2**(max_zl-zoomlevel)
+    if 'grid_type' in provider and provider['grid_type']=='webmercator':
+        # just in case it was a mistake
+        if provider['code']=='g2xpl_8': 
+            tilbox=[til_x_left,til_y_top,til_x_left+8,til_y_top+8] 
+            width=height=2048*super_resol_factor
+        else:
+            tilbox=[til_x_left,til_y_top,til_x_left+16,til_y_top+16] 
+            width=height=4096*super_resol_factor
+        tilbox_mod=[int(round(p*super_resol_factor)) for p in tilbox]
+        zoom_shift=round(log(super_resol_factor)/log(2))
+        big_image=build_texture_from_tilbox(tilbox_mod,zoomlevel+zoom_shift,provider)
+    # if not we are in the world of epsg:3857 bboxes
+    else:
+        if provider['code']=='g2xpl_8': 
+            [latmax,lonmin]=gtile_to_wgs84(til_x_left,til_y_top,zoomlevel)
+            [latmin,lonmax]=gtile_to_wgs84(til_x_left+8,til_y_top+8,zoomlevel)
+            width=height=2048*super_resol_factor
+        else:
+            [latmax,lonmin]=gtile_to_wgs84(til_x_left,til_y_top,zoomlevel)
+            [latmin,lonmax]=gtile_to_wgs84(til_x_left+16,til_y_top+16,zoomlevel)
+            width=height=4096*super_resol_factor
+        [xmin,ymax]=pyproj.transform(epsg['4326'],epsg['3857'],lonmin,latmax)
+        [xmax,ymin]=pyproj.transform(epsg['4326'],epsg['3857'],lonmax,latmin)
+        big_image=build_texture_from_bbox_and_size([xmin,ymax,xmax,ymin],'3857',(width,height),provider)
+    try:
+        if application.red_flag.get()==1:
+            return
+    except:
+        pass
+    if not os.path.exists(file_dir):
+        os.makedirs(file_dir)
+    if super_resol_factor==1:
+        big_image.save(os.path.join(file_dir,file_name))
+    else:
+        big_image.resize((width//super_resol_factor,height//super_resol_factor),Image.BICUBIC).save(os.path.join(file_dir,file_name))
+    return
+ 
 
 ###############################################################################
-def build_texture_region(latmin,latmax,lonmin,lonmax,zoomlevel,website):
-    #[til_xmin,til_ymin]=wgs84_to_texture(latmax,lonmin,zoomlevel,website)
-    #[til_xmax,til_ymax]=wgs84_to_texture(latmin,lonmax,zoomlevel,website)
-    #print("Number of tiles to download (at most) : "+\
-    #       str(((til_ymax-til_ymin)/16+1)*((til_xmax-til_xmin)/16+1)))
-    #for til_y_top in range(til_ymin,til_ymax+1,16):
-    #    for til_x_left in range(til_xmin,til_xmax+1,16):
-    #        build_texture('XXX','YYY',til_x_left,til_y_top,zoomlevel,website)
+def build_texture_region(dest_dir,latmin,latmax,lonmin,lonmax,zoomlevel,provider_code):
+    [til_xmin,til_ymin]=wgs84_to_texture(latmax,lonmin,zoomlevel,provider_code)
+    [til_xmax,til_ymax]=wgs84_to_texture(latmin,lonmax,zoomlevel,provider_code)
+    nbr_to_do=((til_ymax-til_ymin)/16+1)*((til_xmax-til_xmin)/16+1)
+    print("Number of tiles to download at most : ",nbr_to_do)
+    for til_y_top in range(til_ymin,til_ymax+1,16):
+        for til_x_left in range(til_xmin,til_xmax+1,16):
+            (y0,x0)=gtile_to_wgs84(til_x_left,til_y_top,zoomlevel)
+            (y1,x1)=gtile_to_wgs84(til_x_left+16,til_y_top+16,zoomlevel)
+            bbox_4326=(x0,y0,x1,y1)
+            if has_data(bbox_4326,providers_dict[provider_code]['extent'],return_mask=False,mask_size=(4096,4096),blur_radius=20):
+                (file_dir,file_name)=jpeg_file_name_from_attributes(latmin,lonmin,til_x_left,til_y_top,zoomlevel,provider_code)
+                if dest_dir: file_dir=dest_dir
+                if os.path.isfile(os.path.join(file_dir,file_name)):
+                    print("recycling one")
+                    nbr_to_do-=1
+                    continue 
+                print("building one")
+                build_jpeg_ortho(file_dir,file_name,til_x_left,til_y_top,zoomlevel,provider_code,super_resol_factor=1)
+            else:
+                print("skipping one")
+            nbr_to_do-=1
+            print(nbr_to_do)
     return   
 ###############################################################################
 
 ###############################################################################
-def create_tile_preview(latmin,lonmin,zoomlevel,website):
+def build_provider_texture(dest_dir,provider_code,zoomlevel):
+    (lonmin,latmin,lonmax,latmax)=extents_dict[providers_dict[provider_code]['extent']]['mask_bounds']
+    build_texture_region(dest_dir,latmin,latmax,lonmin,lonmax,zoomlevel,provider_code)
+    return   
+###############################################################################
+
+
+
+###############################################################################
+def create_tile_preview(latmin,lonmin,zoomlevel,provider_code):
     strlat='{:+.0f}'.format(latmin).zfill(3)
     strlon='{:+.0f}'.format(lonmin).zfill(4)
     if not os.path.exists(Ortho4XP_dir+dir_sep+'Previews'):
@@ -2879,35 +3797,37 @@ def create_tile_preview(latmin,lonmin,zoomlevel,website):
     os.system(delete_cmd+' '+Ortho4XP_dir+dir_sep+'Previews'+\
                dir_sep+'image-*.jpg '+devnull_rdir)
     filepreview=Ortho4XP_dir+dir_sep+'Previews'+dir_sep+strlat+\
-                  strlon+"_"+website+str(zoomlevel)+".jpg"       
+                  strlon+"_"+provider_code+str(zoomlevel)+".jpg"       
     if os.path.isfile(filepreview) != True:
         [til_x_min,til_y_min]=wgs84_to_gtile(latmin+1,lonmin,zoomlevel)
         [til_x_max,til_y_max]=wgs84_to_gtile(latmin,lonmin+1,zoomlevel)
-        nx=til_x_max-til_x_min+1
-        ny=til_y_max-til_y_min+1
-        big_image=Image.new('RGB',(256*nx,256*ny))
-        s=requests.Session()
-        total_x=(til_x_max+1-til_x_min)
-        for til_x in range(til_x_min,til_x_max+1):
-            for til_y in range(til_y_min,til_y_max+1):
-                successful_download=False
-                while successful_download==False:
-                    try:
-                        [url,fake_headers]=http_requests_form(til_x,til_y,zoomlevel,website)
-                        r=s.get(url, headers=fake_headers)
-                        successful_download=True
-                    except:
-                        #print("Connexion avortée par le serveur, nouvelle tentative dans 1sec")
-                        time.sleep(0.01)
-                if ('Response [20' in str(r)):
-                    small_image=Image.open(io.BytesIO(r.content))
-                    big_image.paste(small_image,((til_x-til_x_min)*256,(til_y-til_y_min)*256))
-                else:
-                    small_image=Image.open(Ortho4XP_dir+dir_sep+'Utils'+dir_sep+\
-                      'white.jpg')
-                    big_image.paste(small_image,((til_x-til_x_min)*256,(til_y-til_y_min)*256))
+        tilbox=(til_x_min,til_y_min,til_x_max+1,til_y_max+1)
+        big_image=build_texture_from_tilbox(tilbox,zoomlevel,providers_dict[provider_code])
+        #nx=til_x_max-til_x_min+1
+        #ny=til_y_max-til_y_min+1
+        #big_image=Image.new('RGB',(256*nx,256*ny))
+        #s=requests.Session()
+        #total_x=(til_x_max+1-til_x_min)
+        #for til_x in range(til_x_min,til_x_max+1):
+        #    for til_y in range(til_y_min,til_y_max+1):
+        #        successful_download=False
+        #        while successful_download==False:
+        #            try:
+        #                [url,fake_headers]=http_requests_form(til_x,til_y,zoomlevel,provider_code)
+        #                r=s.get(url, headers=fake_headers)
+        #                successful_download=True
+        #            except:
+        #                #print("Connexion avortée par le serveur, nouvelle tentative dans 1sec")
+        #                time.sleep(0.01)
+        #        if ('Response [20' in str(r)):
+        #            small_image=Image.open(io.BytesIO(r.content))
+        #            big_image.paste(small_image,((til_x-til_x_min)*256,(til_y-til_y_min)*256))
+        #        else:
+        #            small_image=Image.open(Ortho4XP_dir+dir_sep+'Utils'+dir_sep+\
+        #              'white.jpg')
+        #            big_image.paste(small_image,((til_x-til_x_min)*256,(til_y-til_y_min)*256))
             #try:
-            application.preview_window.progress_preview.set(int(100*(til_x+1-til_x_min)/total_x))
+        #    application.preview_window.progress_preview.set(int(100*(til_x+1-til_x_min)/total_x))
             #except:
             #    pass
         big_image.save(filepreview)
@@ -2915,7 +3835,7 @@ def create_tile_preview(latmin,lonmin,zoomlevel,website):
 ##############################################################################
 
 ###############################################################################
-def create_vignette(tilx0,tily0,tilx1,tily1,zoomlevel,website,vignette_name):
+def create_vignette(tilx0,tily0,tilx1,tily1,zoomlevel,provider_code,vignette_name):
         big_image=Image.new('RGB',(tilx1-tilx0)*256,(tily1-tily0)*256)
         s=requests.Session()
         for til_x in range(tilx0,tilx1):
@@ -2923,7 +3843,7 @@ def create_vignette(tilx0,tily0,tilx1,tily1,zoomlevel,website,vignette_name):
                 successful_download=False
                 while successful_download==False:
                     try:
-                        [url,fake_headers]=http_requests_form(til_x,til_y,zoomlevel,website)
+                        [url,fake_headers]=http_requests_form(til_x,til_y,zoomlevel,provider_code)
                         r=s.get(url, headers=fake_headers)
                         successful_download=True
                     except:
@@ -2941,7 +3861,7 @@ def create_vignette(tilx0,tily0,tilx1,tily1,zoomlevel,website,vignette_name):
 ##############################################################################
 
 ###############################################################################
-def create_vignettes(zoomlevel,website):
+def create_vignettes(zoomlevel,provider_code):
         nbr_pieces=2**(zoomlevel-3)
         for nx in range(0,nbr_pieces):
             for ny in range(0,nbr_pieces):
@@ -2949,19 +3869,19 @@ def create_vignettes(zoomlevel,website):
                   dir_sep+"Earth2_ZL"+str(zoomlevel)+"_"+str(nx)+'_'+str(ny)+'.jpg'
                tilx0=nx*8
                tily0=ny*8
-               create_vignette(tilx0,tily0,tilx0+8,tily0+8,zoomlevel,website,vignette_name) 
+               create_vignette(tilx0,tily0,tilx0+8,tily0+8,zoomlevel,provider_code,vignette_name) 
         return
 ##############################################################################
 
 ##############################################################################
 # Les fichiers .ter de X-Plane (ici la version pour les zones non immergées).
 ##############################################################################
-def create_terrain_file(build_dir,file_name,til_x_left,til_y_top,zoomlevel,website):
+def create_terrain_file(build_dir,file_name,til_x_left,til_y_top,zoomlevel,provider_code):
     if not os.path.exists(build_dir+dir_sep+'terrain'):
         os.makedirs(build_dir+dir_sep+'terrain') 
     file=open(build_dir+dir_sep+'terrain'+dir_sep+file_name+'.ter','w')
     file.write('A\n800\nTERRAIN\n\n')
-    if website !='g2xpl_8':
+    if provider_code !='g2xpl_8':
         [lat_med,lon_med]=gtile_to_wgs84(til_x_left+8,til_y_top+8,zoomlevel)
         half_meridian=pi*6378137
         texture_approx_size=int(2*half_meridian/2**(zoomlevel-4)*\
@@ -2978,9 +3898,10 @@ def create_terrain_file(build_dir,file_name,til_x_left,til_y_top,zoomlevel,websi
                +'{:.5f}'.format(lon_med)+' '\
                +str(texture_approx_size)+' 2048\n')
     file.write('BASE_TEX_NOWRAP ../textures/'+file_name+'.'+dds_or_png+'\n')
-    if use_decal_on_terrain==True:
+    if use_decal_on_terrain or zoomlevel<=15:
         file.write('DECAL_LIB lib/g10/decals/maquify_1_green_key.dcl\n')
-    file.write('NO_SHADOW\n')
+    if not terrain_casts_shadows:
+        file.write('NO_SHADOW\n')
     file.close()
     return
 ##############################################################################
@@ -2988,13 +3909,13 @@ def create_terrain_file(build_dir,file_name,til_x_left,til_y_top,zoomlevel,websi
 ##############################################################################
 # Les fichiers .ter de X-Plane (ici la version pour les lacs et rivières).
 ##############################################################################
-def create_overlay_file(build_dir,file_name,til_x_left,til_y_top,zoomlevel,website):
+def create_overlay_file(build_dir,file_name,til_x_left,til_y_top,zoomlevel,provider_code):
     if not os.path.exists(build_dir+dir_sep+'terrain'):
         os.makedirs(build_dir+dir_sep+'terrain') 
     file=open(build_dir+dir_sep+'terrain'+dir_sep+file_name+\
             '_overlay.ter','w')
     file.write('A\n800\nTERRAIN\n\n')
-    if website !='g2xpl_8':
+    if provider_code !='g2xpl_8':
         [lat_med,lon_med]=gtile_to_wgs84(til_x_left+8,til_y_top+8,zoomlevel)
         half_meridian=pi*6378137
         texture_approx_size=int(2*half_meridian/2**(zoomlevel-4)*\
@@ -3022,13 +3943,13 @@ def create_overlay_file(build_dir,file_name,til_x_left,til_y_top,zoomlevel,websi
 # Les fichiers .ter de X-Plane (ici la version pour les mers et océans).
 ##############################################################################
 def create_sea_overlay_file(build_dir,file_name,mask_name,til_x_left,til_y_top,\
-        zoomlevel,website):
+        zoomlevel,provider_code):
     if not os.path.exists(build_dir+dir_sep+'terrain'):
         os.makedirs(build_dir+dir_sep+'terrain') 
     file=open(build_dir+dir_sep+'terrain'+dir_sep+file_name+\
             '_sea_overlay.ter','w')
     file.write('A\n800\nTERRAIN\n\n')
-    if website !='g2xpl_8':
+    if provider_code !='g2xpl_8':
         [lat_med,lon_med]=gtile_to_wgs84(til_x_left+8,til_y_top+8,zoomlevel)
         half_meridian=pi*6378137
         texture_approx_size=int(2*half_meridian/2**(zoomlevel-4)*\
@@ -3048,9 +3969,9 @@ def create_sea_overlay_file(build_dir,file_name,mask_name,til_x_left,til_y_top,\
     file.write('WET\n')
     file.write('BORDER_TEX ../textures/'+mask_name+'\n')
     file.write('NO_SHADOW\n')
-    if use_additional_water_shader==True:
-        file.write('TEXTURE_NORMAL 128 ../textures/water_normal_map.png\n')
-        file.write('SPECULAR 0.2\n')
+    #if use_additional_water_shader==True:
+        #file.write('TEXTURE_NORMAL 16 ../textures/water_normal_map.png\n')
+        #file.write('SPECULAR 0.2\n')
     file.close()
     return
 ##############################################################################
@@ -3058,24 +3979,24 @@ def create_sea_overlay_file(build_dir,file_name,mask_name,til_x_left,til_y_top,\
 ##############################################################################
 #  Y a-t-il besoin de mettre un masque ?
 ##############################################################################
-def which_mask(layer,strlat,strlon):
+def which_mask(layer,lat,lon,masks_zl=14):
     tilx=layer[0]
     tily=layer[1]
     zoomlevel=layer[2]
-    if int(zoomlevel)<14:
+    if int(zoomlevel)<masks_zl:
         return 'None'
-    website=layer[3]
-    factor=2**(zoomlevel-14)
+    provider_code=layer[3]
+    factor=2**(zoomlevel-masks_zl)
     tilx14=(int(tilx/factor)//16)*16
     tily14=(int(tily/factor)//16)*16
     #rx=(tilx/factor)%16
     rx=int((tilx-factor*tilx14)/16)
     #ry=(tily/factor)%16
     ry=int((tily-factor*tily14)/16)
-    mask_file_spec=Ortho4XP_dir+dir_sep+'Masks'+dir_sep+strlat+strlon+dir_sep+\
-            str(int(tily14))+'_'+str(int(tilx14))+'_'+website+'.png'
-    mask_file_gen=Ortho4XP_dir+dir_sep+'Masks'+dir_sep+strlat+strlon+dir_sep+\
-            str(int(tily14))+'_'+str(int(tilx14))+'.png'
+    mask_file_spec=os.path.join(Ortho4XP_dir,'Masks',short_latlon(lat,lon),\
+             str(int(tily14))+'_'+str(int(tilx14))+'_'+provider_code+'.png')
+    mask_file_gen=os.path.join(Ortho4XP_dir,'Masks',short_latlon(lat,lon),\
+            str(int(tily14))+'_'+str(int(tilx14))+'.png')
     if os.path.isfile(mask_file_spec):
         mask_file=mask_file_spec
     elif os.path.isfile(mask_file_gen):
@@ -3095,85 +4016,160 @@ def which_mask(layer,strlat,strlon):
 ##############################################################################
 #  La routine de conversion jpeg -> dds, avec éventuel calcul du masque alpha.
 ##############################################################################
-def convert_texture(file_dir,file_name,website,build_dir):
+def convert_texture(build_dir,lat,lon,til_x_left,til_y_top,zoomlevel,provider_code):
     global busy_slots_conv
     busy_slots_conv+=1
-    #print("Busy convert slots : "+str(busy_slots_conv))
-    ctr_adj=0
-    brt_adj=0
-    sat_adj=0
-    if website in contrast_adjust:
-        ctr_adj=contrast_adjust[website]
-    if website in brightness_adjust:
-        brt_adj=brightness_adjust[website]
-    if website in saturation_adjust:
-        sat_adj=saturation_adjust[website]
-    file_ext=".jpg"
-    color_cmd=''
-    if (website in full_color_correction) and  (full_color_correction[website]!=''):
-        color_correction = full_color_correction[website]
-        color_cmd = convert_cmd+' '+color_correction+' "'+\
-                   file_dir+file_name+file_ext+'" "'+\
-                   Ortho4XP_dir+dir_sep+'tmp'+dir_sep+file_name+'.png" '+devnull_rdir
-    elif (ctr_adj!=0) or (brt_adj!=0) or (sat_adj!=0):
-        color_cmd = convert_cmd+" -brightness-contrast "+\
-                str(brt_adj)+"x"+str(ctr_adj)+\
-                 " -modulate 100,"+str(100+sat_adj)+",100 "+\
-                 '"'+file_dir+file_name+file_ext+'" "'+\
-                 Ortho4XP_dir+dir_sep+'tmp'+dir_sep+file_name+'.png" '+devnull_rdir
-    if color_cmd!='':
-        os.system(color_cmd)
-        conv_cmd=convert_cmd_bis +' "'+Ortho4XP_dir+dir_sep+'tmp'+dir_sep+file_name+'.png" "'+\
-                     build_dir+dir_sep+'textures'+dir_sep+file_name+'.'+dds_or_png+'" '+ devnull_rdir
-        os.system(conv_cmd)
-        try:
-            os.remove(Ortho4XP_dir+dir_sep+'tmp'+dir_sep+file_name+'.png')
-        except:
-            pass  
+    dds_file_name=dds_file_name_from_attributes(til_x_left,til_y_top,zoomlevel,provider_code)
+    png_file_name=dds_file_name.replace('dds','png')
+    if provider_code in local_combined_providers_dict:
+        big_image=combine_textures(lat,lon,til_x_left,til_y_top,zoomlevel,provider_code)
+        file_to_convert=os.path.join(Ortho4XP_dir,'tmp',png_file_name)
+        big_image.save(file_to_convert) 
+        big_image.save(os.path.join(build_dir,'textures',dds_file_name.replace('dds','jpg')),quality=70)
+                
+    # now if provider_code was not in local_combined_providers_dict but color correction is required
+    elif providers_dict[provider_code]['color_filters']:
+        (file_dir,jpeg_file_name)=jpeg_file_name_from_attributes(lat,lon,til_x_left,til_y_top,zoomlevel,provider_code)
+        big_image=Image.open(os.path.join(file_dir,jpeg_file_name))
+        big_image=color_transform(big_image,providers_dict[provider_code]['color_filters'])
+        file_to_convert=os.path.join(Ortho4XP_dir,'tmp',png_file_name)
+        big_image.save(file_to_convert) 
+    # finally if nothing needs to be done prior to the dds conversion
     else:
-        conv_cmd=convert_cmd_bis + ' "'+file_dir+file_name+file_ext+'" "'+build_dir+dir_sep+\
-                   'textures'+dir_sep+file_name+'.'+dds_or_png+'" '+devnull_rdir
-        os.system(conv_cmd)
+        (file_dir,jpeg_file_name)=jpeg_file_name_from_attributes(lat,lon,til_x_left,til_y_top,zoomlevel,provider_code)
+        file_to_convert=os.path.join(file_dir,jpeg_file_name)
+    # eventually the dds conversion
+    conv_cmd=dds_convert_cmd +' "'+file_to_convert+'" "'+\
+                 os.path.join(build_dir,'textures',dds_file_name)+'" '+ devnull_rdir
+    os.system(conv_cmd)
+    try:
+        os.remove(os.path.join(Ortho4XP_dir,'tmp',png_file_name))
+    except:
+        pass  
     busy_slots_conv-=1
     return 
 ##############################################################################
 
 ##############################################################################
+def combine_textures(lat,lon,til_x_left,til_y_top,zoomlevel,provider_code):
+    big_image=Image.new('RGBA',(4096,4096))
+    (y0,x0)=gtile_to_wgs84(til_x_left,til_y_top,zoomlevel)
+    (y1,x1)=gtile_to_wgs84(til_x_left+16,til_y_top+16,zoomlevel)
+    mask_weight_below=numpy.zeros((4096,4096),dtype=numpy.uint16)
+    for rlayer in local_combined_providers_dict[provider_code][::-1]:
+        mask=has_data((x0,y0,x1,y1),rlayer['extent_code'],return_mask=True)
+        if not mask: continue
+        # we turn the image mask into an array 
+        mask=numpy.array(mask,dtype=numpy.uint16)
+        (true_file_dir,true_file_name)=jpeg_file_name_from_attributes(\
+                   lat,lon,til_x_left,til_y_top,zoomlevel,rlayer['layer_code'])
+        true_im=Image.open(os.path.join(true_file_dir,true_file_name))
+        # in case the smoothing of the extent mask was too strong we remove the
+        # the mask (where it is nor 0 nor 255) the pixels for which the true_im
+        # is all white
+        true_arr=numpy.array(true_im).astype(numpy.uint16)
+        mask[(numpy.sum(true_arr,axis=2)>=750)*(mask>=1)*(mask<=253)]=0
+        # 
+        if rlayer['priority']=='low':
+            # low priority layers +
+            wasnt_zero=(mask_weight_below+mask)!=0
+            mask[wasnt_zero]=255*mask[wasnt_zero]/(mask_weight_below+mask)[wasnt_zero]
+        elif rlayer['priority']=='high':
+            mask_weight_below+=mask
+        elif rlayer['priority']=='medium':
+            mask_weight_below+=mask
+            wasnt_zero=mask_weight_below!=0
+            mask[wasnt_zero]=255*mask[wasnt_zero]/mask_weight_below[wasnt_zero]
+            # undecided about the next two lines
+            was_zero=mask_weight_below==0
+            mask[was_zero]=255 
+        # we turn back the array mask into an image
+        mask=Image.fromarray(mask.astype(numpy.uint8))
+        # !!! imagery dir change !!!
+        if verbose_output>=2: print("Inprinting for provider",true_provider_code,til_x_left,til_y_top) 
+        true_im=color_transform(true_im,rlayer['color_code'])  
+        big_image=Image.composite(true_im,big_image,mask)
+    if verbose_output>=2: print("Finished imprinting",til_x_left,til_y_top)
+    return big_image
+##############################################################################
+
+##############################################################################
+def color_transform(im,color_code):
+    for color_filter in color_filters_dict[color_code]:
+        if color_filter[0]=='contrast':
+            im=ImageEnhance.Contrast(im).enhance(color_filter[1])
+        elif color_filter[0]=='brightness':
+            im=ImageEnhance.Brightness(im).enhance(color_filter[1])
+        elif color_filter[0]=='saturation':
+            im=ImageEnhance.Color(im).enhance(color_filter[1])
+        elif color_filter[0]=='sharpness':
+            im=ImageEnhance.Sharpness(im).enhance(color_filter[1])
+        elif color_filter[0]=='rgb':
+            # the nine parameters are cut_off_low,cut_off_high,gamma for each of the three bands
+            bands=im.split()
+            for j in [0,1,2]:
+               low,high=color_filter[2*j+1:2*j+3]
+               low,flow=(low,0) if low>=0 else (0,-1*low)
+               high,fhigh=(high,255) if high>=0 else (255,-1*high)
+               alpha=(fhigh-flow)/(high-low)
+               bands[j].paste(bands[j].point(lambda i: int(i>low) and ((i<=high and flow+(i-low)*alpha) or 255)))
+            im=Image.merge(im.mode,bands)
+    return im
+##############################################################################
+
+##############################################################################
 #  Le séquenceur de la phase de téléchargement des textures.
 ##############################################################################
-def download_textures(strlat,strlon):
+def download_textures(lat,lon):
     global download_to_do_list,convert_to_do_list
     finished = False
     nbr_done=0
     nbr_done_or_in=0
-    while finished != True:
-        if download_to_do_list == []:
-            time.sleep(0.1)
-            try:
-                if application.red_flag.get()==1:
-                    print("Download process interrupted.")
-                    return
-            except:
-                pass
-        elif download_to_do_list[0] != 'finished':
-            texture=download_to_do_list[0]
-            [file_dir,file_name,file_ext]=filename_from_attributes(\
-                               strlat,strlon,*texture)
-            if os.path.isfile(file_dir+file_name+file_ext) != True:
-                if verbose_output==True:
-                    print("   Downloading missing orthophoto "+\
-                      file_name+file_ext)
-                build_jpeg_ortho(strlat,strlon,*texture)
-                nbr_done+=1
+    while True:
+        if download_to_do_list: #try: 
+            texture=download_to_do_list.pop(0)
+            if texture=='finished':
+                finished=True
+                try:
+                    application.progress_down.set(100) 
+                except:
+                    pass
+                if nbr_done >= 1:
+                    print("  Download of textures completed."+\
+                          "                      ")
+                convert_to_do_list.append('finished')
+                break
+            (til_x_left,til_y_top,zoomlevel,provider_code)=texture
+            dds_file_name=dds_file_name_from_attributes(*texture)
+            if provider_code in local_combined_providers_dict:
+                data_found=False
+                for rlayer in local_combined_providers_dict[provider_code]:
+                    (y0,x0)=gtile_to_wgs84(til_x_left,til_y_top,zoomlevel)
+                    (y1,x1)=gtile_to_wgs84(til_x_left+16,til_y_top+16,zoomlevel)
+                    if has_data((x0,y0,x1,y1),rlayer['extent_code']):
+                        data_found=True
+                        true_texture=texture[:]
+                        true_texture[-1]=rlayer['layer_code']
+                        (true_file_dir,true_file_name)=jpeg_file_name_from_attributes(lat,lon,*true_texture)
+                        if not os.path.isfile(os.path.join(true_file_dir,true_file_name)):
+                            if verbose_output: application.write("   Downloading missing orthophoto "+true_file_name+"(for combining in"+provider_code+")\n")
+                                #time.sleep(4)
+                            build_jpeg_ortho(true_file_dir,true_file_name,*true_texture)
+                            nbr_done+=1
+                        else:
+                            if verbose_output: application.write("   The orthophoto "+true_file_name+"(for combining in"+provider_code+") is already present.\n")
+                if not data_found: print("     -> !!! Warning : No data found for building the combined texture",dds_file_name," !!!")
                 nbr_done_or_in+=1
-                convert_to_do_list.append(texture)
-            else:
-                nbr_done_or_in+=1
-                if verbose_output==True:
-                    print("   The orthophoto "+file_name+file_ext+\
-                                                    " is already present.")
-                convert_to_do_list.append(texture)
-            download_to_do_list.pop(0)
+            else:  
+                (file_dir,file_name)=jpeg_file_name_from_attributes(lat,lon,*texture)
+                if not os.path.isfile(os.path.join(file_dir,file_name)):
+                    if verbose_output: print("   Downloading missing orthophoto "+file_name)
+                    build_jpeg_ortho(file_dir,file_name,*texture)
+                    nbr_done+=1
+                    nbr_done_or_in+=1
+                else:
+                    if verbose_output: print("   The orthophoto "+file_name+" is already present.")
+                    nbr_done_or_in+=1
             try:
                 application.progress_down.set(int(100*nbr_done_or_in/(nbr_done_or_in+len(download_to_do_list)))) 
                 if application.red_flag.get()==1:
@@ -3181,16 +4177,15 @@ def download_textures(strlat,strlon):
                     return
             except:
                 pass
-        else:
-            finished=True
+            convert_to_do_list.append(texture)
+        else: #except:
+            time.sleep(3)
             try:
-                application.progress_down.set(100) 
+                if application.red_flag.get()==1:
+                    print("Download process interrupted.")
+                    return
             except:
                 pass
-            if nbr_done >= 1:
-                print("  Download of textures completed."+\
-                      "                      ")
-            convert_to_do_list.append('finished')
     return
 ##############################################################################
 
@@ -3198,17 +4193,17 @@ def download_textures(strlat,strlon):
 ##############################################################################
 #  Le séquenceur de la phase de conversion jpeg -> dds.
 ##############################################################################
-def convert_textures(strlat,strlon,build_dir):
+def convert_textures(lat,lon,build_dir):
     global convert_to_do_list,busy_slots_conv
     busy_slots_conv=0
     nbr_done=0
     nbr_done_or_in=0
-    if not os.path.exists(build_dir+dir_sep+'textures'):
-            os.makedirs(build_dir+dir_sep+'textures')
+    if not os.path.exists(os.path.join(build_dir,'textures')):
+            os.makedirs(os.path.join(build_dir,'textures'))
     finished = False
     while finished != True:
         if convert_to_do_list == [] or busy_slots_conv >= max_convert_slots:
-            time.sleep(0.1)
+            time.sleep(3)
             try:
                 if application.red_flag.get()==1:
                     print("Convert process interrupted.")
@@ -3217,30 +4212,16 @@ def convert_textures(strlat,strlon,build_dir):
                 pass
         elif convert_to_do_list[0] != 'finished':
             texture=convert_to_do_list.pop(0)
-            [file_dir,file_name,file_ext]=filename_from_attributes(\
-                                                    strlat,strlon,*texture)
-            if (os.path.isfile(build_dir+dir_sep+'textures'+dir_sep+\
-                 file_name+'.'+dds_or_png) != True ):
-                if verbose_output==True:
-                    print("   Converting orthophoto to build texture "
-                      +file_name+'.'+dds_or_png+".")
-                fargs_conv_text=[file_dir,file_name,texture[3],build_dir] 
+            file_name=dds_file_name_from_attributes(*texture)
+            if not os.path.isfile(os.path.join(build_dir,'textures',file_name)):
+                if verbose_output: print("   Converting orthophoto to build texture "+file_name+".")
+                fargs_conv_text=[build_dir,lat,lon,*texture] 
                 threading.Thread(target=convert_texture,args=fargs_conv_text).start()
-                #convert_texture(file_dir,file_name,texture[3])
-                #busy_slots_conv+=1
-                #conv_text_thread.start()
                 nbr_done+=1
-                #print(" "+str(nbr_done)+" ")
                 nbr_done_or_in+=1
-                #sys.stdout.write("  Textures déjà converties : "\
-                #        +str(nbr_done)+" (restent :"+\
-                #        str(len(convert_to_do_list)-1)+")             \r") 
             else:
                 nbr_done_or_in+=1
-                if verbose_output==True:
-                    print("   Texture file "+file_name+"."+dds_or_png+\
-                      " already present.")
-
+                if verbose_output: print("   Texture file "+file_name+" already present.")
             try:
                 application.progress_conv.set(int(100*nbr_done_or_in/(nbr_done_or_in+len(convert_to_do_list)))) 
                 if application.red_flag.get()==1:
@@ -3272,7 +4253,7 @@ def convert_textures(strlat,strlon,build_dir):
 
 ##############################################################################
 def build_dsf(lat0,lon0,ortho_list,water_overlay,\
-        ratio_water,mesh_filename,build_dir):
+        ratio_water,mesh_file_name,build_dir):
     ####################################################################
     # The following is a simple web hit counter, it will count how much 
     # tiles are made by Ortho4XP. One aim is to get an idea of how much
@@ -3292,16 +4273,11 @@ def build_dsf(lat0,lon0,ortho_list,water_overlay,\
     global download_to_do_list,pools_max_points
     pool_cols           = 16
     pool_rows           = 16
-    strlat='{:+.0f}'.format(lat0).zfill(3)
-    strlon='{:+.0f}'.format(lon0).zfill(4)
-    strlatround='{:+.0f}'.format(floor(lat0/10)*10).zfill(3)
-    strlonround='{:+.0f}'.format(floor(lon0/10)*10).zfill(4)
-    dest_dir=build_dir+dir_sep+'Earth nav data'+dir_sep+strlatround+\
-            strlonround
-    dsf_filename=dest_dir+dir_sep+strlat+strlon+'.dsf'
+    dest_dir=os.path.join(build_dir,'Earth nav data',round_latlon(lat0,lon0))
+    dsf_file_name=os.path.join(dest_dir,short_latlon(lat0,lon0)+'.dsf')
     
     print("-> Computing the required pool division") 
-    f_mesh=open(mesh_filename,"r")
+    f_mesh=open(mesh_file_name,"r")
     for i in range(0,4):
         f_mesh.readline()
     pool_nbr=pool_rows*pool_cols
@@ -3325,17 +4301,14 @@ def build_dsf(lat0,lon0,ortho_list,water_overlay,\
         pool_rows=pool_rows*2
         pool_cols=pool_cols*2
         print("   Pool division = 32")
-    #elif maxptpool<=16383:
-    #    pool_rows=pool_rows//2
-    #    pool_cols=pool_cols//2
-    #    print("   Pool division = 8")
+    elif maxptpool<=16383:
+        pool_rows=pool_rows//2
+        pool_cols=pool_cols//2
+        print("   Pool division = 8")
     else:
         print("   Pool division = 16")
     f_mesh.close()
 
-    # test
-    #pool_rows=32
-    #pool_cols=32
     
     pool_nbr  = pool_rows*pool_cols
     pools_params=numpy.zeros((4*pool_nbr,18),'float32')
@@ -3375,10 +4348,10 @@ def build_dsf(lat0,lon0,ortho_list,water_overlay,\
     textures={}
     dico_textures={}
     try:
-        raster_map_im=Image.open(build_dir+dir_sep+'terrain_map_'+strlat+strlon+'.png').convert("L")
+        raster_map_im=Image.open(os.path.join(build_dir,'terrain_map_'+short_latlon(lat0,lon0)+'.png')).convert("L")
         raster_map_array=numpy.array(raster_map_im,dtype=numpy.uint8)
         try:
-            raster_map_im_mult=Image.open(build_dir+dir_sep+'terrain_map_mult_'+strlat+strlon+'.png').convert("L")
+            raster_map_im_mult=Image.open(os.path.join(build_dir,'terrain_map_mult_'+short_latlon(lat0,lon0)+'.png')).convert("L")
             raster_map_array_mult=numpy.array(raster_map_im_mult,dtype=numpy.uint8)
             mult_draw=True
             #print("mult_draw")
@@ -3436,14 +4409,14 @@ def build_dsf(lat0,lon0,ortho_list,water_overlay,\
         dico_textures={}
         for i in range(len(bTERT.split(b'\0'))-1):
             dico_textures[str(i)]=i
-            textures[i]=collections.defaultdict(list)
+            textures[i]=defaultdict(list)
     except:
         bPROP=bTERT=bOBJT=bPOLY=bNETW=bDEMN=bGEOD=bDEMS=bCMDS=b'' 
         nbr_pools_yet_in=0
         dico_textures={'terrain_Water':0,'None':1}
         bTERT=bytes("terrain_Water\0lib/g10/terrain10/fruit_tmp_wet_hill.ter\0",'ascii')
-        textures[0]=collections.defaultdict(list)
-        textures[1]=collections.defaultdict(list)
+        textures[0]=defaultdict(list)
+        textures[1]=defaultdict(list)
     #print(dico_textures) 
     skipped_sea_textures=[]
     dico_mask={}
@@ -3478,7 +4451,7 @@ def build_dsf(lat0,lon0,ortho_list,water_overlay,\
     # We start by encoding the 5 coordinates (x,y,z,u,v) of the physical points of
     # the mesh into the array pt_in
     
-    f_mesh=open(mesh_filename,"r")
+    f_mesh=open(mesh_file_name,"r")
     for i in range(0,4):
         f_mesh.readline()
     nbr_pt_in=int(f_mesh.readline())
@@ -3522,13 +4495,19 @@ def build_dsf(lat0,lon0,ortho_list,water_overlay,\
         n2=int(tmplist[1])-1
         n3=int(tmplist[2])-1
         tri_type=tmplist[3] 
-        if int(tri_type)>=4:
-            tri_type='0'
         [lon1,lat1,z1,u1,v1]=pt_in[5*n1:5*n1+5]
         [lon2,lat2,z2,u2,v2]=pt_in[5*n2:5*n2+5]
         [lon3,lat3,z3,u3,v3]=pt_in[5*n3:5*n3+5]
+        if tri_type=='0':
+            pass
+        elif int(tri_type)>=4:
+            tri_type='0'
+        # TEST !!!!!!!!!!!!!!!!!
+        #elif abs(u1)+abs(v1)+abs(u2)+abs(v2)+abs(u3)+abs(v3) > 0.6: 
+        #    tri_type='0'  
+        ####
         texture=attribute_texture(lat1,lon1,lat2,lon2,lat3,lon3,ortho_list,tri_type)
-        if texture=='None':
+        if False: #texture=='None':
             pixx=int(((lon1+lon2+lon3)/3-lon0)*raster_resolution)     
             pixy=int((lat0+1-(lat1+lat2+lat3)/3)*raster_resolution)
             #print(pixx,pixy)
@@ -3537,8 +4516,7 @@ def build_dsf(lat0,lon0,ortho_list,water_overlay,\
             else:
                 texture=str(raster_map_array[pixy,pixx]+256*raster_map_array_mult[pixy,pixx])
             #texture='0'
-            print(texture)
-            #print("coucou"+texture+"coucou")
+            #print(texture)
             #if texture=='terrain_Water': texture='None'
             #print(texture)    
             #print(tri_type) 
@@ -3549,31 +4527,26 @@ def build_dsf(lat0,lon0,ortho_list,water_overlay,\
             else:
                 texture_idx=len(dico_textures)
                 dico_textures[str(texture)]=texture_idx
-                textures[texture_idx]=collections.defaultdict(list)
-                [file_dir,file_name,file_ext]=\
-                        filename_from_attributes(strlat,strlon,*texture)
+                textures[texture_idx]=defaultdict(list)
+                file_name=dds_file_name_from_attributes(*texture)
                 if ((str(texture)+'_overlay') not in dico_textures) and \
                            ((str(texture)+'_sea_overlay') not in dico_textures):
-                    if (os.path.isfile(build_dir+dir_sep+'textures'+dir_sep+\
-                            file_name+'.'+dds_or_png) != True ):
+                    if not os.path.isfile(os.path.join(build_dir,'textures',file_name)):
                         if  'g2xpl' not in texture[3]:
                             download_to_do_list.append(texture)
-                        elif (os.path.isfile(build_dir+dir_sep+'textures'+dir_sep+\
-                            file_name+'.partial.'+dds_or_png) == True ):
-                            file_name=file_name+'.partial'
+                        elif os.path.isfile(os.path.join(build_dir,'textures',file_name.replace('dds','partial.dds'))):
+                            file_name=file_name.replace('dds','partial.dds')
                             if verbose_output==True:
-                                print("   Texture file "+file_name+"."+dds_or_png+\
-                            " already present.")
+                                print("   Texture file "+file_name+" already present.")
                         else:
                             print("!!! Missing a required texture, conversion from g2xpl requires texture download !!!")
                             print(texture)
                             download_to_do_list.append(texture)
                     else:
                         if verbose_output==True:
-                            print("   Texture file "+file_name+"."+dds_or_png+\
-                            " already present.")
-                create_terrain_file(build_dir,file_name,*texture)
-                bTERT+=bytes('terrain/'+file_name+'.ter\0','ascii') 
+                            print("   Texture file "+file_name+" already present.")
+                create_terrain_file(build_dir,file_name[:-4],*texture)
+                bTERT+=bytes('terrain/'+file_name[:-4]+'.ter\0','ascii') 
             texture_overlay_idx=-1
         elif water_option in [2,3]:
             texture_idx=0
@@ -3586,72 +4559,61 @@ def build_dsf(lat0,lon0,ortho_list,water_overlay,\
                 else:
                     texture_overlay_idx=len(dico_textures)
                     dico_textures[str(texture)+'_overlay']=texture_overlay_idx
-                    textures[texture_overlay_idx]=collections.defaultdict(list)
-                    [file_dir,file_name,file_ext]=\
-                            filename_from_attributes(strlat,strlon,*texture)
+                    textures[texture_overlay_idx]=defaultdict(list)
+                    #print(texture)
+                    file_name=dds_file_name_from_attributes(*texture)
                     if (str(texture) not in dico_textures) and \
                             ((str(texture)+'_sea_overlay') not in dico_textures):
-                        if (os.path.isfile(build_dir+dir_sep+'textures'+dir_sep+\
-                            file_name+'.'+dds_or_png) != True ):
+                        if not os.path.isfile(os.path.join(build_dir,'textures',file_name)):
                             if  'g2xpl' not in texture[3]:
                                 download_to_do_list.append(texture)
-                            elif (os.path.isfile(build_dir+dir_sep+'textures'+dir_sep+\
-                                file_name+'.partial.'+dds_or_png) == True ):
-                                file_name=file_name+'.partial'
+                            elif os.path.isfile(os.path.join(build_dir,'textures',file_name.replace('dds','partial.dds'))):
+                                file_name=file_name.replace('dds','partial.dds')
                                 if verbose_output==True:
-                                    print("   Texture file "+file_name+"."+dds_or_png+\
-                                    " already present.")
+                                    print("   Texture file "+file_name+" already present.")
                             else:
                                 print("!!!!!!!!! Missing a required texture, conversion from g2xpl requires new textures !!!!!!!")
                                 print(texture)
                                 download_to_do_list.append(texture)
                         else:
                             if verbose_output==True:
-                                print("   Texture file "+file_name+"."+dds_or_png+\
-                                " already present.")
-                    create_overlay_file(build_dir,file_name,*texture)
-                    bTERT+=bytes('terrain/'+file_name+'_overlay.ter\0','ascii') 
+                                print("   Texture file "+file_name+" already present.")
+                    create_overlay_file(build_dir,file_name[:-4],*texture)
+                    bTERT+=bytes('terrain/'+file_name[:-4]+'_overlay.ter\0','ascii') 
             elif (tri_type in ['2','3'] or use_masks_for_inland==True) :
                 if str(texture)+'_sea_overlay' in dico_textures:
                     texture_overlay_idx=dico_textures[str(texture)+'_sea_overlay']
                 elif str(texture) not in skipped_sea_textures:
-                    mask_data = which_mask(texture,strlat,strlon)
+                    mask_data = which_mask(texture,lat0,lon0,maskszl)
                     dico_mask[str(texture)]=mask_data
                     if mask_data != 'None':
                         if verbose_output==True:
                             print("      Use of an alpha mask.")
                         mask_name=mask_data[0].split(dir_sep)[-1]
-                        if os.path.isfile(build_dir+dir_sep+'textures'+dir_sep+\
-                             mask_name) != True:
-                            os.system(copy_cmd+' "'+mask_data[0]+'" "'+build_dir+\
-                             dir_sep+'textures'+dir_sep+mask_name+'" '+devnull_rdir)
+                        if not os.path.isfile(os.path.join(build_dir,'textures',mask_name)):
+                            os.system(copy_cmd+' "'+mask_data[0]+'" "'+os.path.join(build_dir,'textures',mask_name)+'" '+devnull_rdir)
                         texture_overlay_idx=len(dico_textures)
                         dico_textures[str(texture)+'_sea_overlay']=texture_overlay_idx
-                        textures[texture_overlay_idx]=collections.defaultdict(list)
-                        [file_dir,file_name,file_ext]=\
-                                filename_from_attributes(strlat,strlon,*texture)
+                        textures[texture_overlay_idx]=defaultdict(list)
+                        file_name=dds_file_name_from_attributes(*texture)
                         if (str(texture) not in dico_textures) and \
                             ((str(texture)+'_overlay') not in dico_textures):
-                            if (os.path.isfile(build_dir+dir_sep+'textures'+dir_sep+\
-                                file_name+'.'+dds_or_png) != True ):
+                            if not os.path.isfile(os.path.join(build_dir,'textures',file_name)):
                                 if  'g2xpl' not in texture[3]:
                                     download_to_do_list.append(texture)
-                                elif (os.path.isfile(build_dir+dir_sep+'textures'+dir_sep+\
-                                    file_name+'.partial.'+dds_or_png) == True ):
+                                elif os.path.isfile(os.path.join(build_dir,'textures',file_name.replace('dds','partial.dds'))):
                                     file_name=file_name+'.partial'
                                     if verbose_output==True:
-                                        print("   Texture file "+file_name+"."+dds_or_png+\
-                                        " already present.")
+                                        print("   Texture file "+file_name+" already present.")
                                 else:
                                     print("!!!!!!!!! Missing a required texture, conversion from g2xpl requires new texture !!!!!!!")
                                     print(texture)
                                     download_to_do_list.append(texture)
                             else:
                                 if verbose_output==True:
-                                    print("   Texture file "+file_name+"."+dds_or_png+\
-                                    " already present.")
-                        create_sea_overlay_file(build_dir,file_name,mask_name,*texture)
-                        bTERT+=bytes('terrain/'+file_name+'_sea_overlay.ter\0','ascii') 
+                                    print("   Texture file "+file_name+" already present.")
+                        create_sea_overlay_file(build_dir,file_name[:-4],mask_name,*texture)
+                        bTERT+=bytes('terrain/'+file_name[:-4]+'_sea_overlay.ter\0','ascii') 
                     else:    
                         skipped_sea_textures.append(str(texture))
                         texture_overlay_idx=-1
@@ -3898,7 +4860,7 @@ def build_dsf(lat0,lon0,ortho_list,water_overlay,\
     # Now is time to write our DSF to disk, the exact binary format is described on the wiki
     if not os.path.exists(dest_dir):
         os.makedirs(dest_dir)
-    if os.path.exists(dest_dir+dir_sep+dsf_filename+'.dsf'):
+    if os.path.exists(dest_dir+dir_sep+dsf_file_name+'.dsf'):
         os.system(copy_cmd+' "'+dest_dir+dir_sep+dsf_file+'.dsf'+'" "'+\
          dest_dir+dir_sep+dsf_file+'.dsf.bak" '+devnull_rdir)
     
@@ -3921,7 +4883,7 @@ def build_dsf(lat0,lon0,ortho_list,water_overlay,\
     if verbose_output==True:
         print("   Size of DEFN atom : "+str(size_of_defn_atom)+" bytes.")    
         print("   Size of GEOD atom : "+str(size_of_geod_atom)+" bytes.")    
-    f=open(dsf_filename,'wb')
+    f=open(dsf_file_name,'wb')
     f.write(b'XPLNEDSF')
     f.write(struct.pack('<I',1))
     
@@ -4031,9 +4993,11 @@ def build_dsf(lat0,lon0,ortho_list,water_overlay,\
                 if pools_planes[pool_idx]==9:
                     #print("overlay flag set !")
                     flag=2 #overlay
+                    break
             else:
                 if pools_planes[textures[texture_idx]['cross-pool'][0]]==9:
                     flag=2
+                    break
         for pool_idx in textures[texture_idx]:
             #print("  pool_idx = "+str(pool_idx))
             if pool_idx != 'cross-pool':
@@ -4090,7 +5054,7 @@ def build_dsf(lat0,lon0,ortho_list,water_overlay,\
     except:
         pass
     f.close()
-    f=open(dsf_filename,'rb')
+    f=open(dsf_file_name,'rb')
     data=f.read()
     m=hashlib.md5()
     m.update(data)
@@ -4098,7 +5062,7 @@ def build_dsf(lat0,lon0,ortho_list,water_overlay,\
     md5sum=m.digest()
     #print(str(md5sum))
     f.close()
-    f=open(dsf_filename,'ab')
+    f=open(dsf_file_name,'ab')
     f.write(md5sum)
     f.close()
     try:
@@ -4160,24 +5124,25 @@ def build_pools_params(lat0,lon0,pool_cols,pool_rows):
     return pools_params
 
 
-def build_tile(lat,lon,build_dir,mesh_filename,check_for_what_next=True):
-    global download_to_do_list,convert_to_do_list
+def build_tile(lat,lon,build_dir,mesh_file_name,check_for_what_next=True):
+    global download_to_do_list,convert_to_do_list 
+    t3=time.time()
     download_to_do_list=[]
     convert_to_do_list=[]
-    t3=time.time()
+    initialize_local_combined_providers_dict(lat,lon,ortho_list)
     strlat='{:+.0f}'.format(lat).zfill(3)
     strlon='{:+.0f}'.format(lon).zfill(4)
     fargs_dsf=[lat,lon,ortho_list,\
-            water_overlay,ratio_water,mesh_filename,build_dir] 
+            water_overlay,ratio_water,mesh_file_name,build_dir] 
     if clean_unused_dds_and_ter_files==True:
         print("Purging old .ter files")
         if os.path.exists(build_dir+dir_sep+'terrain'):
             for oldterfile in os.listdir(build_dir+dir_sep+'terrain'):
                 os.remove(build_dir+dir_sep+'terrain'+dir_sep+oldterfile)
     build_dsf_thread=threading.Thread(target=build_dsf,args=fargs_dsf)
-    fargs_down=[strlat,strlon]
+    fargs_down=[lat,lon]
     download_thread=threading.Thread(target=download_textures,args=fargs_down)
-    fargs_conv=[strlat,strlon,build_dir]
+    fargs_conv=[lat,lon,build_dir]
     convert_thread=threading.Thread(target=convert_textures,args=fargs_conv)
     try:
         application.red_flag.set(0)
@@ -4190,22 +5155,12 @@ def build_tile(lat,lon,build_dir,mesh_filename,check_for_what_next=True):
     build_dsf_thread.start()
     #build_dsf_thread.join()
     if skip_downloads != True:
-        if 'dar' in sys.platform:
-            try:
-                APL_start()
-            except:
-                pass
         download_thread.start()
         if skip_converts != True:
             convert_thread.start()
     build_dsf_thread.join()
     if skip_downloads != True:
         download_thread.join()
-        if 'dar' in sys.platform:
-            try:
-                APL_stop()
-            except:
-                pass
         if skip_converts != True:
             convert_thread.join()
     try:
@@ -4213,24 +5168,24 @@ def build_tile(lat,lon,build_dir,mesh_filename,check_for_what_next=True):
             return
     except:
         pass
-    if clean_unused_dds_and_ter_files==True:
+    if clean_unused_dds_and_ter_files==True and os.path.isdir(build_dir+dir_sep+'textures'):
         print("Purging non necessary .dds files")
-        for oldfilename in os.listdir(build_dir+dir_sep+'textures'):
+        for oldfile_name in os.listdir(build_dir+dir_sep+'textures'):
             try:
-                [oldfilenamebase,oldfilenameext]=oldfilename.split('.')
+                [oldfile_namebase,oldfile_nameext]=oldfile_name.split('.')
             except:
                 continue
-            if oldfilenameext!='dds':
+            if oldfile_nameext!='dds':
                     continue
-            if os.path.isfile(build_dir+dir_sep+'terrain'+dir_sep+oldfilenamebase+'.ter'):
+            if os.path.isfile(build_dir+dir_sep+'terrain'+dir_sep+oldfile_namebase+'.ter'):
                 continue
-            if os.path.isfile(build_dir+dir_sep+'terrain'+dir_sep+oldfilenamebase+'_overlay.ter'):
+            if os.path.isfile(build_dir+dir_sep+'terrain'+dir_sep+oldfile_namebase+'_overlay.ter'):
                 continue
-            if os.path.isfile(build_dir+dir_sep+'terrain'+dir_sep+oldfilenamebase+'_sea_overlay.ter'):
+            if os.path.isfile(build_dir+dir_sep+'terrain'+dir_sep+oldfile_namebase+'_sea_overlay.ter'):
                 continue
             # if we have reached here we are facing a dds which is no longer need and therefore we delete it
-            print("  -> removing "+oldfilename)
-            os.remove(build_dir+dir_sep+'textures'+dir_sep+oldfilename)
+            print("  -> removing "+oldfile_name)
+            os.remove(build_dir+dir_sep+'textures'+dir_sep+oldfile_name)
     if clean_tmp_files==True:
         clean_temporary_files(build_dir,['POLY','ELE'])                                                 
     else:
@@ -4239,7 +5194,6 @@ def build_tile(lat,lon,build_dir,mesh_filename,check_for_what_next=True):
               'sec.')
     print('_____________________________________________________________'+\
             '____________________________________')
-     # --> mth
     try:
         if not check_for_what_next:
             return
@@ -4272,7 +5226,6 @@ def build_tile(lat,lon,build_dir,mesh_filename,check_for_what_next=True):
                 os.system(shutdown_cmd)
     except:
         pass
-    # <-- mth
     return
 ##############################################################################
 
@@ -4332,8 +5285,10 @@ def build_overlay(lat,lon,file_to_sniff):
                 line=f.readline()
         elif 'BEGIN_POLYGON' in line:
             while 'END_POLYGON' not in line:
+                #g.write(line)
                 g.write(line)
                 line=f.readline()
+            #g.write(line)
             g.write(line)
         elif 'BEGIN_SEGMENT' in line:
             while 'END_SEGMENT' not in line:
@@ -4408,10 +5363,10 @@ def build_overlay(lat,lon,file_to_sniff):
     print("-> Coping the final overlay DSF in "+dest_dir) 
     if not os.path.exists(dest_dir):
         os.makedirs(dest_dir)
-    h=open(dest_dir+dir_sep+'terrain_list_'+strlat+strlon+'.txt','w')
-    for terrain in terrain_list:
-        h.write(terrain+'\n')
-    h.close()
+    #h=open(dest_dir+dir_sep+'terrain_list_'+strlat+strlon+'.txt','w')
+    #for terrain in terrain_list:
+    #    h.write(terrain+'\n')
+    #h.close()
     os.system(copy_cmd+' "'+Ortho4XP_dir+dir_sep+'tmp'+dir_sep+'tmp_dsf_without_mesh.dsf" '+\
               ' "'+dest_dir+dir_sep+strlat+strlon+'.dsf"')
     os.system(delete_cmd+' '+Ortho4XP_dir+dir_sep+'tmp'+dir_sep+'*.dsf' +devnull_rdir)
@@ -4427,7 +5382,268 @@ def build_overlay(lat,lon,file_to_sniff):
 ##############################################################################
 
 ##############################################################################
-def build_masks(lat,lon,build_dir,mesh_filename_list):
+def build_masks(lat,lon,build_dir,mesh_file_name_list,masks_zl=14):
+    if legacy_masks:
+        build_masks_legacy(lat,lon,build_dir,mesh_file_name_list)
+        return 
+    t4=time.time()
+    try:
+        application.red_flag.set(0)
+    except:
+        pass
+    
+    strlat='{:+.0f}'.format(lat).zfill(3)
+    strlon='{:+.0f}'.format(lon).zfill(4)
+    dico_masks={}
+    masks_dir=Ortho4XP_dir+dir_sep+"Masks"+dir_sep+strlat+strlon
+    if not os.path.exists(masks_dir):
+        os.makedirs(masks_dir)
+    
+    for mesh_file_name in mesh_file_name_list:
+        try:
+            f_mesh=open(mesh_file_name,"r")
+        except:
+            print("Mesh file ",mesh_file_name," absent.")
+            continue
+        for i in range(0,4):
+            f_mesh.readline()
+        nbr_pt_in=int(f_mesh.readline())
+        pt_in=numpy.zeros(5*nbr_pt_in,'float')
+        for i in range(0,nbr_pt_in):
+            tmplist=f_mesh.readline().split()
+            pt_in[5*i]=float(tmplist[0])
+            pt_in[5*i+1]=float(tmplist[1])
+            pt_in[5*i+2]=float(tmplist[2])
+        for i in range(0,3):
+            f_mesh.readline()
+        for i in range(0,nbr_pt_in):
+            tmplist=f_mesh.readline().split()
+            pt_in[5*i+3]=float(tmplist[0])
+            pt_in[5*i+4]=float(tmplist[1])
+        for i in range(0,2): # skip 2 lines
+            f_mesh.readline()
+        nbr_tri_in=int(f_mesh.readline()) # read nbr of tris
+        step_stones=nbr_tri_in//100
+        percent=-1
+        print(" Attribution process of masks buffers to water triangles for "+str(mesh_file_name))
+        for i in range(0,nbr_tri_in):
+            if i%step_stones==0:
+                percent+=1
+                try:
+                    application.progress_attr.set(int(percent*5/10))
+                    if application.red_flag.get()==1:
+                        print("Masks construction process interrupted.")
+                        return
+                except:
+                    pass
+            tmplist=f_mesh.readline().split()
+            # look for the texture that will possibly cover the tri
+            n1=int(tmplist[0])-1
+            n2=int(tmplist[1])-1
+            n3=int(tmplist[2])-1
+            tri_type=tmplist[3]
+            #if not (tri_type in ['2','3']) and not(tri_type=='1' and use_masks_for_inland==True):
+            if not tri_type in ('1','2','3'):
+                continue
+            [lon1,lat1]=pt_in[5*n1:5*n1+2]
+            [lon2,lat2]=pt_in[5*n2:5*n2+2]
+            [lon3,lat3]=pt_in[5*n3:5*n3+2]
+            bary_lat=(lat1+lat2+lat3)/3
+            bary_lon=(lon1+lon2+lon3)/3
+            [til_x,til_y]=wgs84_to_texture(bary_lat,bary_lon,masks_zl,'BI')
+            [til_x2,til_y2]=wgs84_to_texture(bary_lat,bary_lon,masks_zl+2,'BI')
+            a=(til_x2//16)%4
+            b=(til_y2//16)%4
+            if str(til_x)+'_'+str(til_y) in dico_masks:
+                dico_masks[str(til_x)+'_'+str(til_y)].append([lat1,lon1,lat2,lon2,lat3,lon3])
+            else:
+                dico_masks[str(til_x)+'_'+str(til_y)]=[[lat1,lon1,lat2,lon2,lat3,lon3]]
+            if a==0: 
+                if str(til_x-16)+'_'+str(til_y) in dico_masks:
+                    dico_masks[str(til_x-16)+'_'+str(til_y)].append([lat1,lon1,lat2,lon2,lat3,lon3])
+                else:
+                    dico_masks[str(til_x-16)+'_'+str(til_y)]=[[lat1,lon1,lat2,lon2,lat3,lon3]]
+                if b==0: 
+                    if str(til_x-16)+'_'+str(til_y-16) in dico_masks:
+                        dico_masks[str(til_x-16)+'_'+str(til_y-16)].append([lat1,lon1,lat2,lon2,lat3,lon3])
+                    else:
+                        dico_masks[str(til_x-16)+'_'+str(til_y-16)]=[[lat1,lon1,lat2,lon2,lat3,lon3]]
+                elif b==3:
+                    if str(til_x-16)+'_'+str(til_y+16) in dico_masks:
+                        dico_masks[str(til_x-16)+'_'+str(til_y+16)].append([lat1,lon1,lat2,lon2,lat3,lon3])
+                    else:
+                        dico_masks[str(til_x-16)+'_'+str(til_y+16)]=[[lat1,lon1,lat2,lon2,lat3,lon3]]
+            elif a==3:
+                if str(til_x+16)+'_'+str(til_y) in dico_masks:
+                    dico_masks[str(til_x+16)+'_'+str(til_y)].append([lat1,lon1,lat2,lon2,lat3,lon3])
+                else:
+                    dico_masks[str(til_x+16)+'_'+str(til_y)]=[[lat1,lon1,lat2,lon2,lat3,lon3]]
+                if b==0: 
+                    if str(til_x+16)+'_'+str(til_y-16) in dico_masks:
+                        dico_masks[str(til_x+16)+'_'+str(til_y-16)].append([lat1,lon1,lat2,lon2,lat3,lon3])
+                    else:
+                        dico_masks[str(til_x+16)+'_'+str(til_y-16)]=[[lat1,lon1,lat2,lon2,lat3,lon3]]
+                elif b==3:
+                    if str(til_x+16)+'_'+str(til_y+16) in dico_masks:
+                        dico_masks[str(til_x+16)+'_'+str(til_y+16)].append([lat1,lon1,lat2,lon2,lat3,lon3])
+                    else:
+                        dico_masks[str(til_x+16)+'_'+str(til_y+16)]=[[lat1,lon1,lat2,lon2,lat3,lon3]]
+            if b==0: 
+                if str(til_x)+'_'+str(til_y-16) in dico_masks:
+                    dico_masks[str(til_x)+'_'+str(til_y-16)].append([lat1,lon1,lat2,lon2,lat3,lon3])
+                else:
+                    dico_masks[str(til_x)+'_'+str(til_y-16)]=[[lat1,lon1,lat2,lon2,lat3,lon3]]
+            elif b==3:
+                if str(til_x)+'_'+str(til_y+16) in dico_masks:
+                    dico_masks[str(til_x)+'_'+str(til_y+16)].append([lat1,lon1,lat2,lon2,lat3,lon3])
+                else:
+                    dico_masks[str(til_x)+'_'+str(til_y+16)]=[[lat1,lon1,lat2,lon2,lat3,lon3]]
+        f_mesh.close()
+    print(" Construction of the masks")
+    task_len=len(dico_masks)
+    task_done=0
+    for mask in dico_masks:
+        task_done+=1
+        try:
+            application.progress_attr.set(50+int(49*task_done/task_len))
+            if application.red_flag.get()==1:
+                print("Masks construction process interrupted.")
+                return
+        except:
+            pass
+        [til_x,til_y]=mask.split('_')
+        [latm,lonm]=gtile_to_wgs84(int(til_x),int(til_y),masks_zl)
+        [px0,py0]=wgs84_to_pix(latm,lonm,masks_zl)
+        px0-=1024
+        py0-=1024
+        masks_im=Image.new("1",(4096+2*1024,4096+2*1024),'black')
+        masks_draw=ImageDraw.Draw(masks_im)
+        [px1,py1]=wgs84_to_pix(lat,lon,masks_zl)
+        [px2,py2]=wgs84_to_pix(lat,lon+1,masks_zl)
+        [px3,py3]=wgs84_to_pix(lat+1,lon+1,masks_zl)
+        [px4,py4]=wgs84_to_pix(lat+1,lon,masks_zl)
+        px1-=px0
+        px2-=px0
+        px3-=px0
+        px4-=px0
+        py1-=py0
+        py2-=py0
+        py3-=py0
+        py4-=py0
+        try:
+            masks_draw.polygon([(px1,py1),(px2,py2),(px3,py3),(px4,py4)],fill='white')
+        except:
+            #print("failed to draw rectangle")
+            pass
+        for [lat1,lon1,lat2,lon2,lat3,lon3] in dico_masks[mask]:
+            [px1,py1]=wgs84_to_pix(lat1,lon1,masks_zl)
+            [px2,py2]=wgs84_to_pix(lat2,lon2,masks_zl)
+            [px3,py3]=wgs84_to_pix(lat3,lon3,masks_zl)
+            px1-=px0
+            px2-=px0
+            px3-=px0
+            py1-=py0
+            py2-=py0
+            py3-=py0
+            try:
+                masks_draw.polygon([(px1,py1),(px2,py2),(px3,py3)],fill='black')
+            except:
+                pass
+        masks_im=masks_im.convert("L") 
+        img_array=numpy.array(masks_im,dtype=numpy.uint8)
+            
+        #img_array[img_array<70]=70
+        #img_array[rough_mask_array<70]=rough_mask_array[rough_mask_array<70]
+        #del(rough_mask_array) 
+        
+        #print(img_array.max(),img_array.min(),img_array.mean())
+        
+        if (img_array.max()==0 or img_array.min()==255):
+            print("   Skipping "+str(til_y)+'_'+str(til_x)+'.png')
+            continue
+        else:
+            print("   Creating "+str(til_y)+'_'+str(til_x)+'.png')
+        
+        if True:
+            ma=numpy.array(masks_im.convert("L"),dtype=numpy.bool)       
+            ma2=numpy.array(ma,dtype=numpy.bool)
+            mat=numpy.array(ma.transpose(),dtype=numpy.bool)
+            ma2t=numpy.array(mat,dtype=numpy.bool) 
+            ma3t=numpy.zeros(mat.shape,dtype=numpy.bool) 
+            if masks_zl==16:
+                masks_profile=[245,240,235,230,225,220,215,210,200,190,180,170,160,140,120,110,100,90]
+                for i in range(masks_width-18):
+                   masks_profile.append(90-int(90*i/(masks_width-18)))
+            elif masks_zl==15:
+                masks_profile=[240,230,215,200,180,160,140,125,110,100]
+                #for i in range(masks_width-10):
+                #   masks_profile.append(90-int(90*i/(masks_width-10)))
+            elif masks_zl==14:
+                masks_profile=[245,235,225,210,195,180,160,140,120,110,100,95]
+                for i in range(masks_width-12):
+                   masks_profile.append(90-int(90*i/(masks_width-12)))
+            masks_profile=numpy.array(masks_profile,dtype=numpy.uint8)
+            for dist in range(10): #range(0,masks_width):
+                if dist%2==0:
+                    ma2[:-1]+=ma[1:]
+                    ma2[1:]+=ma[:-1]
+                    ma2t[:-1]+=mat[1:]
+                    ma2t[1:]+=mat[:-1]
+                    ma2t+=ma2.transpose()
+                    ma2=ma2t.transpose()
+                else:
+                    ma3=numpy.zeros(ma.shape,dtype=numpy.bool)
+                    ma3[:-1]+=ma[1:]
+                    ma3[1:]+=ma[:-1]
+                    ma3t=ma3.transpose()
+                    ma2t[1:]+=ma3t[:-1]
+                    ma2t[:-1]+=ma3t[1:]
+                    ma2=ma2t.transpose()
+                    del(ma3)
+                    del(ma3t)
+                img_array+=masks_profile[dist]*(ma2-ma)
+                del(ma)
+                del(mat)
+                ma=numpy.array(ma2,dtype=numpy.bool)
+                mat=numpy.array(ma2t,dtype=numpy.bool)
+            ### debut modif
+            
+            rough_mask_array=numpy.array(masks_im.convert("L").filter(ImageFilter.GaussianBlur(masks_width)),dtype=numpy.uint8)
+            img_array[img_array<90]=90
+            img_array[rough_mask_array<90]=rough_mask_array[rough_mask_array<90]
+            del(rough_mask_array) 
+        
+        #for (radius,scale) in [(8,1),(32,0.7),(512,0.5)]:
+        #    mask_array=numpy.array(masks_im.filter(ImageFilter.GaussianBlur(radius)),dtype=numpy.uint8)
+        #    img_array=numpy.maximum(mask_array*scale,img_array)
+        #img_array[img_array>=128]=255
+        #img_array[img_array<128]=2*img_array[img_array<128]
+        
+        img_array=numpy.array(img_array[1024:4096+1024,1024:4096+1024],dtype=numpy.uint8)
+        if not (img_array.max()==0 or img_array.min()==255):
+            #print("Writing ",str(til_y)+'_'+str(til_x)+'.png')
+            masks_im=Image.fromarray(img_array).filter(ImageFilter.GaussianBlur(3))
+            masks_im.save(masks_dir+dir_sep+str(til_y)+'_'+str(til_x)+'.png')
+            masks_im.save(build_dir+dir_sep+"textures"+dir_sep+str(til_y)+'_'+str(til_x)+'.png')
+            print("     Done.") 
+        else:
+            print("     Ends-up being discarded.")        
+    try:
+        application.progress_attr.set(100)
+        if application.red_flag.get()==1:
+            print("Masks construction process interrupted.")
+            return
+    except:
+        pass
+    print('\nCompleted in '+str('{:.2f}'.format(time.time()-t4))+\
+              'sec.')
+    print('_____________________________________________________________'+\
+            '____________________________________')
+    return
+##############################################################################
+
+##############################################################################
+def build_masks_legacy(lat,lon,build_dir,mesh_file_name_list):
     t4=time.time()
     try:
         application.red_flag.set(0)
@@ -4435,9 +5651,9 @@ def build_masks(lat,lon,build_dir,mesh_filename_list):
         pass
     strlat='{:+.0f}'.format(lat).zfill(3)
     strlon='{:+.0f}'.format(lon).zfill(4)
-    eps=0.000001
-    [til_x_min,til_y_min]=wgs84_to_texture(lat+1-eps,lon+eps,14,'BI')
-    [til_x_max,til_y_max]=wgs84_to_texture(lat+eps,lon+1-eps,14,'BI')
+    eps=0.00001
+    [til_x_min,til_y_min]=wgs84_to_texture(lat+1+eps,lon-eps,14,'BI')
+    [til_x_max,til_y_max]=wgs84_to_texture(lat-eps,lon+1+eps,14,'BI')
     nx=(til_x_max-til_x_min)//16+1
     ny=(til_y_max-til_y_min)//16+1
     masks_im=Image.new("1",(nx*4096,ny*4096))
@@ -4447,9 +5663,9 @@ def build_masks(lat,lon,build_dir,mesh_filename_list):
     if not os.path.exists(masks_dir):
         os.makedirs(masks_dir)
     if not os.path.isfile(masks_dir+dir_sep+'whole_tile.png') or keep_old_pre_mask==False:
-        for mesh_filename in mesh_filename_list:
+        for mesh_file_name in mesh_file_name_list:
             try:
-                f_mesh=open(mesh_filename,"r")
+                f_mesh=open(mesh_file_name,"r")
             except:
                 continue
             for i in range(0,4):
@@ -4472,7 +5688,7 @@ def build_masks(lat,lon,build_dir,mesh_filename_list):
             nbr_tri_in=int(f_mesh.readline()) # read nbr of tris
             step_stones=nbr_tri_in//100
             percent=-1
-            print(" Constructing binary mask for sea water / ground from mesh file "+str(mesh_filename))
+            print(" Constructing binary mask for sea water / ground from mesh file "+str(mesh_file_name))
             for i in range(0,nbr_tri_in):
                 if i%step_stones==0:
                     percent+=1
@@ -4598,14 +5814,20 @@ def build_masks(lat,lon,build_dir,mesh_filename_list):
     print('_____________________________________________________________'+\
             '____________________________________')
     return
+##############################################################################
 
 
 ##############################################################################
 def build_tile_list(tile_list,build_dir_option,read_config,use_existing_mesh,bbmasks,bboverlays):
-    global ortho_list,zone_list,default_website,default_zl 
+    global ortho_list,zone_list,default_provider_code,default_zl 
     nbr_tiles=len(tile_list)
     n=1
     for tile in tile_list:
+        if application.red_flag.get()==1:
+            print("\nBatch build process interrupted.")
+            print('_____________________________________________________________'+\
+                  '____________________________________')
+            return
         [lat,lon]=tile
         strlat='{:+.0f}'.format(lat).zfill(3)
         strlon='{:+.0f}'.format(lon).zfill(4)
@@ -4641,33 +5863,59 @@ def build_tile_list(tile_list,build_dir_option,read_config,use_existing_mesh,bbm
                 print('_____________________________________________________________'+\
                       '____________________________________')
                 return
-        mesh_filename = build_dir+dir_sep+'Data'+strlat+strlon+".mesh"
-        if os.path.isfile(mesh_filename)!=True:
-            print("The mesh of Tile "+strlat+strlon+" was not found, skipping that one...")
+        mesh_file_name = build_dir+dir_sep+'Data'+strlat+strlon+".mesh"
+        if os.path.isfile(mesh_file_name)!=True:
+            if default_website!='None':
+                print("The mesh of Tile "+strlat+strlon+" was not found, skipping that one...")
+            else: # Landclass base mesh
+                base_sniff_dir=application.sniff_dir_entry.get()
+                strlatround='{:+.0f}'.format(floor(lat/10)*10).zfill(3)
+                strlonround='{:+.0f}'.format(floor(lon/10)*10).zfill(4)
+                file_to_sniff=base_sniff_dir+dir_sep+"Earth nav data"+dir_sep+\
+                      strlatround+strlonround+dir_sep+strlat+strlon+'.dsf'
+                if not os.path.isfile(file_to_sniff):
+                    print('\nFailure : there is no file to sniff from at the indicated place.')
+                    print('_____________________________________________________________'+\
+                     '____________________________________')
+                else:
+                    print("\nTile "+str(n)+" / "+str(nbr_tiles))
+                    dem_alternative=application.custom_dem_entry.get()
+                    print("\nTranscoding Tile "+strlat+strlon+" : ")
+                    print("------------------------\n")
+                    re_encode_dsf(lat,lon,build_dir,file_to_sniff,keep_orig_zuv,dem_alternative,seven_zip)
+            
+            try:
+                application.earth_window.canvas.delete(application.earth_window.dico_tiles_todo[str(lat)+'_'+str(lon)]) 
+                application.earth_window.dico_tiles_todo.pop(str(lat)+'_'+str(lon),None)
+                application.earth_window.refresh()
+            except:
+                pass
+                #print("I could not update the earth tile window, perhaps you closed it ?")
+            n+=1 
             continue
         if bbmasks:
             print("\nTile "+str(n)+" / "+str(nbr_tiles))
             print("\nStep 2.5 : Building masks for tile "+strlat+strlon+" : ")
             print("--------\n")
             if complex_masks==False:
-                mesh_filename_list=[mesh_filename]
+                mesh_file_name_list=[mesh_file_name]
             else:
-                mesh_filename_list=[]
+                mesh_file_name_list=[]
                 for closelat in [lat-1,lat,lat+1]:
                     for closelon in [lon-1,lon,lon+1]:
                         strcloselat='{:+.0f}'.format(closelat).zfill(3)
                         strcloselon='{:+.0f}'.format(closelon).zfill(4)
-                        closemesh_filename=build_dir+dir_sep+'..'+dir_sep+'zOrtho4XP_'+strcloselat+strcloselon+\
+                        closemesh_file_name=build_dir+dir_sep+'..'+dir_sep+'zOrtho4XP_'+strcloselat+strcloselon+\
                                dir_sep+'Data'+strcloselat+strcloselon+".mesh"
-                        if os.path.isfile(closemesh_filename):
-                            mesh_filename_list.append(closemesh_filename)
+                        if os.path.isfile(closemesh_file_name):
+                            mesh_file_name_list.append(closemesh_file_name)
                             continue
                         # all tiles in the same dir ?, lets try
-                        closemesh_filename=build_dir+dir_sep+'Data'+strcloselat+strcloselon+".mesh"
-                        if os.path.isfile(closemesh_filename):
-                            mesh_filename_list.append(closemesh_filename)
+                        closemesh_file_name=build_dir+dir_sep+'Data'+strcloselat+strcloselon+".mesh"
+                        if os.path.isfile(closemesh_file_name):
+                            mesh_file_name_list.append(closemesh_file_name)
                             continue
-            build_masks(lat,lon,build_dir,mesh_filename_list)
+            build_masks(lat,lon,build_dir,mesh_file_name_list,maskszl)
         if application.red_flag.get()==1:
             print("\nBatch build process interrupted.")
             print('_____________________________________________________________'+\
@@ -4681,7 +5929,7 @@ def build_tile_list(tile_list,build_dir_option,read_config,use_existing_mesh,bbm
         print("\nTile "+str(n)+" / "+str(nbr_tiles))
         print("\nStep 3 : Building Tile "+strlat+strlon+" : ")
         print("--------\n")
-        build_tile(lat,lon,build_dir,mesh_filename,False)
+        build_tile(lat,lon,build_dir,mesh_file_name,False)
         if application.red_flag.get()==1:
             print("\nBatch build process interrupted.")
             print('_____________________________________________________________'+\
@@ -4977,7 +6225,7 @@ class Earth_Preview_window(Toplevel):
         self.build_btn        =  Button(self.frame_left,text='  Batch Build   ',command=self.batch_build)
         self.refresh_btn      =  Button(self.frame_left,text='     Refresh    ',command=self.refresh)
         self.exit_btn         =  Button(self.frame_left,text='      Exit      ',command=self.save_loc_and_exit)
-        self.shortcuts        =  Label(self.frame_left,text="Shortcuts :\n-------------------\nClick+hold=move map\nDouble-click=select active lat/lon\nShift+click=add for batch build\nR-click= link in Custom Scenery\n\nActive lat/lon\n---------------------",bg="light green")
+        self.shortcuts        =  Label(self.frame_left,text="Shortcuts :\n-------------------\nR-Click+hold=move map\nDouble-click=select active lat/lon\nShift+click=add for batch build\nCtrl+click= link in Custom Scenery\n\nActive lat/lon\n---------------------",bg="light green")
         self.latlon_entry     =  Entry(self.frame_left,width=8,bg="white",fg="blue",textvariable=self.latlon)
         self.canvas           =  Canvas(self.frame_right,bd=0)
 
@@ -5019,13 +6267,19 @@ class Earth_Preview_window(Toplevel):
             self.canvas.yview_moveto(0.3)
             x0=self.canvas.canvasx(0)
             y0=self.canvas.canvasy(0)
+        if x0<0: x0=0
+        if y0<0: y0=0 
         self.nx0=int((8*x0)//self.resolution)
         self.ny0=int((8*y0)//self.resolution)
-        self.canvas.bind("<ButtonPress-1>", self.scroll_start)
-        self.canvas.bind("<B1-Motion>", self.scroll_move)
+        if 'dar' in sys.platform:
+            self.canvas.bind("<ButtonPress-2>", self.scroll_start)
+            self.canvas.bind("<B2-Motion>", self.scroll_move)
+        else:
+            self.canvas.bind("<ButtonPress-3>", self.scroll_start)
+            self.canvas.bind("<B3-Motion>", self.scroll_move)
         self.canvas.bind("<Double-Button-1>",self.select_tile)
         self.canvas.bind("<Shift-ButtonPress-1>",self.add_tile)
-        self.canvas.bind("<ButtonPress-3>",self.toggle_to_custom)
+        self.canvas.bind("<Control-ButtonPress-1>",self.toggle_to_custom)
         self.canvas.focus_set()
         self.draw_canvas(self.nx0,self.ny0) 
         return
@@ -5048,11 +6302,11 @@ class Earth_Preview_window(Toplevel):
                 self.canvas.delete(self.dico_tiles_done[tile])
             self.dico_tiles_done={}
         if self.working_type=='legacy':
-            for dirname in os.listdir(self.working_dir):
-                if "zOrtho4XP_" in dirname:
+            for dir_name in os.listdir(self.working_dir):
+                if "zOrtho4XP_" in dir_name:
                     try:
-                        strlat=dirname[-7:-4]
-                        strlon=dirname[-4:]
+                        strlat=dir_name[-7:-4]
+                        strlon=dir_name[-4:]
                         lat=int(strlat)
                         lon=int(strlon)
                         strlatround='{:+.0f}'.format(floor(lat/10)*10).zfill(3)
@@ -5061,24 +6315,24 @@ class Earth_Preview_window(Toplevel):
                         continue                     
                     [x0,y0]=wgs84_to_pix(lat+1,lon,self.earthzl)
                     [x1,y1]=wgs84_to_pix(lat,lon+1,self.earthzl)
-                    if os.path.isfile(self.working_dir+dir_sep+dirname+dir_sep+"Earth nav data"+dir_sep+strlatround+strlonround+dir_sep+strlat+strlon+'.dsf'):
+                    if os.path.isfile(self.working_dir+dir_sep+dir_name+dir_sep+"Earth nav data"+dir_sep+strlatround+strlonround+dir_sep+strlat+strlon+'.dsf'):
                         self.dico_tiles_done[str(lat)+'_'+str(lon)]=self.canvas.create_rectangle(x0,y0,x1,y1,fill='blue',stipple='gray12')
-                        link=Custom_scenery_dir+dir_sep+custom_scenery_prefix+'zOrtho4XP_'+strlat+strlon
+                        link=Custom_scenery_dir+dir_sep+Custom_scenery_prefix+'zOrtho4XP_'+strlat+strlon
                         if os.path.isdir(link):
                             if os.path.samefile(os.path.realpath(link),os.path.realpath(self.working_dir+dir_sep+'zOrtho4XP_'+strlat+strlon)):
                                 self.canvas.itemconfig(self.dico_tiles_done[str(lat)+'_'+str(lon)],stipple='gray50')
         elif self.working_type=='onedir' and os.path.exists(self.working_dir+dir_sep+'Earth nav data'):
-            for dirname in os.listdir(self.working_dir+dir_sep+'Earth nav data'):
-                for filename in os.listdir(self.working_dir+dir_sep+'Earth nav data'+dir_sep+dirname):
+            for dir_name in os.listdir(self.working_dir+dir_sep+'Earth nav data'):
+                for file_name in os.listdir(self.working_dir+dir_sep+'Earth nav data'+dir_sep+dir_name):
                     try:
-                        lat=int(filename[0:3])   
-                        lon=int(filename[3:7])             
+                        lat=int(file_name[0:3])   
+                        lon=int(file_name[3:7])              
                     except:
                         continue
                     [x0,y0]=wgs84_to_pix(lat+1,lon,self.earthzl)
                     [x1,y1]=wgs84_to_pix(lat,lon+1,self.earthzl)
                     self.dico_tiles_done[str(lat)+'_'+str(lon)]=self.canvas.create_rectangle(x0,y0,x1,y1,fill='blue',stipple='gray12')
-            link=Custom_scenery_dir+dir_sep+custom_scenery_prefix+'zOrtho4XP_'+os.path.basename(self.working_dir)
+            link=Custom_scenery_dir+dir_sep+Custom_scenery_prefix+'zOrtho4XP_'+os.path.basename(self.working_dir)
             if os.path.isdir(link):
                 if os.path.samefile(os.path.realpath(link),os.path.realpath(self.working_dir)):
                     for tile in self.dico_tiles_done:
@@ -5097,11 +6351,11 @@ class Earth_Preview_window(Toplevel):
                 self.canvas.delete(self.dico_old_stuff[tile])
             self.dico_old_stuff={}
             return    
-        for dirname in os.listdir(self.working_dir): 
-            if "zOrtho4XP_" in dirname:
+        for dir_name in os.listdir(self.working_dir): 
+            if "zOrtho4XP_" in dir_name:
                 try:
-                    strlat=dirname[-7:-4]
-                    strlon=dirname[-4:]
+                    strlat=dir_name[-7:-4]
+                    strlon=dir_name[-4:]
                     lat=int(strlat)
                     lon=int(strlon)
                     strlatround='{:+.0f}'.format(floor(lat/10)*10).zfill(3)
@@ -5112,10 +6366,10 @@ class Earth_Preview_window(Toplevel):
                 [x1,y1]=wgs84_to_pix(lat,lon+1,self.earthzl)
                 if str(lat)+'_'+str(lon) not in self.dico_tiles_done:
                     self.dico_old_stuff[str(lat)+'_'+str(lon)]=self.canvas.create_rectangle(x0,y0,x1,y1,outline='red')
-        for dirname in os.listdir(Ortho4XP_dir+dir_sep+"Orthophotos"):
+        for dir_name in os.listdir(Ortho4XP_dir+dir_sep+"Orthophotos"):
             try:
-                strlat=dirname[0:3]
-                strlon=dirname[3:]
+                strlat=dir_name[0:3]
+                strlon=dir_name[3:]
                 lat=int(strlat)
                 lon=int(strlon)
             except:
@@ -5124,10 +6378,10 @@ class Earth_Preview_window(Toplevel):
             [x1,y1]=wgs84_to_pix(lat,lon+1,self.earthzl)
             if str(lat)+'_'+str(lon) not in self.dico_tiles_done and str(lat)+'_'+str(lon) not in self.dico_old_stuff:
                self.dico_old_stuff[str(lat)+'_'+str(lon)]=self.canvas.create_rectangle(x0,y0,x1,y1,outline='red')
-        for dirname in os.listdir(Ortho4XP_dir+dir_sep+"OSM_data"):
+        for dir_name in os.listdir(Ortho4XP_dir+dir_sep+"OSM_data"):
             try:
-                strlat=dirname[0:3]
-                strlon=dirname[3:]
+                strlat=dir_name[0:3]
+                strlon=dir_name[3:]
                 lat=int(strlat)
                 lon=int(strlon)
             except:
@@ -5234,14 +6488,14 @@ class Earth_Preview_window(Toplevel):
         if str(lat)+'_'+str(lon) not in self.dico_tiles_done:
             return
         if self.working_type=='legacy':
-            link=Custom_scenery_dir+dir_sep+custom_scenery_prefix+'zOrtho4XP_'+strlat+strlon
+            link=Custom_scenery_dir+dir_sep+Custom_scenery_prefix+'zOrtho4XP_'+strlat+strlon
             target=os.path.realpath(self.working_dir+dir_sep+'zOrtho4XP_'+strlat+strlon)
             if os.path.isdir(link):
                 os.remove(link)
                 self.preview_existing_tiles()
                 return 
         elif self.working_type=='onedir': 
-            link=Custom_scenery_dir+dir_sep+custom_scenery_prefix+'zOrtho4XP_'+os.path.basename(self.working_dir)
+            link=Custom_scenery_dir+dir_sep+Custom_scenery_prefix+'zOrtho4XP_'+os.path.basename(self.working_dir)
             target=os.path.realpath(self.working_dir)
             if os.path.isdir(link):
                 os.remove(link)
@@ -5310,6 +6564,8 @@ class Earth_Preview_window(Toplevel):
     def redraw_canvas(self):
         x0=self.canvas.canvasx(0)
         y0=self.canvas.canvasy(0)
+        if x0<0: x0=0
+        if y0<0: y0=0
         nx0=int((8*x0)//self.resolution)
         ny0=int((8*y0)//self.resolution)
         if nx0==self.nx0 and ny0==self.ny0:
@@ -5324,7 +6580,6 @@ class Earth_Preview_window(Toplevel):
            fargs_rc=[nx0,ny0]
            self.rc_thread=threading.Thread(target=self.draw_canvas,args=fargs_rc)
            self.rc_thread.start()
-           #self.draw_canvas(nx0,ny0)
            return 
       
     def draw_canvas(self,nx0,ny0):
@@ -5366,7 +6621,6 @@ class Earth_Preview_window(Toplevel):
 ##############################################################################   
 
 
-
 ##############################################################################
 class Preview_window(Toplevel):
 
@@ -5399,8 +6653,8 @@ class Preview_window(Toplevel):
     
         # Constants
 
-        self.map_list        = px256_list
-        self.map_list2       = px256_list+wms2048_list
+        self.map_list        = sorted(list(providers_dict)+list(combined_providers_dict))
+        self.map_list2       = self.map_list
         self.zl_list         = ['10','11','12','13']
     
         self.map_choice      = StringVar()
@@ -5438,7 +6692,7 @@ class Preview_window(Toplevel):
                                  font = "Helvetica 16 bold italic")
         self.title_src        =  Label(self.frame_left,anchor=W,text="Source : ",bg="light green") 
         self.map_combo        =  ttk.Combobox(self.frame_left,textvariable=self.map_choice,\
-                                 values=self.map_list,state='readonly',width=8)
+                                 values=self.map_list,state='readonly',width=10)
         self.title_zl         =  Label(self.frame_left,anchor=W,text="Zoomlevel : ",bg="light green")
         self.zl_combo         =  ttk.Combobox(self.frame_left,textvariable=self.zl_choice,\
                                  values=self.zl_list,state='readonly',width=3)
@@ -5475,7 +6729,7 @@ class Preview_window(Toplevel):
         self.exit_btn         =  Button(self.frame_left,text='   Abandon   ',command=self.destroy)
         self.title_gbsize     =  Label(self.frame_left,anchor=W,text="Approx. Add. Size : ",bg="light green") 
         self.gbsize           =  Entry(self.frame_left,width=6,bg="white",fg="blue",textvariable=self.gb)
-        self.shortcuts        =  Label(self.frame_left,text="\nShift+click to add polygons",bg="light green")
+        self.shortcuts        =  Label(self.frame_left,text="\nShift+click to add polygon points\nCtrl+Shift+click to add points on dds grid\nCtrl+click to add full dds\nCtrl+R_click to delete zone under mouse",bg="light green")
         self.canvas           =  Canvas(self.frame_right,bd=0)
 
         # Placement of Widgets
@@ -5508,7 +6762,7 @@ class Preview_window(Toplevel):
     def preview_tile(self,lat,lon):
         self.zoomlevel=int(self.zl_combo.get())
         zoomlevel=self.zoomlevel
-        website=self.map_combo.get()    
+        provider_code=self.map_combo.get()    
         strlat='{:+.0f}'.format(float(lat)).zfill(3)
         strlon='{:+.0f}'.format(float(lon)).zfill(4)
         [tilxleft,tilytop]=wgs84_to_gtile(lat+1,lon,zoomlevel)
@@ -5518,9 +6772,9 @@ class Preview_window(Toplevel):
         [self.latmin,self.lonmax]=gtile_to_wgs84(tilxright+1,tilybot+1,zoomlevel)
         [self.xmax,self.ymax]=wgs84_to_pix(self.latmin,self.lonmax,zoomlevel)
         filepreview=Ortho4XP_dir+dir_sep+'Previews'+dir_sep+strlat+strlon+\
-                    "_"+website+str(zoomlevel)+".jpg"       
+                    "_"+provider_code+str(zoomlevel)+".jpg"       
         if os.path.isfile(filepreview) != True:
-            fargs_ctp=[int(lat),int(lon),int(zoomlevel),website]
+            fargs_ctp=[int(lat),int(lon),int(zoomlevel),provider_code]
             self.ctp_thread=threading.Thread(target=create_tile_preview,args=fargs_ctp)
             self.ctp_thread.start()
             fargs_dispp=[filepreview,lat,lon]
@@ -5555,9 +6809,17 @@ class Preview_window(Toplevel):
         self.map_y_res=self.photo.height()
         self.img_map=self.canvas.create_image(0,0,anchor=NW,image=self.photo)
         self.canvas.config(scrollregion=self.canvas.bbox(ALL))
-        self.canvas.bind("<ButtonPress-1>", self.scroll_start)
-        self.canvas.bind("<B1-Motion>", self.scroll_move)
-        self.canvas.bind("<Shift-ButtonPress-1>",self.newPoint) 
+        if 'dar' in sys.platform:
+            self.canvas.bind("<ButtonPress-2>", self.scroll_start)
+            self.canvas.bind("<B2-Motion>", self.scroll_move)
+            self.canvas.bind("<Control-ButtonPress-2>",self.delPol)
+        else:
+            self.canvas.bind("<ButtonPress-3>", self.scroll_start)
+            self.canvas.bind("<B3-Motion>", self.scroll_move)
+            self.canvas.bind("<Control-ButtonPress-3>",self.delPol)
+        self.canvas.bind("<Shift-ButtonPress-1>",self.newPoint)
+        self.canvas.bind("<Control-Shift-ButtonPress-1>",self.newPointGrid)
+        self.canvas.bind("<Control-ButtonPress-1>",self.newPol)
         self.canvas.focus_set()
         self.canvas.bind('p', self.newPoint)
         self.canvas.bind('d', self.delete_zone_cmd)
@@ -5568,8 +6830,6 @@ class Preview_window(Toplevel):
         self.poly_curr=[]
         bdpoints=[]
         for [latp,lonp] in [[lat,lon],[lat,lon+1],[lat+1,lon+1],[lat+1,lon]]:
-                #x=(lonp-self.lonmin)/(self.lonmax-self.lonmin)*self.map_x_res
-                #y=(self.latmax-latp)/(self.latmax-self.latmin)*self.map_y_res
                 [x,y]=self.latlon_to_xy(latp,lonp,self.zoomlevel)
                 bdpoints+=[int(x),int(y)]
         self.boundary=self.canvas.create_polygon(bdpoints,\
@@ -5582,8 +6842,6 @@ class Preview_window(Toplevel):
             for idxll in range(0,len(self.coords)//2):
                 latp=self.coords[2*idxll]
                 lonp=self.coords[2*idxll+1]
-                #x=(lonp-self.lonmin)/(self.lonmax-self.lonmin)*self.map_x_res
-                #y=(self.latmax-latp)/(self.latmax-self.latmin)*self.map_y_res
                 [x,y]=self.latlon_to_xy(latp,lonp,self.zoomlevel)
                 self.points+=[int(x),int(y)]
             self.redraw_poly()
@@ -5606,15 +6864,18 @@ class Preview_window(Toplevel):
             pass
         try:
             color=self.dico_color[self.zlpol.get()]
-            self.poly_curr=self.canvas.create_polygon(self.points,\
+            if len(self.points)>=4:
+                self.poly_curr=self.canvas.create_polygon(self.points,\
                            outline=color,fill='', width=2)
+            else:
+                self.poly_curr=self.canvas.create_polygon(self.points,\
+                           outline=color,fill='', width=5)
         except:
             pass
         return
 
     def load_poly(self,lat,lon):
         poly_file=filedialog.askopenfilename()    
-        self.lift()
         try:
             f=open(poly_file,'r')
         except:
@@ -5632,11 +6893,12 @@ class Preview_window(Toplevel):
            lonp=lonp if lonp > lon-0.001 else lon-0.001
            lonp=lonp if lonp < lon+1.001 else lon+1.001
            array.append([float(latp),float(lonp)])
-        new_array=ramer_douglas_peucker(array,tol=0.002)
+        new_array=ramer_douglas_peucker(array,tol=poly_simplification_tol)
         for point in new_array:
            self.coords+=[point[0],point[1]]
            self.points+=self.latlon_to_xy(point[0],point[1],self.zoomlevel)
         self.redraw_poly()
+        self.lift()
         return
 
 
@@ -5644,12 +6906,55 @@ class Preview_window(Toplevel):
         x=self.canvas.canvasx(event.x)
         y=self.canvas.canvasy(event.y)
         self.points+=[x,y]
-        #latp=self.latmax-(y/self.map_y_res)*(self.latmax-self.latmin)
-        #lonp=self.lonmin+(x/self.map_x_res)*(self.lonmax-self.lonmin)
         [latp,lonp]=self.xy_to_latlon(x,y,self.zoomlevel)
         self.coords+=[latp,lonp]
         self.redraw_poly()
         return
+    
+    def newPointGrid(self,event):
+        x=self.canvas.canvasx(event.x)
+        y=self.canvas.canvasy(event.y)
+        [latp,lonp]=self.xy_to_latlon(x,y,self.zoomlevel)
+        [a,b]=wgs84_to_texture(latp,lonp,self.zlpol.get(),'BI')
+        [aa,bb]=wgs84_to_gtile(latp,lonp,self.zlpol.get())
+        a=a+16 if aa-a>=8 else a
+        b=b+16 if bb-b>=8 else b
+        [latp,lonp]=gtile_to_wgs84(a,b,self.zlpol.get())
+        self.coords+=[latp,lonp]
+        [x,y]=self.latlon_to_xy(latp,lonp,self.zoomlevel)
+        self.points+=[int(x),int(y)]
+        self.redraw_poly()
+        return
+    
+    def newPol(self,event):
+        x=self.canvas.canvasx(event.x)
+        y=self.canvas.canvasy(event.y)
+        [latp,lonp]=self.xy_to_latlon(x,y,self.zoomlevel)
+        [a,b]=wgs84_to_texture(latp,lonp,self.zlpol.get(),'BI')
+        [latmax,lonmin]=gtile_to_wgs84(a,b,self.zlpol.get())
+        [latmin,lonmax]=gtile_to_wgs84(a+16,b+16,self.zlpol.get())
+        self.coords=[latmin,lonmin,latmin,lonmax,latmax,lonmax,latmax,lonmin]
+        self.points=[]
+        for i in range(4):
+            [x,y]=self.latlon_to_xy(self.coords[2*i],self.coords[2*i+1],self.zoomlevel)
+            self.points+=[int(x),int(y)]
+        self.redraw_poly()
+        self.save_zone_cmd()
+        return
+
+    def delPol(self,event):
+        x=self.canvas.canvasx(event.x)
+        y=self.canvas.canvasy(event.y)
+        copy=self.polygon_list[:]
+        for poly in copy:
+            if poly[2]!=self.zlpol.get(): continue
+            if point_in_polygon([x,y],poly[0]):
+                idx=self.polygon_list.index(poly)
+                self.polygon_list.pop(idx)
+                self.canvas.delete(self.polyobj_list[idx])
+                self.polyobj_list.pop(idx)
+        return        
+
 
     def xy_to_latlon(self,x,y,zoomlevel):
         pix_x=x+self.xmin
@@ -5722,13 +7027,147 @@ class Preview_window(Toplevel):
         for item in ordered_list:
             tmp=[]
             for pt in item[1]:
-                tmp.append(float('{:.3f}'.format(float(pt))))
+                tmp.append(pt) #float('{:.3f}'.format(float(pt))))
             for pt in item[1][0:2]:     # repeat first point for point_in_polygon algo
-                tmp.append(float('{:.3f}'.format(float(pt))))
+                tmp.append(pt) #float('{:.3f}'.format(float(pt))))
             zone_list.append([tmp,item[2],item[3]])
         self.destroy()    
         return
 ############################################################################################
+
+############################################################################################
+class Expert_config(Toplevel):
+
+ 
+
+    def __init__(self):
+        
+        Toplevel.__init__(self)
+        self.title('Global/Expert config')
+        toplevel = self.winfo_toplevel()
+        self.columnconfigure(0,weight=1)
+        self.rowconfigure(0,weight=1)
+                 
+        # Frames
+        self.frame_left       =  Frame(self, border=4,\
+                                 relief=RIDGE,bg='light green')
+        self.frame_lastbtn    =  Frame(self.frame_left,\
+                                 border=0,padx=5,pady=5,bg="light green")
+        # Frames properties
+        self.frame_lastbtn.columnconfigure(0,weight=1)
+        self.frame_lastbtn.columnconfigure(1,weight=1)
+        self.frame_lastbtn.columnconfigure(2,weight=1)
+        self.frame_lastbtn.columnconfigure(3,weight=1)
+        self.frame_lastbtn.columnconfigure(4,weight=1)
+        self.frame_lastbtn.rowconfigure(0,weight=1)
+
+        # Frames placement
+        self.frame_left.grid(row=0,column=0)#,sticky=N+S+W+E)
+        self.frame_lastbtn.grid(row=40,column=0,columnspan=6,pady=10)#,sticky=N+S+E+W)
+        
+        # Variables and widgets and their placement
+        self.v_={}
+        self.title_={}
+        self.entry_={}
+        self.explain_={}
+        j=0
+        l=len(configvars)//2+len(configvars)%2 
+        for item in configvars:
+            self.title_[item]=Label(self.frame_left,text=item,anchor=W,bg='light green')
+            self.entry_[item]=Entry(self.frame_left,width=60,bg='white',fg='blue') 
+            self.explain_[item]=Button(self.frame_left,text='?',pady=0,command=lambda: self.popup(item),height=1)
+            self.title_[item].grid(row=j%l,column=0+3*(j//l),padx=5,pady=2,sticky=N+S+E+W)  
+            self.entry_[item].grid(row=j%l,column=1+3*(j//l),padx=5,pady=2,sticky=N+S+E+W)
+            self.explain_[item].grid(row=j%l,column=2+3*(j//l),padx=5,pady=2,sticky=E+W)  
+            j+=1
+        self.button1= Button(self.frame_lastbtn, text='Load from global cfg',\
+                                 command= self.load_from_global_cfg)
+        self.button1.grid(row=0,column=0,padx=5,pady=5,sticky=N+S+E+W)
+        self.button2= Button(self.frame_lastbtn, text='Write to global cfg',\
+                                 command= self.write_to_global_cfg)
+        self.button2.grid(row=0,column=1,padx=5,pady=5,sticky=N+S+E+W)
+        self.button3= Button(self.frame_lastbtn, text='Load factory default',\
+                                 command= self.load_factory_defaults)
+        self.button3.grid(row=0,column=2,padx=5,pady=5,sticky=N+S+E+W)
+        self.button4= Button(self.frame_lastbtn, text='Save and Exit',\
+                                 command= self.apply_changes)
+        self.button4.grid(row=0,column=3,padx=5,pady=5,sticky=N+S+E+W)
+        self.button5= Button(self.frame_lastbtn, text='Cancel',\
+                                 command= self.destroy)
+        self.button5.grid(row=0,column=4,padx=5,pady=5,sticky=N+S+E+W)
+
+        # Initialize fields
+        self.load_from_present_values()
+         
+
+    def load_from_present_values(self):
+        for item in configvars:
+            try:
+                self.entry_[item].delete(0,END)
+                self.entry_[item].insert(0,str(eval(item)))
+            except:
+                self.entry_[item].delete(0,END)
+                self.entry_[item].insert(0,'')
+
+    def load_factory_defaults(self):
+        for item in configvars:
+            try:
+                self.entry_[item].delete(0,END)
+                self.entry_[item].insert(0,str(configvars_defaults[item]))
+            except:
+                self.entry_[item].delete(0,END)
+                self.entry_[item].insert(0,'')
+    
+    def apply_changes(self):
+        for item in configvars:
+            try:
+                if item not in configvars_strings:
+                    globals()[item]=eval(self.entry_[item].get()) 
+                else:    
+                    globals()[item]=eval("'"+self.entry_[item].get()+"'") 
+            except:
+                print("I could not set the variable",item,". Perhaps was there a typo ?")
+        application.update_interface_with_variables()
+        self.destroy()
+        return
+    
+    def write_to_global_cfg(self):
+        if os.path.isfile(Ortho4XP_dir+dir_sep+'Ortho4XP.cfg'):
+            os.rename(Ortho4XP_dir+dir_sep+'Ortho4XP.cfg',Ortho4XP_dir+dir_sep+'Ortho4XP.cfg.bak')
+        f=open(Ortho4XP_dir+dir_sep+'Ortho4XP.cfg','w')
+        for item in configvars:
+            try:
+                if item not in configvars_strings:
+                    f.write(item+"="+self.entry_[item].get()+"\n")
+                else:
+                    f.write(item+"="+"'"+self.entry_[item].get()+"'"+'\n')
+            except:
+                print("I could not set the variable",item,". Perhaps was there a typo ?")
+        return
+
+    def load_from_global_cfg(self):
+        try:
+            exec(open(Ortho4XP_dir+dir_sep+'Ortho4XP.cfg').read(),globals())
+        except:
+            print('\nFailure : the config file is not present or does follow the syntax.')
+            print('_____________________________________________________________'+\
+                '____________________________________')
+        self.load_from_present_values()
+        application.update_interface_with_variables()
+        return
+
+    def popup(self,item):
+        popup = Tk()
+        popup.wm_title("")
+        label = ttk.Label(popup, text=self.explanation[item])
+        label.pack(side="top", fill="x", padx=5,pady=5)
+        B1 = ttk.Button(popup, text="Ok", command = popup.destroy)
+        B1.pack()
+        return
+    
+    
+
+##############################################################################
 
 ############################################################################################
 class Ortho4XP_Graphical(Tk):
@@ -5816,17 +7255,13 @@ class Ortho4XP_Graphical(Tk):
         self.progress_mont.set(0)
         self.progress_conv   = IntVar()
         self.progress_conv.set(0)
-        # --> mth
         self.comp_func       = StringVar()
         self.comp_func.set('Do nothing')
-        # <-- mth
 
         # Constants
-        self.map_list        = ['None']+px256_list+wms2048_list
-        self.zl_list         = ['12','13','14','15','16','17','18','19']
-        # --> mth
+        self.map_list        = ['None']+sorted(list(providers_dict)+list(combined_providers_dict))
+        self.zl_list         = ['11','12','13','14','15','16','17','18','19']
         self.comp_func_list  = ['Do nothing','Exit program','Shutdown computer']
-        # <-- mth
         # Frames
         self.frame_left       =  Frame(self, border=4,\
                                  relief=RIDGE,bg='light green')
@@ -5848,12 +7283,7 @@ class Ortho4XP_Graphical(Tk):
         self.frame_left.grid(row=0,column=0,sticky=N+S+W+E)
         self.frame_right.grid(row=0,rowspan=60,column=1,sticky=N+S+W+E)
         self.frame_rdbtn.grid(row=16,column=0,columnspan=3,sticky=N+S+E+W)
-        # --> mth
-        # --> original
-        # self.frame_lastbtn.grid(row=21,column=0,columnspan=6,sticky=N+S+E+W)
-        # <-- original
         self.frame_lastbtn.grid(row=23,column=0,columnspan=6,sticky=N+S+E+W)
-        # <-- mth
 
         # Widgets style
         combostyle  = ttk.Style()
@@ -5879,9 +7309,9 @@ class Ortho4XP_Graphical(Tk):
         self.build_dir_entry  =  Entry(self.frame_left,width=20,bg="white",fg="blue",textvariable=self.bd)
         self.label_zl         =  Label(self.frame_left,anchor=W,text="Provider and Zoomlevel",\
                                     fg = "light green",bg = "dark green",font = "Helvetica 16 bold italic")
-        self.title_src        =  Label(self.frame_left,anchor=W,text="Base source  :",bg="light green") 
+        self.title_src        =  Label(self.frame_left,anchor=W,text="Imagery :",bg="light green") 
         self.map_combo        =  ttk.Combobox(self.frame_left,textvariable=self.map_choice,\
-                                    values=self.map_list,state='readonly',width=6)
+                                    values=self.map_list,state='readonly',width=10)
         self.title_zl         =  Label(self.frame_left,anchor=W,text="  Base zoomlevel  :",bg="light green")
         self.zl_combo         =  ttk.Combobox(self.frame_left,textvariable=self.zl_choice,\
                                     values=self.zl_list,state='readonly',width=3)
@@ -5892,16 +7322,6 @@ class Ortho4XP_Graphical(Tk):
         self.zlsea_combo         =  ttk.Combobox(self.frame_left,textvariable=self.zlsea_choice,\
                                     values=self.zl_list,state='readonly',width=3)
         self.preview_btn      =  Button(self.frame_left, text='Choose custom zoomlevel',command=self.preview_tile)
-        #self.title_water      =  Label(self.frame_left,anchor=W,text="Water type  :",bg="light green")
-        #self.watertype1       =  Radiobutton(self.frame_left,variable=self.water_type,value=1,text="X-Plane only",\
-                #                            border=0,bg="light green",activebackground="light green",highlightthickness=0,\
-                #                    command=self.choose_wt)
-        #self.watertype2       =  Radiobutton(self.frame_left,variable=self.water_type,value=2,text="Photoreal only",\
-                #                           border=0,bg="light green",activebackground="light green",highlightthickness=0,\
-                #                    command=self.choose_wt)
-        #self.watertype3       =  Radiobutton(self.frame_left,variable=self.water_type,value=3,text="Mixed with transparency",\
-                #                           border=0,bg="light green",activebackground="light green",highlightthickness=0,\
-                #                    command=self.choose_wt)
         self.label_osm        =  Label(self.frame_left,justify=RIGHT,anchor=W,text="Build vector data (OSM/Patches)",\
                                    fg = "light green",bg = "dark green",font = "Helvetica 16 bold italic")
         self.title_min_area   =  Label(self.frame_left,text='Min_area  :',anchor=W,bg="light green")
@@ -5960,8 +7380,9 @@ class Ortho4XP_Graphical(Tk):
         self.build_masks_btn  =  Button(self.frame_left,text='(Step 2.5 : Build Masks)',command=self.build_masks_ifc)
         self.title_ratio_water=  Label(self.frame_left,text='Ratio_water : ',bg="light green")
         self.ratio_water_entry=  Entry(self.frame_left,width=4,bg="white",fg="blue",textvariable=self.rw)
-        self.read_cfg_btn     =  Button(self.frame_lastbtn,text='Read Config ',command=self.read_cfg)
-        self.write_cfg_btn    =  Button(self.frame_lastbtn,text='Write Config',command=self.write_cfg)
+        self.read_cfg_btn     =  Button(self.frame_lastbtn,text='Read tile Cfg ',command=self.read_cfg)
+        self.write_cfg_btn    =  Button(self.frame_lastbtn,text='Write tile Cfg',command=self.write_cfg)
+        self.expert_cfg_btn   =  Button(self.frame_lastbtn,text='Global Config ',command=self.expert_cfg)
         self.kill_proc_btn    =  Button(self.frame_lastbtn,text='Stop process',command=self.stop_process)
         self.exit_btn         =  Button(self.frame_lastbtn,text='    Exit    ',command=self.quit)
         self.title_progress_a =  Label(self.frame_left,anchor=W,text="DSF/Masks progress",bg="light green")
@@ -6001,10 +7422,6 @@ class Ortho4XP_Graphical(Tk):
         self.title_zlsea.grid(row=6,column=2,sticky=N+S+E+W,padx=5,pady=5)
         self.zlsea_combo.grid(row=6,column=3,columnspan=1,padx=5,pady=5,sticky=W)
         self.preview_btn.grid(row=5,column=4, columnspan=2,padx=5, pady=5,sticky=N+S+W+E)
-        #self.title_water.grid(row=5,column=0,columnspan=1, padx=5,pady=5,sticky=N+S+E+W)
-        #self.watertype1.grid(row=5,column=1,columnspan=2, pady=5,sticky=N+S+W)
-        #self.watertype2.grid(row=6,column=1,columnspan=2, pady=5,sticky=N+S+W)
-        #self.watertype3.grid(row=7,column=1,columnspan=2, pady=5,sticky=N+S+W)
         self.label_osm.grid(row=7,column=0,columnspan=6,sticky=W+E)
         self.title_min_area.grid(row=8,column=0, padx=5, pady=5,sticky=W+E) 
         self.min_area.grid(row=8,column=1, padx=5, pady=5,sticky=W)
@@ -6035,26 +7452,27 @@ class Ortho4XP_Graphical(Tk):
         self.build_tile_btn.grid(row=17,rowspan=3,column=4,columnspan=2,padx=5,sticky=N+S+W+E)
         self.read_cfg_btn.grid(row=0,column=0,padx=5, pady=5,sticky=N+S+W+E)
         self.write_cfg_btn.grid(row=0,column=1,padx=5, pady=5,sticky=N+S+W+E)
-        self.kill_proc_btn.grid(row=0,column=2,padx=5,pady=5,sticky=N+S+W+E)
-        self.exit_btn.grid(row=0,column=3, padx=5, pady=5,sticky=N+S+W+E)
+        self.expert_cfg_btn.grid(row=0,column=2,padx=5, pady=5,sticky=N+S+W+E)
+        self.kill_proc_btn.grid(row=0,column=3,padx=5,pady=5,sticky=N+S+W+E)
+        self.exit_btn.grid(row=0,column=4, padx=5, pady=5,sticky=N+S+W+E)
         self.title_progress_a.grid(row=17,column=0,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
         self.progressbar_attr.grid(row=17,column=2,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
         self.title_progress_d.grid(row=18,column=0,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
         self.progressbar_down.grid(row=18,column=2,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
-        #self.title_progress_m.grid(row=20,column=0,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
-        #self.progressbar_mont.grid(row=20,column=2,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
         self.title_progress_c.grid(row=19,column=0,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
         self.progressbar_conv.grid(row=19,column=2,columnspan=2,padx=5,pady=0,sticky=N+S+E+W)
-        # --> mth
         self.title_comp_func.grid(row=20,column=0,columnspan=2,padx=5,pady=5,sticky=E+W)
         self.comp_func_combo.grid(row=20,column=2,columnspan=2,padx=5,pady=5,sticky=E+W)
-        # <-- mth
         self.label_overlay.grid(row=21,column=0,columnspan=6,sticky=W+E)
         self.sniff_check.grid(row=22,column=0,columnspan=2, pady=5,sticky=N+S+E+W)
         self.sniff_dir_entry.grid(row=22,column=2,columnspan=3, padx=5, pady=5,sticky=N+S+E+W)
         self.sniff_btn.grid(row=22,column=5,columnspan=1, padx=5, pady=5,sticky=N+S+E+W)
         self.std_out.grid(row=0,column=0,padx=5,pady=5,sticky=N+S+E+W)
         # read default choices from config file 
+        self.update_interface_with_variables() 
+
+
+    def update_interface_with_variables(self):
         try:
             self.water_type.set(water_option)
             self.map_choice.set(default_website)
@@ -6082,20 +7500,145 @@ class Ortho4XP_Graphical(Tk):
             self.complexmasks.set(complex_masks)
             self.masksinland.set(use_masks_for_inland)
         except:
-            print("\nWARNING : the main config file is incomplete or does not follow the syntax,")
+            print("\nWARNING : the config variables are incomplete or do not follow the syntax,")
             print("I could not initialize all the parameters to your wish.")
             print('_____________________________________________________________'+\
                 '____________________________________')
         return 
     
+    def check_entry_params(self):
+        try:
+            test_min_area=float(self.min_area.get())
+        except:
+            print('\nFailure : parameter min_area wrongly encoded.')
+            print('_____________________________________________________________'+\
+            '____________________________________')
+            return 'error'
+        if (test_min_area<0):
+            print('\nFailure : parameter min_area exceeds limits.')
+            print('_____________________________________________________________'+\
+            '____________________________________')
+            return 'error'
+        try:
+            test_curvature_tol=float(self.curv_tol.get())
+            if test_curvature_tol < 0.01 or test_curvature_tol>100:
+                print('\nFailure : curvature_tol exceeds limits.')
+                print('_____________________________________________________________'+\
+                '____________________________________')
+                return 'error'
+        except:
+            print('\nFailure : curvature_tol wrongly encoded.')
+            print('_____________________________________________________________'+\
+                '____________________________________')
+            return  'error'
+        if not self.minangc.get()==0:
+            try:
+                test_smallest_angle=int(self.minang.get())
+            except:
+                print('\nFailure : minimum angle wrongly encoded.')
+                print('_____________________________________________________________'+\
+                '____________________________________')
+                return 'error'
+            if (test_smallest_angle<0) or (test_smallest_angle>30):
+                print('\nFailure : minimum angle larger than 30° not allowed.')
+                print('_____________________________________________________________'+\
+                '____________________________________')
+                return 'error'
+        try:
+            test_masks_width=int(self.masks_width_e.get())
+            if test_masks_width < 1 or test_masks_width>512:
+                print('\nFailure : masks_width off limits.')
+                print('_____________________________________________________________'+\
+                '____________________________________')
+                return 'error'
+        except:
+            print('\nFailure : masks_width wrongly encoded.')
+            print('_____________________________________________________________'+\
+                '____________________________________')
+            return 'error'
+        if not self.water_type.get()==1:
+            try:
+                test_ratio_water=float(self.ratio_water_entry.get())
+                if test_ratio_water<0 or test_ratio_water>1:
+                    print('\nFailure : ratio_water off limits.')
+                    print('_____________________________________________________________'+\
+                    '____________________________________')
+                    return 'error'
+            except:
+                print("The ratio_water parameter is wrongly encoded.")
+                return 'error'
+        return 'success'
+    
+    def update_variables_with_interface(self):
+        if self.check_entry_params()!='success':
+            print("Test failed, no variable has been updated.\n")
+            return  'error'
+        globals()['default_website']=self.map_choice.get()
+        globals()['default_zl']=self.zl_choice.get()
+        if self.seamap_choice.get() != '': 
+           globals()['sea_texture_params']=[self.seamap_choice.get(),int(self.zlsea_choice.get())]
+        else:
+           globals()['sea_texture_params']=[]
+        globals()['min_area']=float(self.min_area.get())
+        globals()['curvature_tol']=float(self.curv_tol.get())
+        if self.minangc.get()==0:
+            globals()['no_small_angles']=False
+        else:
+            globals()['no_small_angles']=True
+        if not self.minangc.get()==0:
+            globals()['smallest_angle']=int(self.minang.get())
+        globals()['masks_width']=int(self.masks_width_e.get())
+        if not self.water_type.get()==1:
+            globals()['ratio_water']=float(self.ratio_water_entry.get())
+        if self.skipd.get()==1:
+            self.skipc.set(1)
+            globals()['skip_downloads']=True
+            globals()['skip_converts']=True
+        else:
+            globals()['skip_downloads']=False  
+        if self.skipc.get()==0:
+            globals()['skip_converts']=False
+            if self.skipd.get()==1:
+                self.skipc.set(1)
+                globals()['skip_converts']=True
+        else:
+            globals()['skip_converts']=True
+        if self.c_tms_r.get()==0:
+            globals()['check_tms_response']=False
+        else:
+            globals()['check_tms_response']=True
+        if self.verbose.get()==0:
+            globals()['verbose_output']=False
+        else:
+            globals()['verbose_output']=True
+        if self.cleantmp.get()==0:
+            globals()['clean_tmp_files']=False
+        else:
+            globals()['clean_tmp_files']=True
+        if self.cleanddster.get()==0:
+            globals()['clean_unused_dds_and_ter_files']=False
+        else:
+            globals()['clean_unused_dds_and_ter_files']=True
+        if self.complexmasks.get()==0:
+            globals()['complex_masks']=False
+        else:
+            globals()['complex_masks']=True
+        if self.masksinland.get()==0:
+            globals()['use_masks_for_inland']=False
+        else:
+            globals()['use_masks_for_inland']=True
+        if self.sniff.get()==1:
+            globals()['default_sniff_dir']=self.sniff_dir_entry.get()
+        return 'success' 
+           
     def write(self,text):
         if text=='' or text[-1]!='\r':
-            self.std_out.insert(END,str(text))
-            self.std_out.see(END)
+            self.std_out.insert('end',str(text))
+            self.std_out.see('end')
         else:
-            self.std_out.delete("end linestart", "end") 
-            self.std_out.insert(END,str(text))
-            self.std_out.see(END)
+            self.std_out.delete('end linestart','end') 
+            self.std_out.insert('end',str(text))
+            self.std_out.see('end')
         return
 
     def flush(self):
@@ -6138,15 +7681,6 @@ class Ortho4XP_Graphical(Tk):
             self.sniff_dir.set('')
         return 
     
-    #def choose_wt(self):
-    #    if True:
-        #if self.water_type.get()==3:
-        #    self.rw.set('0.2')
-        #else:
-        #    self.rw.set('')
-        #return
-    
-
     def preview_tile(self):
         [lat,lon]=self.load_latlon()
         if lat=='error':
@@ -6187,9 +7721,8 @@ class Ortho4XP_Graphical(Tk):
             build_dir=self.build_dir_entry.get()
             if build_dir[-1]=='/':
                 build_dir=build_dir[:-1]+dir_sep+'zOrtho4XP_'+strlat+strlon
-        #water_option= self.water_type.get()
-        website=self.map_choice.get()
-        if website!='None':
+        provider_code=self.map_choice.get()
+        if provider_code!='None':
             try:
                 min_area=float(self.min_area.get())
             except:
@@ -6304,16 +7837,36 @@ class Ortho4XP_Graphical(Tk):
             return
         strlat='{:+.0f}'.format(lat).zfill(3)
         strlon='{:+.0f}'.format(lon).zfill(4)
+        strlatround='{:+.0f}'.format(floor(lat/10)*10).zfill(3)
+        strlonround='{:+.0f}'.format(floor(lon/10)*10).zfill(4)
         if self.build_dir_entry.get()=='':
             build_dir=Ortho4XP_dir+dir_sep+'Tiles'+dir_sep+'zOrtho4XP_'+strlat+strlon
         else:
             build_dir=self.build_dir_entry.get()
             if build_dir[-1]=='/':
                 build_dir=build_dir[:-1]+dir_sep+'zOrtho4XP_'+strlat+strlon
-        mesh_filename = build_dir+dir_sep+'Data'+strlat+strlon+".mesh"
-        if os.path.isfile(mesh_filename)!=True:
-            print("You must first construct the mesh !")
-            return
+        mesh_file_name = build_dir+dir_sep+'Data'+strlat+strlon+".mesh"
+        provider_code=self.map_choice.get()
+        if os.path.isfile(mesh_file_name)!=True:
+            if provider_code!='None':
+                print("You must first construct the mesh !")
+                return
+            else:
+                base_sniff_dir=self.sniff_dir_entry.get()
+                file_to_sniff=base_sniff_dir+dir_sep+"Earth nav data"+dir_sep+\
+                      strlatround+strlonround+dir_sep+strlat+strlon+'.dsf'
+                if not os.path.isfile(file_to_sniff):
+                    print('\nFailure : there is no file to sniff from at the indicated place.')
+                    print('_____________________________________________________________'+\
+                      '____________________________________')
+                    return
+                dem_alternative=self.custom_dem_entry.get()
+                print("\nTranscoding Tile "+strlat+strlon+" : ")
+                print("------------------------\n")
+                fargs_re_encode_dsf=[lat,lon,build_dir,file_to_sniff,keep_orig_zuv,dem_alternative,seven_zip]
+                re_encode_dsf_thread=threading.Thread(target=re_encode_dsf,args=fargs_re_encode_dsf)
+                re_encode_dsf_thread.start()
+                return
         if self.water_type.get()==1:
             water_overlay=False
         else:
@@ -6324,20 +7877,19 @@ class Ortho4XP_Graphical(Tk):
                 print("The ratio_water parameter is wrongly encoded.")
                 return
         self.set_cleantmp()
-        website=self.map_choice.get()
         zoomlevel=self.zl_choice.get()
         if self.seamap_choice.get() != '': 
            sea_texture_params=[self.seamap_choice.get(),int(self.zlsea_choice.get())]
         else:
            sea_texture_params=[]
         ortho_list=zone_list[:]
-        if website!='None':
+        if provider_code!='None':
             ortho_list.append([[lat,lon,lat,lon+1,lat+1,lon+1,lat+1,lon,lat,lon],\
-                        str(zoomlevel),str(website)])
+                        str(zoomlevel),str(provider_code)])
         self.write_cfg()
         print("\nStep 3 : Building Tile "+strlat+strlon+" : ")
         print("--------\n")
-        fargs_build_tile=[lat,lon,build_dir,mesh_filename,True]
+        fargs_build_tile=[lat,lon,build_dir,mesh_file_name,True]
         build_tile_thread=threading.Thread(target=build_tile,\
                 args=fargs_build_tile)
         build_tile_thread.start()
@@ -6370,25 +7922,25 @@ class Ortho4XP_Graphical(Tk):
             return
         if not os.path.exists(build_dir+dir_sep+"textures"):
             os.makedirs(build_dir+dir_sep+"textures")
-        mesh_filename = build_dir+dir_sep+'Data'+strlat+strlon+".mesh"
-        if os.path.isfile(mesh_filename)!=True:
+        mesh_file_name = build_dir+dir_sep+'Data'+strlat+strlon+".mesh"
+        if os.path.isfile(mesh_file_name)!=True:
             print("You must first construct the mesh !")
             return
         print("\nStep 2.5 : Building Masks for Tile "+strlat+strlon+" : ")
         print("----------\n")
         if complex_masks==False:
-            mesh_filename_list=[mesh_filename]
+            mesh_file_name_list=[mesh_file_name]
         else:
-            mesh_filename_list=[]
+            mesh_file_name_list=[]
             for closelat in [lat-1,lat,lat+1]:
                 for closelon in [lon-1,lon,lon+1]:
                     strcloselat='{:+.0f}'.format(closelat).zfill(3)
                     strcloselon='{:+.0f}'.format(closelon).zfill(4)
-                    closemesh_filename=build_dir+dir_sep+'..'+dir_sep+'zOrtho4XP_'+strcloselat+strcloselon+\
+                    closemesh_file_name=build_dir+dir_sep+'..'+dir_sep+'zOrtho4XP_'+strcloselat+strcloselon+\
                                    dir_sep+'Data'+strcloselat+strcloselon+".mesh"
-                    if os.path.isfile(closemesh_filename):
-                        mesh_filename_list.append(closemesh_filename)
-        fargs_build_masks=[lat,lon,build_dir,mesh_filename_list]
+                    if os.path.isfile(closemesh_file_name):
+                        mesh_file_name_list.append(closemesh_file_name)
+        fargs_build_masks=[lat,lon,build_dir,mesh_file_name_list,maskszl]
         build_masks_thread=threading.Thread(target=build_masks,\
                 args=fargs_build_masks)
         build_masks_thread.start()
@@ -6472,70 +8024,6 @@ class Ortho4XP_Graphical(Tk):
         build_tile_list_thread.start()
         return
 
-    def check_entry_params(self):
-        try:
-            test_min_area=float(self.min_area.get())
-        except:
-            print('\nFailure : parameter min_area wrongly encoded.')
-            print('_____________________________________________________________'+\
-            '____________________________________')
-            return 'error'
-        if (test_min_area<0):
-            print('\nFailure : parameter min_area exceeds limits.')
-            print('_____________________________________________________________'+\
-            '____________________________________')
-            return 'error'
-        try:
-            test_curvature_tol=float(self.curv_tol.get())
-            if test_curvature_tol < 0.01 or test_curvature_tol>100:
-                print('\nFailure : curvature_tol exceeds limits.')
-                print('_____________________________________________________________'+\
-                '____________________________________')
-                return 'error'
-        except:
-            print('\nFailure : curvature_tol wrongly encoded.')
-            print('_____________________________________________________________'+\
-                '____________________________________')
-            return  'error'
-        if not self.minangc.get()==0:
-            try:
-                test_smallest_angle=int(self.minang.get())
-            except:
-                print('\nFailure : minimum angle wrongly encoded.')
-                print('_____________________________________________________________'+\
-                '____________________________________')
-                return 'error'
-            if (test_smallest_angle<0) or (test_smallest_angle>30):
-                print('\nFailure : minimum angle larger than 30° not allowed.')
-                print('_____________________________________________________________'+\
-                '____________________________________')
-                return 'error'
-        try:
-            test_masks_width=int(self.masks_width_e.get())
-            if test_masks_width < 1 or test_masks_width>512:
-                print('\nFailure : masks_width off limits.')
-                print('_____________________________________________________________'+\
-                '____________________________________')
-                return 'error'
-        except:
-            print('\nFailure : masks_width wrongly encoded.')
-            print('_____________________________________________________________'+\
-                '____________________________________')
-            return 'error'
-        if not self.water_type.get()==1:
-            try:
-                test_ratio_water=float(self.ratio_water_entry.get())
-                if test_ratio_water<0 or test_ratio_water>1:
-                    print('\nFailure : ratio_water off limits.')
-                    print('_____________________________________________________________'+\
-                    '____________________________________')
-                    return 'error'
-            except:
-                print("The ratio_water parameter is wrongly encoded.")
-                return 'error'
-        return 'success'
-
-
     def read_cfg(self):
         global build_dir,water_option,ratio_water,min_area,curvature_tol,\
                no_small_angles,smallest_angle,default_website,default_zl,\
@@ -6559,56 +8047,14 @@ class Ortho4XP_Graphical(Tk):
             print('_____________________________________________________________'+\
                 '____________________________________')
             return 
-        try:
-            self.water_type.set(water_option)
-            self.rw.set(ratio_water)
-            self.ma.set(min_area)
-            self.ct.set(curvature_tol)
-            if no_small_angles==True:
-                self.minangc.set(1)
-                self.minang.set(smallest_angle)
-            else:
-                self.minangc.set(0)
-                self.minang.set('')
-            self.skipd.set(skip_downloads)
-            self.skipc.set(skip_converts)
-            self.cleantmp.set(clean_tmp_files)
-            self.cleanddster.set(clean_unused_dds_and_ter_files)
-            self.complexmasks.set(complex_masks)
-            self.masksinland.set(use_masks_for_inland)
-            self.verbose.set(verbose_output)
-            if check_tms_response==True:
-                self.c_tms_r.set(1)
-            else:
-                self.c_tms_r.set(0)
-            try:
-                self.map_choice.set(default_website)
-                if sea_texture_params==[]:
-                    self.seamap_choice.set('')
-                else:
-                    self.seamap_choice.set(sea_texture_params[0])
-            except:
-                print("\nFailure : your default provider is no longer present in your address book.")
-                print('_____________________________________________________________'+\
-                   '____________________________________')
-                return
-            self.zl_choice.set(default_zl)
-            if sea_texture_params==[]:
-                self.zlsea_choice.set('')
-            else:
-                self.zlsea_choice.set(sea_texture_params[1])
-            self.mw.set(masks_width)
-        except:
-            print("\nWARNING : the main config file is incomplete or does not follow the syntax,")
-            print("I could not initialize all the parameters to your wish.")
-            print('_____________________________________________________________'+\
-                '____________________________________')
+        self.update_interface_with_variables()
         return
       
     def write_cfg(self):
         if self.check_entry_params()!='success':
             print("No config file was written.\n")
             return
+        self.update_variables_with_interface()
         [lat,lon]=self.load_latlon()
         if lat=='error':
            return 'error'
@@ -6623,74 +8069,27 @@ class Ortho4XP_Graphical(Tk):
         if not os.path.exists(build_dir):
             os.makedirs(build_dir)
         try:
-            fgen=open(Ortho4XP_dir+dir_sep+"Ortho4XP.cfg",'r')
             fbuild=open(build_dir+dir_sep+"Ortho4XP.cfg",'w')
-            fbuild.write("# generated from the generic config file :\n")
         except:
-            print("\nI could not read or write the config file.")
-            print("Are you sure about the indicated build_dir directory ?")
+            print("\nI could open a file for writing at the indicated location.")
             print("\n Failure.")
             print('_____________________________________________________________'+\
                 '____________________________________')
             return 'error'
-        for line in fgen.readlines():
-            fbuild.write(line)
-        fgen.close()
-        fbuild.write("\n# generated from the interface :\n")
-        fbuild.write("default_website='"+str(self.map_choice.get())+"'\n") 
-        fbuild.write("default_zl="+str(self.zl_choice.get())+"\n") 
-        if self.seamap_choice.get() != '':
-            fbuild.write("sea_texture_params=['"+str(self.seamap_choice.get())+"',"+str(self.zlsea_choice.get())+"]\n")
-        else:
-            fbuild.write("sea_texture_params=[]\n")
+        fbuild.write("# Tile specific config file : lat="+str(lat)+", lon="+str(lon)+"\n")
+        for item in configvars:
+            if item not in configvars_strings:    
+                fbuild.write(str(item)+"="+str(eval(item))+"\n") 
+            else:
+                fbuild.write(str(item)+"='"+str(eval(item))+"'\n") 
         fbuild.write("zone_list=[]\n")
         for zone in zone_list:
             fbuild.write("zone_list.append("+str(zone)+")\n")
-        fbuild.write("min_area="+str(float(self.min_area.get()))+"\n")
-        fbuild.write("curvature_tol="+str(float(self.curv_tol.get()))+"\n")
-        if self.minangc.get()==0:
-            fbuild.write("no_small_angles=False\n")
-        else:
-            fbuild.write("no_small_angles=True\n")
-        if self.minangc.get()==1:
-            fbuild.write("smallest_angle="+str(int(self.minang.get()))+"\n")
-        #fbuild.write("water_option="+str(self.water_type.get())+"\n")
-        fbuild.write("masks_width="+str(int(self.mw.get()))+"\n")
-        if water_option==3:
-            fbuild.write("ratio_water="+str(float(self.rw.get()))+"\n")
-        if self.skipd.get()==0:
-            fbuild.write("skip_downloads=False\n")
-        else:
-            fbuild.write("skip_downloads=True\n")
-        if self.skipc.get()==0:
-            fbuild.write("skip_converts=False\n")
-        else:
-            fbuild.write("skip_converts=True\n")
-        if self.c_tms_r.get()==0:
-            fbuild.write("check_tms_response=False\n")
-        else:
-            fbuild.write("check_tms_response=True\n")
-        if self.verbose.get()==0:
-            fbuild.write("verbose_output=False\n")
-        else:
-            fbuild.write("verbose_output=True\n")
-        if self.cleantmp.get()==0:
-            fbuild.write("clean_tmp_files=False\n")
-        else:
-            fbuild.write("clean_tmp_files=True\n")
-        if self.cleanddster.get()==0:
-            fbuild.write("clean_unused_dds_and_ter_files=False\n")
-        else:
-            fbuild.write("clean_unused_dds_and_ter_files=True\n")
-        if self.complexmasks.get()==0:
-            fbuild.write("complex_masks=False\n")
-        else:
-            fbuild.write("complex_masks=True\n")
-        if self.masksinland.get()==0:
-            fbuild.write("use_masks_for_inland=False\n")
-        else:
-            fbuild.write("use_masks_for_inland=True\n")
-        fbuild.close()
+        return
+        
+    def expert_cfg(self):
+        self.update_variables_with_interface()
+        self.expert_window=Expert_config() 
         return
 
     def load_latlon(self):
@@ -6708,7 +8107,6 @@ class Ortho4XP_Graphical(Tk):
                 '____________________________________')
             return ['error','error']
         return [lat,lon]
- 
 
     def set_skip_downloads(self):
         global skip_downloads,skip_converts
@@ -6789,11 +8187,8 @@ class Ortho4XP_Graphical(Tk):
 # The following is essentially taken with minor modifications from Jonathan 
 # Harris (Marginal) DSFLib.py 
 #
-def read_dsf_mesh(lat,lon,build_dir,file_to_sniff,poly_list,bbox_list,dem_alternative=''):
-    skipnetworks=True
+def read_dsf(lat,lon,build_dir,file_to_sniff,keep_orig_zuv=False,dem_alternative=False):
     timer=time.time()
-    terrain_im=Image.new("L",(raster_resolution,raster_resolution))
-    terrain_draw=ImageDraw.Draw(terrain_im)
     strlat='{:+.0f}'.format(lat).zfill(3)
     strlon='{:+.0f}'.format(lon).zfill(4)
     strlatround='{:+.0f}'.format(floor(lat/10)*10).zfill(3)
@@ -6804,17 +8199,20 @@ def read_dsf_mesh(lat,lon,build_dir,file_to_sniff,poly_list,bbox_list,dem_altern
     file = open(file_to_sniff_loc,'rb')
     # check for 7z compression and unzip if necessary
     dsfid = file.read(2).decode('ascii')
+    file.close()
     if dsfid == '7z':
-        file.close()
+        print("Exctracting original dsf from its 7z archive...")
         os.system(rename_cmd+'"'+file_to_sniff_loc+'" "'+file_to_sniff_loc+'.7z" '+\
               devnull_rdir)
         os.system(unzip_cmd+' e -o'+Ortho4XP_dir+dir_sep+'tmp'+' "'+\
               file_to_sniff_loc+'.7z"')
-        file = open(file_to_sniff_loc,'rb')
+    bfile = open(file_to_sniff_loc,'rb').read()
+    file=io.BytesIO(bfile)
+    print("Reading original DSF...")
     #########
     # read atoms headers and save their positions
     table={}
-    file.seek(-16,os.SEEK_END)	
+    file.seek(-16,os.SEEK_END)
     end=file.tell()
     p=12
     while p<end:
@@ -6829,18 +8227,15 @@ def read_dsf_mesh(lat,lon,build_dir,file_to_sniff,poly_list,bbox_list,dem_altern
     headend=file.tell()+l-8
     file.read(4)
     (l,)=struct.unpack('<I', file.read(4))
-    c=file.read(l-9).split(b'\0')
-    file.read(1)
-    overlay=0
-    for i in range(0, len(c)-1, 2):
-        if c[i]==b'sim/overlay': overlay=int(c[i+1])
-        elif c[i]==b'sim/west': west=int(c[i+1])
-    file.seek(headend)
+    bPROP=file.read(l-8)
 
     # Definitions Atom
+    bOBJT=bPOLY=bNETW=bDEMW=b''
     file.seek(table[b'NFED'])
     (l,)=struct.unpack('<I', file.read(4))
     defnend=file.tell()+l-8
+    bDEFN=file.read(l-8)
+    file.seek(8-l,1) 
     terrain=objects=polygons=networks=rasternames=[]
     while file.tell()<defnend:
         c=file.read(4)
@@ -6848,30 +8243,34 @@ def read_dsf_mesh(lat,lon,build_dir,file_to_sniff,poly_list,bbox_list,dem_altern
         if l==8:
             pass	# empty
         elif c==b'TRET':
+            bTERT=file.read(l-8)
+            file.seek(file.tell()-l+8)
             terrain=[x.decode('ascii') for x in file.read(l-9).split(b'\0')]
-            print("terrain length : ",len(terrain))
+            print("Number of terrain definitions : ",len(terrain))
             file.read(1)
         elif c==b'TJBO':
-            objects=[x.decode() for x in file.read(l-9).split(b'\0')]	# X-Plane only supports ASCII
+            bOBJT=file.read(l-8)
+            file.seek(file.tell()-l+8)
+            objects=[x.decode() for x in file.read(l-9).split(b'\0')]
             file.read(1)
         elif c==b'YLOP':
-            polygons=[x.decode() for x in file.read(l-9).split(b'\0')]	# X-Plane only supports ASCII
+            bPOLY=file.read(l-8)
+            file.seek(file.tell()-l+8)
+            polygons=[x.decode() for x in file.read(l-9).split(b'\0')]
             file.read(1)
         elif c==b'WTEN':
-            networks=file.read(l-9).split(b'\0')
+            bNETW=file.read(l-8)
+            file.seek(file.tell()-l+8)
+            networks=[x.decode() for x in file.read(l-9).split(b'\0')]
             file.read(1)
         elif c==b'NMED':
-            rasternames=file.read(l-9).split(b'\0')
+            bDEMN=file.read(l-8)
+            file.seek(file.tell()-l+8)
+            rasternames=[x.decode() for x in file.read(l-9).split(b'\0')]
             file.read(1)
         else:
             file.seek(l-8, 1)
-
-    if len(terrain)>256:
-        terrain_im_mult=Image.new("L",(raster_resolution,raster_resolution))
-        terrain_draw_mult=ImageDraw.Draw(terrain_im_mult)
-        mult_draw=True
-    else:
-        mult_draw=False
+        
     # Geodata Atom
     clock=time.time()	# Processor time
     file.seek(table[b'DOEG'])
@@ -6880,19 +8279,29 @@ def read_dsf_mesh(lat,lon,build_dir,file_to_sniff,poly_list,bbox_list,dem_altern
     ####
     pool=[]
     scal=[]
-    po32=[]
-    sc32=[]
     nbr_of_pools=0
+    skipped_pools=0
+    kept_pools=0
+    bGEOD=b''
     while file.tell()<geodend:
         c=file.read(4)
         (l,)=struct.unpack('<I', file.read(4))
         if c == b'23OP':
-            print("pool32 :",l)
-            file.seek(l-8,1)
+            if l>8:
+                file.seek(file.tell()-8)
+                bGEOD+=file.read(l)
         elif c == b'23CS':
-            file.seek(l-8, 1)	
+            if l>8:
+                file.seek(file.tell()-8)
+                bGEOD+=file.read(l)
         elif c == b'LOOP':
             (n,p)=struct.unpack('<IB', file.read(5))
+            if p<5:
+                file.seek(file.tell()-13)
+                bGEOD+=file.read(l)
+                kept_pools+=1
+                continue
+            skipped_pools+=1
             thispool = numpy.empty((n,p), numpy.uint16)
             # Pool data is supplied in column order (by "plane"), so use numpy slicing to assign
             for i in range(p):
@@ -6914,50 +8323,34 @@ def read_dsf_mesh(lat,lon,build_dir,file_to_sniff,poly_list,bbox_list,dem_altern
                     thispool[:,i] = numpy.cumsum(thispool[:,i], dtype=numpy.uint16)
             pool.append(thispool)
         elif c==b'LACS':
+            if l<= 40: # 8+2*4*4 i.e. 4 planes at most
+                file.seek(file.tell()-8)
+                bGEOD+=file.read(l)
+                continue
             scal.append(numpy.fromstring(file.read(l-8), '<f').reshape(-1,2))
         else:
             file.seek(l-8, 1)
-    print("%6.3f time in GEOD atom" % (time.time()-clock))
+    #print("%6.3f time in GEOD atom" % (time.time()-clock))
     
-    [altdem,ndem]=load_altitude_matrix(lat,lon,dem_alternative)
-    # Rescale pools
-    clock=time.time()
-    for i in range(len(pool)):				# number of pools
-        curpool = pool[i]
-        curscale= scal[i]
-        newpool = numpy.empty(curpool.shape, float)		# need double precision for placements
-        for plane in range(len(curscale)):		# number of planes in this pool
-            (scale,offset) = curscale[plane]
-            if scale:
-                newpool[:,plane] = curpool[:,plane] * (scale/0xffff) + float(offset)
-            else:
-                newpool[:,plane] = curpool[:,plane] + float(offset)
-        # numpy doesn't work efficiently skipping around the variable sized pools, so don't consolidate
-        pool[i] = newpool
-    while po32 and not len(po32[-1]): po32.pop()	# v10 DSFs have a bogus zero-dimensioned pool at the end
-    while pool and not len(pool[-1]): pool.pop()	# v10 DSFs have a bogus zero-dimensioned pool at the end
-   
-    
-    for i in range(len(pool)):
-        if len(scal[i])>=3: pool[i][:,2]=altitude_vec(pool[i][:,0]-lon,pool[i][:,1]-lat,altdem,ndem)
- 
-    print("%6.3f time in rescale" % (time.time()-clock))
 
     # X-Plane 10 raster data
     raster={}
-    elev=elevwidth=elevheight=None
     if b'SMED' in table:
         clock=time.time()
         file.seek(table[b'SMED'])
         (l,)=struct.unpack('<I', file.read(4))
         demsend=file.tell()+l-8
+        bDEMS=file.read(l-8)
+        file.seek(8-l,1)
+
         ####
         layerno=0
         while file.tell()<demsend:
             file.read(4)  
             (l1,)=struct.unpack('<I', file.read(4))
             (ver,bpp,flags,width,height,scale,offset)=struct.unpack('<BBHIIff', file.read(20))
-            print ('IMED', ver, bpp, flags, width, height, scale, offset, rasternames[layerno])
+            print("Found raster layer : ",rasternames[layerno]," of size ",width,"x",height)
+            #print ('IMED', ver, bpp, flags, width, height, scale, offset, rasternames[layerno])
             file.read(4)
             (l2,)=struct.unpack('<I', file.read(4))
             assert l2==8+bpp*width*height
@@ -6973,9 +8366,52 @@ def read_dsf_mesh(lat,lon,build_dir,file_to_sniff,poly_list,bbox_list,dem_altern
                     fmt='i'
                 if flags&3==2:	# unsigned
                     fmt=fmt.upper()
-            data = numpy.fromstring(file.read(bpp*width*height), '<'+fmt).reshape(width,height)
+            data = numpy.fromstring(file.read(bpp*width*height), '<'+fmt).reshape(width,height).astype(numpy.uint16)
+            raster[rasternames[layerno]]=data
+            if rasternames[layerno]=='elevation':
+                altdem=raster['elevation'][::-1] 
+                ndem=width
+            elif rasternames[layerno]=='sea_level':
+                bathdem=raster['sea_level'][::-1] 
+                nbath=width
             layerno+=1
-        print("%6.3f time in DEMS atom" % (time.time()-clock))
+        #print("%6.3f time in DEMS atom" % (time.time()-clock))
+    
+    if dem_alternative:
+        [altdem,ndem]=load_altitude_matrix(lat,lon,dem_alternative)
+
+    # Rescale pools
+    clock=time.time()
+    for i in range(len(pool)):				# number of pools
+        curpool = pool[i]
+        curscale= scal[i]
+        newpool = numpy.empty(curpool.shape, float)		# need double precision for placements
+        for plane in range(len(curscale)):		# number of planes in this pool
+            (scale,offset) = curscale[plane]
+            #print(scale,offset)
+            if scale:
+                newpool[:,plane] = curpool[:,plane] * (scale/0xffff) + float(offset)
+            else:
+                newpool[:,plane] = curpool[:,plane] + float(offset)
+        # numpy doesn't work efficiently skipping around the variable sized pools, so don't consolidate
+        pool[i] = newpool
+    while pool and not len(pool[-1]): 
+        #print("removing one empty pool")
+        pool.pop()	# v10 DSFs have a bogus zero-dimensioned pool at the end
+   
+    # Update the altitude coordinate from the DEM
+    for i in range(len(pool)):
+        if len(scal[i])>=5 and not keep_orig_zuv: 
+            (z,u,v)=altitude_and_normals_vec(pool[i][:,0]-lon,pool[i][:,1]-lat,altdem,ndem)
+            z_kept=pool[i][:,2]*(pool[i][:,2]!=-32768)  # coastline forcing to zero is hence kept
+            z_new=z*(pool[i][:,2]==-32768) # other is determined from dem
+            pool[i][:,2]=z_kept+z_new
+            pool[i][:,3]=u
+            pool[i][:,4]=v
+ 
+    print("%6.3f time in RESCALING POOLS" % (time.time()-clock))
+    
+    
     # Commands Atom
     clock=time.time()	# Processor time
     file.seek(table[b'SDMC'])
@@ -6988,138 +8424,76 @@ def read_dsf_mesh(lat,lon,build_dir,file_to_sniff,poly_list,bbox_list,dem_altern
     far=-1
     flags=0	# 1=physical, 2=overlay
     curter='terrain_Water'
-    tri_list=[]
-    ter_list=[]
     tri_list_kept={}
     for ter in terrain:
         for flags in [1,2]:
             tri_list_kept[ter+'_'+str(flags)]=[]
-    hole_seeds=[]
     stripindices = MakeStripIndices()
     fanindices   = MakeFanIndices()
+    bCMDS=b''
     while file.tell()<cmdsend:
         bcmd=file.read(1)
         (c,)=struct.unpack('<B', bcmd)
-        if c==10:	# Network Chain Range 
-            file.read(4)
-        elif c==9:	# Network Chain 
-            bl=file.read(1)
-            (l,)=struct.unpack('<B', bl)
-            file.read(l*2)
-        elif c==11:	# Network Chain 32
-            bl=file.read(1)
-            (l,)=struct.unpack('<B', bl)
-            file.read(l*4)
-        elif c==13:	# Polygon Range 
-            file.read(6)
+        #print(c)
+        if c==13:	# Polygon Range 
+            bCMDS+=bcmd+file.read(6)
         elif c==15:	# Nested Polygon Range
             bpn=file.read(3)
             (param,n)=struct.unpack('<HB', bpn)
-            file.read(2*n+2)
+            bCMDS+=bcmd+bpn+file.read(2*n+2)
         elif c==27:	# Patch Triangle Strip - cross-pool 
             (l,)=struct.unpack('<B', file.read(1))
             array_in=numpy.fromstring(file.read(l*4), '<H').reshape(-1,2)[stripindices[l]]
             tri_list_loc=numpy.array([pool[p][d] for (p,d) in array_in])
             for j in range(l-2):
-                poly_tri=tri_list_loc[3*j:3*j+3][:,1::-1].reshape(6)
-                #poly_tri=numpy.concatenate((poly_tri,poly_tri[:2]))
-                keep_tri=True
-                rough_test_passed=True
-                for bbox in bbox_list:
-                    if in_bbox(poly_tri[0:2],bbox):
-                        rough_test_passed=False
-                        break
-                if not rough_test_passed:
-                    if flags&1:
-                        px1=int((poly_tri[1]-lon)*raster_resolution)
-                        px2=int((poly_tri[3]-lon)*raster_resolution)
-                        px3=int((poly_tri[5]-lon)*raster_resolution)
-                        py1=int((lat+1-poly_tri[0])*raster_resolution)
-                        py2=int((lat+1-poly_tri[2])*raster_resolution)
-                        py3=int((lat+1-poly_tri[4])*raster_resolution)
-                        terrain_draw.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx%256) 
-                        if mult_draw: terrain_draw_mult.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx//256) 
-                    for poly_test in poly_list:
-                        if do_overlap(poly_tri,poly_test):
-                            keep_tri=False
-                            break
-                    if keep_tri:
-                        hole_seeds.append([(poly_tri[0]+poly_tri[2]+poly_tri[4])/3,\
-                                (poly_tri[1]+poly_tri[3]+poly_tri[5])/3])
-                if not keep_tri:
-                    if flags&1: 
-                        tri_list.append(tri_list_loc[3*j:3*j+3])
-                        ter_list.append(idx)
-                else:
-                    tri_list_kept[curter+'_'+str(flags)].append(tri_list_loc[3*j:3*j+3])
+                tri_list_kept[curter+'_'+str(flags)].append(tri_list_loc[3*j:3*j+3])
         elif c==28:	# Patch Triangle Strip Range 
             (first,last)=struct.unpack('<HH', file.read(4))
             loc_keep_list=numpy.arange(first,last,dtype=numpy.uint16)[stripindices[last-first]]
             tri_list_loc=pool[curpool][loc_keep_list]
             for j in range(last-first-2):
-                poly_tri=tri_list_loc[3*j:3*j+3][:,1::-1].reshape(6)
-                #poly_tri=numpy.concatenate((poly_tri,poly_tri[:2]))
-                keep_tri=True
-                rough_test_passed=True
-                for bbox in bbox_list:
-                    if in_bbox(poly_tri[0:2],bbox):
-                        rough_test_passed=False
-                        break
-                if not rough_test_passed:
-                    if flags&1:
-                        px1=int((poly_tri[1]-lon)*raster_resolution)
-                        px2=int((poly_tri[3]-lon)*raster_resolution)
-                        px3=int((poly_tri[5]-lon)*raster_resolution)
-                        py1=int((lat+1-poly_tri[0])*raster_resolution)
-                        py2=int((lat+1-poly_tri[2])*raster_resolution)
-                        py3=int((lat+1-poly_tri[4])*raster_resolution)
-                        terrain_draw.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx%256) 
-                        if mult_draw: terrain_draw_mult.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx//256) 
-                    for poly_test in poly_list:
-                        if do_overlap(poly_tri,poly_test):
-                            keep_tri=False
-                            break
-                    if keep_tri:
-                        hole_seeds.append([(poly_tri[0]+poly_tri[2]+poly_tri[4])/3,\
-                                (poly_tri[1]+poly_tri[3]+poly_tri[5])/3])
-                if not keep_tri:
-                    loc_keep_list[3*j:3*j+3]=65535
-                    if flags&1: 
-                        tri_list.append(tri_list_loc[3*j:3*j+3])
-                        ter_list.append(idx)
-                else:
-                    tri_list_kept[curter+'_'+str(flags)].append(tri_list_loc[3*j:3*j+3])
+                tri_list_kept[curter+'_'+str(flags)].append(tri_list_loc[3*j:3*j+3])
         elif c==1:	# Coordinate Pool Select
             bcp=file.read(2)
             (curpool,)=struct.unpack('<H', bcp)
+            if curpool>=skipped_pools:
+                bcp=struct.pack('<H',curpool-skipped_pools)
+                bCMDS+=bcmd+bcp
+            elif curpool==0:
+                bCMDS+=bcmd+bcp
         elif c==2:	# Junction Offset Select
-            file.read(4)
+            bCMDS+=bcmd+file.read(4)
         elif c==3:	# Set Definition
             bidx=file.read(1)
             (idx,)=struct.unpack('<B', bidx)
+            bCMDS+=bcmd+bidx
         elif c==4:	# Set Definition
             bidx=file.read(2)
             (idx,)=struct.unpack('<H', bidx)
+            bCMDS+=bcmd+bidx
         elif c==5:	# Set Definition
             bidx=file.read(4)
             (idx,)=struct.unpack('<I', bidx)
+            bCMDS+=bcmd+bidx
         elif c==6:	# Set Road Subtype
-            file.read(1)
+            bCMDS+=bcmd+file.read(1)
         elif c==7:	# Object
-            file.read(2)
+            bCMDS+=bcmd+file.read(2)
         elif c==8:	# Object Range
-            file.read(4)
+            bCMDS+=bcmd+file.read(4)
         elif c==12:	# Polygon
             bpl=file.read(3)
             (param,l)=struct.unpack('<HB', bpl)
-            file.read(l*2)
+            bCMDS+=bcmd+bpl+file.read(l*2)
         elif c==14:	# Nested Polygon
             bpn=file.read(3)
             (param,n)=struct.unpack('<HB', bpn)
+            btmp=b''
             for i in range(n):
                 bl=file.read(1)
                 (l,)=struct.unpack('<B', bl)
-                file.read(l*2)
+                btmp+=bl+file.read(l*2)
+            bCMDS+=bcmd+bpn+btmp
         elif c==16:	# Terrain Patch
             curter=terrain[idx]
         elif c==17:	# Terrain Patch w/ flags
@@ -7135,258 +8509,46 @@ def read_dsf_mesh(lat,lon,build_dir,file_to_sniff,poly_list,bbox_list,dem_altern
             array_in=numpy.fromstring(file.read(l*2), '<H')
             tri_list_loc=pool[curpool][array_in]
             for j in range(l//3):
-                poly_tri=tri_list_loc[3*j:3*j+3][:,1::-1].reshape(6) 
-                #poly_tri=numpy.concatenate((poly_tri,poly_tri[:2]))
-                keep_tri=True
-                rough_test_passed=True
-                for bbox in bbox_list:
-                    if in_bbox(poly_tri[0:2],bbox):
-                        rough_test_passed=False
-                        break
-                if not rough_test_passed:
-                    if flags&1:
-                        px1=int((poly_tri[1]-lon)*raster_resolution)
-                        px2=int((poly_tri[3]-lon)*raster_resolution)
-                        px3=int((poly_tri[5]-lon)*raster_resolution)
-                        py1=int((lat+1-poly_tri[0])*raster_resolution)
-                        py2=int((lat+1-poly_tri[2])*raster_resolution)
-                        py3=int((lat+1-poly_tri[4])*raster_resolution)
-                        terrain_draw.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx%256) 
-                        if mult_draw: terrain_draw_mult.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx//256) 
-                    for poly_test in poly_list:
-                        if do_overlap(poly_tri,poly_test):
-                            keep_tri=False
-                            break
-                    if keep_tri:
-                        hole_seeds.append([(poly_tri[0]+poly_tri[2]+poly_tri[4])/3,\
-                                (poly_tri[1]+poly_tri[3]+poly_tri[5])/3])
-                if not keep_tri:
-                    if flags&1: 
-                        tri_list.append(tri_list_loc[3*j:3*j+3])
-                        ter_list.append(idx)
-                else:
-                    tri_list_kept[curter+'_'+str(flags)].append(tri_list_loc[3*j:3*j+3])
+                tri_list_kept[curter+'_'+str(flags)].append(tri_list_loc[3*j:3*j+3])
         elif c==24:	# Patch Triangle - cross-pool
             (l,)=struct.unpack('<B', file.read(1))
             array_in=numpy.fromstring(file.read(l*4), '<H')
             tri_list_loc=numpy.array([pool[p][d] for (p,d) in array_in.reshape(-1,2)])
             for j in range(l//3):
-                poly_tri=tri_list_loc[3*j:3*j+3][:,1::-1].reshape(6)
-                #poly_tri=numpy.concatenate((poly_tri,poly_tri[:2]))
-                keep_tri=True
-                rough_test_passed=True
-                for bbox in bbox_list:
-                    if in_bbox(poly_tri[0:2],bbox):
-                        rough_test_passed=False
-                        break
-                if not rough_test_passed:
-                    if flags&1:
-                        px1=int((poly_tri[1]-lon)*raster_resolution)
-                        px2=int((poly_tri[3]-lon)*raster_resolution)
-                        px3=int((poly_tri[5]-lon)*raster_resolution)
-                        py1=int((lat+1-poly_tri[0])*raster_resolution)
-                        py2=int((lat+1-poly_tri[2])*raster_resolution)
-                        py3=int((lat+1-poly_tri[4])*raster_resolution)
-                        terrain_draw.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx%256) 
-                        if mult_draw: terrain_draw_mult.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx//256) 
-                    for poly_test in poly_list:
-                        if do_overlap(poly_tri,poly_test):
-                            keep_tri=False
-                            break
-                    if keep_tri:
-                        hole_seeds.append([(poly_tri[0]+poly_tri[2]+poly_tri[4])/3,\
-                                (poly_tri[1]+poly_tri[3]+poly_tri[5])/3])
-                if not keep_tri:
-                    if flags&1: 
-                        tri_list.append(tri_list_loc[3*j:3*j+3])
-                        ter_list.append(idx)
-                else:
-                    tri_list_kept[curter+'_'+str(flags)].append(tri_list_loc[3*j:3*j+3])
+                tri_list_kept[curter+'_'+str(flags)].append(tri_list_loc[3*j:3*j+3])
         elif c==25:	# Patch Triangle Range
             (first,last)=struct.unpack('<HH', file.read(4))
             tri_list_loc=pool[curpool][first:last]
             l=(last-first)
             for j in range(l//3):
-                poly_tri=tri_list_loc[3*j:3*j+3][:,1::-1].reshape(6)
-                #poly_tri=numpy.concatenate((poly_tri,poly_tri[:2]))
-                keep_tri=True
-                rough_test_passed=True
-                for bbox in bbox_list:
-                    if in_bbox(poly_tri[0:2],bbox):
-                        rough_test_passed=False
-                        break
-                if not rough_test_passed:
-                    if flags&1:
-                        px1=int((poly_tri[1]-lon)*raster_resolution)
-                        px2=int((poly_tri[3]-lon)*raster_resolution)
-                        px3=int((poly_tri[5]-lon)*raster_resolution)
-                        py1=int((lat+1-poly_tri[0])*raster_resolution)
-                        py2=int((lat+1-poly_tri[2])*raster_resolution)
-                        py3=int((lat+1-poly_tri[4])*raster_resolution)
-                        terrain_draw.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx%256) 
-                        if mult_draw: terrain_draw_mult.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx//256) 
-                    for poly_test in poly_list:
-                        if do_overlap(poly_tri,poly_test):
-                            keep_tri=False
-                            break
-                    if keep_tri:
-                        hole_seeds.append([(poly_tri[0]+poly_tri[2]+poly_tri[4])/3,\
-                                (poly_tri[1]+poly_tri[3]+poly_tri[5])/3])
-                if not keep_tri:
-                    if flags&1: 
-                        tri_list.append(tri_list_loc[3*j:3*j+3])
-                        ter_list.append(idx)
-                else:
-                    tri_list_kept[curter+'_'+str(flags)].append(tri_list_loc[3*j:3*j+3])
+                tri_list_kept[curter+'_'+str(flags)].append(tri_list_loc[3*j:3*j+3])
         elif c==26:	# Patch Triangle Strip 
             (l,)=struct.unpack('<B', file.read(1))
             array_in=numpy.fromstring(file.read(l*2), '<H')[stripindices[l]]
             tri_list_loc=pool[curpool][array_in]
             for j in range(l-2):
-                poly_tri=tri_list_loc[3*j:3*j+3][:,1::-1].reshape(6)
-                #poly_tri=numpy.concatenate((poly_tri,poly_tri[:2]))
-                keep_tri=True
-                rough_test_passed=True
-                for bbox in bbox_list:
-                    if in_bbox(poly_tri[0:2],bbox):
-                        rough_test_passed=False
-                        break
-                if not rough_test_passed:
-                    if flags&1:
-                        px1=int((poly_tri[1]-lon)*raster_resolution)
-                        px2=int((poly_tri[3]-lon)*raster_resolution)
-                        px3=int((poly_tri[5]-lon)*raster_resolution)
-                        py1=int((lat+1-poly_tri[0])*raster_resolution)
-                        py2=int((lat+1-poly_tri[2])*raster_resolution)
-                        py3=int((lat+1-poly_tri[4])*raster_resolution)
-                        terrain_draw.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx%256) 
-                        if mult_draw: terrain_draw_mult.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx//256) 
-                    terrain_draw.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx%256) 
-                    if mult_draw: terrain_draw_mult.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx//256) 
-                    for poly_test in poly_list:
-                        if do_overlap(poly_tri,poly_test):
-                            keep_tri=False
-                            break
-                    if keep_tri:
-                        hole_seeds.append([(poly_tri[0]+poly_tri[2]+poly_tri[4])/3,\
-                                (poly_tri[1]+poly_tri[3]+poly_tri[5])/3])
-                if not keep_tri:
-                    if flags&1: 
-                        tri_list.append(tri_list_loc[3*j:3*j+3])
-                        ter_list.append(idx)
-                else:
-                    tri_list_kept[curter+'_'+str(flags)].append(tri_list_loc[3*j:3*j+3])
+                tri_list_kept[curter+'_'+str(flags)].append(tri_list_loc[3*j:3*j+3])
         elif c==29:	# Patch Triangle Fan
             (l,)=struct.unpack('<B', file.read(1))
             array_in=numpy.fromstring(file.read(l*2), '<H')[fanindices[l]]
             tri_list_loc=pool[curpool][array_in]
             for j in range(l-2):
-                poly_tri=tri_list_loc[3*j:3*j+3][:,1::-1].reshape(6)
-                #poly_tri=numpy.concatenate((poly_tri,poly_tri[:2]))
-                keep_tri=True
-                rough_test_passed=True
-                for bbox in bbox_list:
-                    if in_bbox(poly_tri[0:2],bbox):
-                        rough_test_passed=False
-                        break
-                if not rough_test_passed:
-                    if flags&1:
-                        px1=int((poly_tri[1]-lon)*raster_resolution)
-                        px2=int((poly_tri[3]-lon)*raster_resolution)
-                        px3=int((poly_tri[5]-lon)*raster_resolution)
-                        py1=int((lat+1-poly_tri[0])*raster_resolution)
-                        py2=int((lat+1-poly_tri[2])*raster_resolution)
-                        py3=int((lat+1-poly_tri[4])*raster_resolution)
-                        terrain_draw.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx%256) 
-                        if mult_draw: terrain_draw_mult.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx//256) 
-                    for poly_test in poly_list:
-                        if do_overlap(poly_tri,poly_test):
-                            keep_tri=False
-                            break
-                    if keep_tri:
-                        hole_seeds.append([(poly_tri[0]+poly_tri[2]+poly_tri[4])/3,\
-                                (poly_tri[1]+poly_tri[3]+poly_tri[5])/3])
-                if not keep_tri:
-                    if flags&1: 
-                        tri_list.append(tri_list_loc[3*j:3*j+3])
-                        ter_list.append(idx)
-                else:
-                    tri_list_kept[curter+'_'+str(flags)].append(tri_list_loc[3*j:3*j+3])
+                tri_list_kept[curter+'_'+str(flags)].append(tri_list_loc[3*j:3*j+3])
         elif c==30:	# Patch Triangle Fan - cross-pool
             print("triangle fan cross-pool!!!!!!!!!!!!!!!!!!!!!")
             (l,)=struct.unpack('<B', file.read(1))
             bstring_in=file.read(l*4)
             tri_list_loc=numpy.array([pool[p][d] for (p,d) in numpy.fromstring(bstring_in,'<H').reshape(-1,2)])[fanindices[l]] 
             for j in range(l-2):
-                poly_tri=tri_list_loc[3*j:3*j+3][:,1::-1].reshape(6)
-                #poly_tri=numpy.concatenate((poly_tri,poly_tri[:2]))
-                keep_tri=True
-                rough_test_passed=True
-                for bbox in bbox_list:
-                    if in_bbox(poly_tri[0:2],bbox):
-                        rough_test_passed=False
-                        break
-                if not rough_test_passed:
-                    if flags&1:
-                        px1=int((poly_tri[1]-lon)*raster_resolution)
-                        px2=int((poly_tri[3]-lon)*raster_resolution)
-                        px3=int((poly_tri[5]-lon)*raster_resolution)
-                        py1=int((lat+1-poly_tri[0])*raster_resolution)
-                        py2=int((lat+1-poly_tri[2])*raster_resolution)
-                        py3=int((lat+1-poly_tri[4])*raster_resolution)
-                        terrain_draw.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx%256) 
-                        if mult_draw: terrain_draw_mult.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx//256) 
-                    for poly_test in poly_list:
-                        if do_overlap(poly_tri,poly_test):
-                            keep_tri=False
-                            break
-                    if keep_tri:
-                        hole_seeds.append([(poly_tri[0]+poly_tri[2]+poly_tri[4])/3,\
-                                (poly_tri[1]+poly_tri[3]+poly_tri[5])/3])
-                if not keep_tri:
-                    if flags&1: 
-                        tri_list.append(tri_list_loc[3*j:3*j+3])
-                        ter_list.append(idx)
-                else:
-                    tri_list_kept[curter+'_'+str(flags)].append(tri_list_loc[3*j:3*j+3])
-                    # TODO FIX !!!
+                tri_list_kept[curter+'_'+str(flags)].append(tri_list_loc[3*j:3*j+3])
+                # TODO FIX !!!
         elif c==31:	# Patch Triangle Fan Range
             print("triangle fan range!!!!!!!!!!!!!!!!!!!!!")
             (first,last)=struct.unpack('<HH', file.read(4))
             tri_list_loc=pool[curpool][first:][fanindices[last-first]]
             for j in range(last-first-2):
-                poly_tri=tri_list_loc[3*j:3*j+3][:,1::-1].reshape(6)
-                #poly_tri=numpy.concatenate((poly_tri,poly_tri[:2]))
-                keep_tri=True
-                rough_test_passed=True
-                for bbox in bbox_list:
-                    if in_bbox(poly_tri[0:2],bbox):
-                        rough_test_passed=False
-                        break
-                if not rough_test_passed:
-                    if flags&1:
-                        px1=int((poly_tri[1]-lon)*raster_resolution)
-                        px2=int((poly_tri[3]-lon)*raster_resolution)
-                        px3=int((poly_tri[5]-lon)*raster_resolution)
-                        py1=int((lat+1-poly_tri[0])*raster_resolution)
-                        py2=int((lat+1-poly_tri[2])*raster_resolution)
-                        py3=int((lat+1-poly_tri[4])*raster_resolution)
-                        terrain_draw.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx%256) 
-                        if mult_draw: terrain_draw_mult.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx//256) 
-                    for poly_test in poly_list:
-                        if do_overlap(poly_tri,poly_test):
-                            keep_tri=False
-                            break
-                    if keep_tri:
-                        hole_seeds.append([(poly_tri[0]+poly_tri[2]+poly_tri[4])/3,\
-                                (poly_tri[1]+poly_tri[3]+poly_tri[5])/3])
-                if not keep_tri:
-                    if flags&1: 
-                        tri_list.append(tri_list_loc[3*j:3*j+3])
-                        ter_list.append(idx)
-                else:
-                    tri_list_kept[curter+'_'+str(flags)].append(tri_list_loc[3*j:3*j+3])
-                    # TODO FIX !!!
+                tri_list_kept[curter+'_'+str(flags)].append(tri_list_loc[3*j:3*j+3])
+                # TODO FIX !!!
         elif c==32:	# Comment
             bl=file.read(1) 
             (l,)=struct.unpack('<B', bl)
@@ -7399,43 +8561,216 @@ def read_dsf_mesh(lat,lon,build_dir,file_to_sniff,poly_list,bbox_list,dem_altern
             bl=file.read(4) 
             (l,)=struct.unpack('<I', bl)
             file.read(l)
+        elif c==10:	# Network Chain Range 
+            bCMDS+=bcmd+file.read(cmdsend-file.tell())
+            continue    # !!! Speed-up by assuming network commands end-up the file !!! 
+            bCMDS+=bcmd+file.read(4)
+        elif c==9:	# Network Chain 
+            bCMDS+=bcmd+file.read(cmdsend-file.tell())
+            continue    # !!! Speed-up by assuming network commands end-up the file !!!
+            bl=file.read(1)
+            (l,)=struct.unpack('<B', bl)
+            bCMDS+=bcmd+bl+file.read(l*2)
+        elif c==11:	# Network Chain 32
+            bCMDS+=bcmd+file.read(cmdsend-file.tell())
+            continue    # !!! Speed-up by assuming network commands end-up the file !!!
+            bl=file.read(1)
+            (l,)=struct.unpack('<B', bl)
+            bCMDS+=bcmd+bl+file.read(l*4)
         else:
             print("Unrecognised command (%d) at %x" % (c, file.tell()-1))
             
     file.close()
-    terrain_im.save(build_dir+dir_sep+'terrain_map_'+strlat+strlon+'.png')
-    if mult_draw: terrain_im_mult.save(build_dir+dir_sep+'terrain_map_mult_'+strlat+strlon+'.png')
     
-    pool_rows=pool_cols=16
+    print("Elapsed time :",time.time()-timer)
+    return (terrain,tri_list_kept,kept_pools,bPROP,bOBJT,bPOLY,bNETW,bDEMN,bGEOD,bDEMS,bCMDS,bathdem,nbath)
+##############################################################################
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+##############################################################################
+def re_encode_dsf(lat0,lon0,build_dir,file_to_sniff,keep_orig_zuv=False,dem_alternative=False,seven_zip=False):
+    t0=time.time()
+    strlat='{:+.0f}'.format(lat0).zfill(3)
+    strlon='{:+.0f}'.format(lon0).zfill(4)
+    strlatround='{:+.0f}'.format(floor(lat0/10)*10).zfill(3)
+    strlonround='{:+.0f}'.format(floor(lon0/10)*10).zfill(4)
+    dest_dir=build_dir+dir_sep+'Earth nav data'+dir_sep+strlatround+\
+            strlonround
+    dsf_file_name=dest_dir+dir_sep+strlat+strlon+'.dsf'
+
+    (terrain,tri_list_kept,kept_pools,bPROP,bOBJT,bPOLY,bNETW,bDEMN,bGEOD,bDEMS,bCMDS,bathdem,nbath)=read_dsf(lat0,lon0,build_dir,file_to_sniff,keep_orig_zuv,dem_alternative)
+    
+    if not keep_orig_zuv:  # We don't keep raster datua in this case 
+        print("Discarding Raster data")
+        bDEMN=b''
+    if not keep_overlays: # We don't keep overlays
+        print("Discarding Overlays")
+        bOBJT=b''
+        bPOLY=b''
+        bNETW=b''
+        bGEOD=b''
+        kept_pools=0
+
+    t1=time.time()
+    #print(t1-t0)
+    print("Reorganizing pools...")
+    (pool_nbr,pools_params,pools_planes,pools_lengths,pools,textures)=build_pools(lat0,lon0,tri_list_kept,terrain,bathdem,nbath)
+    t2=time.time()
+    #print(t2-t1)
+    dico_new_pool={}
+    new_pool_idx=kept_pools
+    for k in range(0,2*pool_nbr):
+        if pools_lengths[k] != 0:
+            dico_new_pool[k]=new_pool_idx
+            new_pool_idx+=1
+
+    dico_textures={}
+    idx=0
+    for ter in terrain:
+        dico_textures[ter+'_1']=idx
+        dico_textures[ter+'_2']=idx
+        idx+=1 
+    #terrain.append('terrain/bathymetry.ter')
+    #dico_textures['bathymetry_2']=idx
+
+    if not os.path.exists(dest_dir):
+        os.makedirs(dest_dir)
+    if os.path.exists(dest_dir+dir_sep+dsf_file_name+'.dsf'):
+        os.system(copy_cmd+' "'+dest_dir+dir_sep+dsf_file+'.dsf'+'" "'+\
+         dest_dir+dir_sep+dsf_file+'.dsf.bak" '+devnull_rdir)
+    print("Writing target dsf...")
+    f=open(dsf_file_name,'wb')
+    f.write(b'XPLNEDSF')
+    f.write(struct.pack('<I',1))
+
+    # Head super-atom
+   
+    if bPROP==b'':
+        bPROP=bytes("sim/west\0"+str(lon0)+"\0"+"sim/east\0"+str(lon0+1)+"\0"+\
+               "sim/south\0"+str(lat0)+"\0"+"sim/north\0"+str(lat0+1)+"\0"+\
+               "sim/creation_agent\0"+"Ortho4XP\0",'ascii')
+    else:
+        bPROP+=b'sim/creation_agent\0Patched by Ortho4XP\0'
+
+    size_of_head_atom=16+len(bPROP)
+    size_of_prop_atom=8+len(bPROP)
+    f.write(b"DAEH")
+    f.write(struct.pack('<I',size_of_head_atom))
+    f.write(b"PORP")
+    f.write(struct.pack('<I',size_of_prop_atom))
+    f.write(bPROP)
+
+    # Definitions super-atom
+    bTERT=b''
+    for ter in terrain:
+        bTERT+=bytes(ter+'\0','ascii')
+    size_of_defn_atom=48+len(bTERT)+len(bOBJT)+len(bPOLY)+len(bNETW)+len(bDEMN)
+    f.write(b"NFED")
+    f.write(struct.pack('<I',size_of_defn_atom))
+    f.write(b"TRET")
+    f.write(struct.pack('<I',8+len(bTERT)))
+    f.write(bTERT)
+    f.write(b"TJBO")
+    f.write(struct.pack('<I',8+len(bOBJT)))
+    f.write(bOBJT)
+    f.write(b"YLOP")
+    f.write(struct.pack('<I',8+len(bPOLY)))
+    f.write(bPOLY)
+    f.write(b"WTEN")
+    f.write(struct.pack('<I',8+len(bNETW)))
+    f.write(bNETW)
+    f.write(b"NMED")
+    f.write(struct.pack('<I',8+len(bDEMN)))
+    f.write(bDEMN)
+
+    # GEOD atom
+    size_of_geod_atom=write_geod_atom(f,bGEOD,pool_nbr,pools_params,pools_planes,pools_lengths,pools)
+   
+    # DEMS atom
+    if keep_orig_zuv:
+        size_of_dems_atom=write_dems_atom(f,bDEMS)
+    else:
+        size_of_dems_atom=0
+        
+ 
+    # CMDS atom
+    if not keep_overlays:
+        bCMDS=b''
+    size_of_cmds_atom=write_cmds_atom(f,bCMDS,textures,dico_textures,dico_new_pool)
+
+    f.close()
+    f=open(dsf_file_name,'rb')
+    data=f.read()
+    m=hashlib.md5()
+    m.update(data)
+    #print(str(m.digest_size))
+    md5sum=m.digest()
+    #print(str(md5sum))
+    f.close()
+    f=open(dsf_file_name,'ab')
+    f.write(md5sum)
+    f.close()
+    try:
+        application.progress_attr.set(100)
+    except:
+        pass
+    print("  DSF file transcoded, total size is  : "+str(28+size_of_head_atom+\
+            size_of_defn_atom+size_of_geod_atom+size_of_dems_atom+size_of_cmds_atom)+" bytes.")
+    if seven_zip:
+        os.system(unzip_cmd+' a "'+dsf_file_name+'.7z" "'+dsf_file_name+'"')
+        print("  Transcoded DSF size, 7ziped : ",os.path.getsize(dsf_file_name+'.7z'))
+        print("  Original DSF size,   7ziped : ",os.path.getsize(file_to_sniff))
+        print("  Gain : ",int((os.path.getsize(file_to_sniff)- os.path.getsize(dsf_file_name+'.7z'))/os.path.getsize(file_to_sniff)*100)," %")
+        os.remove(dsf_file_name)
+        os.rename(dsf_file_name+'.7z',dsf_file_name) 
+    t3=time.time()
+    print('\nCompleted in '+str('{:.2f}'.format(t3-t0))+\
+              'sec.')
+    print('_____________________________________________________________'+\
+            '____________________________________')
+    return
+##############################################################################
+
+
+
+##############################################################################
+def build_pools(lat0,lon0,tri_list_kept,terrain,bathdem,nbath,division=landclass_mesh_division): 
+    
+    strlat='{:+.0f}'.format(lat0).zfill(3)
+    strlon='{:+.0f}'.format(lon0).zfill(4)
+    strlatround='{:+.0f}'.format(floor(lat0/10)*10).zfill(3)
+    strlonround='{:+.0f}'.format(floor(lon0/10)*10).zfill(4)
+    pool_cols           = division
+    pool_rows           = division
     pool_nbr  = pool_rows*pool_cols
     pools_params=numpy.zeros((2*pool_nbr,18),'float32')
-    pools_planes=numpy.zeros(2*pool_nbr,'uint32')
-    pools_planes[0:pool_nbr]=5  
+    pools_planes=numpy.zeros(2*pool_nbr,'uint16')
+    pools_planes[0:pool_nbr]=5 
     pools_planes[pool_nbr:2*pool_nbr]=7 
-    pools_lengths=numpy.zeros((2*pool_nbr),'uint32')
-    pools=numpy.zeros((2*pool_nbr,9*pools_max_points),'uint16')
+    pools_lengths=numpy.zeros((2*pool_nbr),'uint16')
+    pools=numpy.zeros((4*pool_nbr,9*pools_max_points),'uint16')
     pools_z_temp=numpy.zeros((2*pool_nbr,pools_max_points),'float32')
     pools_z_max=-9999*numpy.ones(2*pool_nbr,'float32')
     pools_z_min=9999*numpy.ones(2*pool_nbr,'float32')
-    dico_new_pt={}
-    len_dico_new_pt=0
-    total_cross_pool=0
-    textures={}
-    for ter in terrain:
-        for i in [1,2]:
-            textures[ter+'_'+str(i)]=collections.defaultdict(list)
-    
-    print("Elapsed time :",time.time()-timer)
-    #return (tri_list,ter_list,tri_list_kept,hole_seeds)
- 
-    dico_textures={}
     for pool_y in range(0,pool_rows):       
         for pool_x in range(0,pool_cols):  
             pool_idx=(pool_y)*pool_cols+(pool_x)
             pools_params[pool_idx,0]=1/pool_cols
-            pools_params[pool_idx,1]=lon+pool_x/pool_cols # lon
+            pools_params[pool_idx,1]=lon0+pool_x/pool_cols # lon
             pools_params[pool_idx,2]=1/pool_rows
-            pools_params[pool_idx,3]=lat+pool_y/pool_rows # lat 
+            pools_params[pool_idx,3]=lat0+pool_y/pool_rows # lat 
             pools_params[pool_idx,4]=0
             pools_params[pool_idx,5]=0             # z (temp)
             pools_params[pool_idx,6]=2     
@@ -7452,22 +8787,49 @@ def read_dsf_mesh(lat,lon,build_dir,file_to_sniff,poly_list,bbox_list,dem_altern
             pools_params[pool_idx,17]=0            # bt
     pools_params[pool_nbr:2*pool_nbr]=pools_params[0:pool_nbr]
 
+    dico_new_pt={}
+    len_dico_new_pt=0
+    total_cross_pool=0
+    textures={}
+    for ter in terrain:
+        for i in [1,2]:
+            textures[ter+'_'+str(i)]=defaultdict(list)
+    #textures['bathymetry_2']=defaultdict(list)
+
+
     for key in tri_list_kept:
-        continue
-        print(key)
         for tri in tri_list_kept[key]:
             tri_p=[]
             for i in [0,1,2]:
-                [lonp,latp]=tri[i][:2]
-                [pool_idx,pool_nx,pool_ny]=point_params(latp,lonp,lat,lon,pools_params,pool_cols,pool_rows)
-                key2=key+'_'+str(pool_idx)+'_'+str(pool_nx)+'_'+str(pool_ny)
+                [lonp,latp,z,u,v]=tri[i][:5]
+                u=round(u*10)/10
+                v=round(v*10)/10
+                [pool_idx,pool_nx,pool_ny]=point_params(latp,lonp,lat0,lon0,pools_params,pool_cols,pool_rows)
+                if key[-1]=='1': #False:
+                    key2=str(pool_idx)+'_'+str(pool_nx)+'_'+str(pool_ny)
+                else:
+                    key2=key[:-2]+'_'+str(pool_idx)+'_'+str(pool_nx)+'_'+str(pool_ny)
                 if key2 in dico_new_pt:
                     [pool_idx,pos_in_pool]=dico_new_pt[key2]
+                    if key[-1]=='2':
+                        pools[pool_idx,7*pos_in_pool:7*pos_in_pool+7]=[pool_nx,\
+                            pool_ny,0,round((1+u)/2*65535),round((1+v)/2*65535),round(tri[i][5]*65535),round(tri[i][6]*65535)]
                 else:
                     len_dico_new_pt+=1
-                    if key[-1]=='2': pool_idx+=pool_nbr
+                    if key[-1]=='2': #True: 
+                        pool_idx+=pool_nbr
                     pos_in_pool=pools_lengths[pool_idx]
                     dico_new_pt[key2]=[pool_idx,pos_in_pool]
+                    if key[-1]=='1':
+                        pools[pool_idx,5*pos_in_pool:5*pos_in_pool+5]=[pool_nx,\
+                            pool_ny,0,round((1+u)/2*65535),round((1+v)/2*65535)]
+                    else:
+                        pools[pool_idx,7*pos_in_pool:7*pos_in_pool+7]=[pool_nx,\
+                            pool_ny,0,round((1+u)/2*65535),round((1+v)/2*65535),round(tri[i][5]*65535),round(tri[i][6]*65535)]
+                    z=tri[i][2]
+                    pools_z_temp[pool_idx,pos_in_pool]=z
+                    pools_z_max[pool_idx] = pools_z_max[pool_idx] if pools_z_max[pool_idx] >= z else z
+                    pools_z_min[pool_idx] = pools_z_min[pool_idx] if pools_z_min[pool_idx] <= z else z
                     pools_lengths[pool_idx]+=1
                 tri_p+=[pool_idx,pos_in_pool]
             if tri_p[0]==tri_p[2] and tri_p[2]==tri_p[4]:
@@ -7477,831 +8839,245 @@ def read_dsf_mesh(lat,lon,build_dir,file_to_sniff,poly_list,bbox_list,dem_altern
                 total_cross_pool+=1
                 pool_idx='cross-pool'
                 textures[key][pool_idx]+=tri_p
-    
-    total_pt=0
-    for pool_idx in range(pool_nbr*2):
-        total_pt+=pools_lengths[pool_idx]
-    print("total_pt = ",total_pt)
-    print("Elapsed time :",time.time()-timer)
-    return (tri_list,ter_list,tri_list_kept,hole_seeds,textures)
-##############################################################################
-
-##############################################################################
-#
-# The following is essentially taken with minor modifications from Jonathan 
-# Harris (Marginal) DSFLib.py 
-#
-def read_and_split_dsf_mesh(lat,lon,build_dir,file_to_sniff,poly_list,bbox_list,dem_alternative=''):
-    skipnetworks=True
-    terrain_im=Image.new("L",(raster_resolution,raster_resolution))
-    terrain_draw=ImageDraw.Draw(terrain_im)
-    timer=time.time()
-    strlat='{:+.0f}'.format(lat).zfill(3)
-    strlon='{:+.0f}'.format(lon).zfill(4)
-    strlatround='{:+.0f}'.format(floor(lat/10)*10).zfill(3)
-    strlonround='{:+.0f}'.format(floor(lon/10)*10).zfill(4)
-    file_to_sniff_loc=Ortho4XP_dir+dir_sep+"tmp"+dir_sep+strlat+strlon+'.dsf'
-    # Making a copy of the original DSF in tmp dir
-    os.system(copy_cmd + '  "'+file_to_sniff+'" "'+file_to_sniff_loc+'"')
-    file = open(file_to_sniff_loc,'rb')
-    # check for 7z compression and unzip if necessary
-    dsfid = file.read(2).decode('ascii')
-    if dsfid == '7z':
-        file.close()
-        os.system(rename_cmd+'"'+file_to_sniff_loc+'" "'+file_to_sniff_loc+'.7z" '+\
-              devnull_rdir)
-        os.system(unzip_cmd+' e -o'+Ortho4XP_dir+dir_sep+'tmp'+' "'+\
-              file_to_sniff_loc+'.7z"')
-        file = open(file_to_sniff_loc,'rb')
-    #########
-    fout=open(build_dir+dir_sep+"TOP.atm","wb")    
-    fout.write(file.read(12))
-    fout.close()
-    #########
-    # read atoms headers and save their positions
-    table={}
-    file.seek(-16,os.SEEK_END)	
-    end=file.tell()
-    p=12
-    while p<end:
-        file.seek(p)
-        d=file.read(8)
-        (c,l)=struct.unpack('<4sI', d)
-        table[c]=p+4
-        p+=l
-    # Header Atom
-    file.seek(table[b'DAEH'])
-    (l,)=struct.unpack('<I', file.read(4))
-    headend=file.tell()+l-8
-    file.read(4)
-    (l,)=struct.unpack('<I', file.read(4))
-    ####
-    fout=open(build_dir+dir_sep+"PROP.atm","wb")
-    fout.write(file.read(l-8))
-    fout.close() 
-    file.seek(file.tell()-l+8)
-    ####
-    c=file.read(l-9).split(b'\0')
-    file.read(1)
-    overlay=0
-    for i in range(0, len(c)-1, 2):
-        if c[i]==b'sim/overlay': overlay=int(c[i+1])
-        elif c[i]==b'sim/west': west=int(c[i+1])
-    file.seek(headend)
-
-    # Definitions Atom
-    file.seek(table[b'NFED'])
-    (l,)=struct.unpack('<I', file.read(4))
-    defnend=file.tell()+l-8
-    terrain=objects=polygons=networks=rasternames=[]
-    while file.tell()<defnend:
-        c=file.read(4)
-        (l,)=struct.unpack('<I', file.read(4))
-        if l==8:
-            pass	# empty
-        elif c==b'TRET':
-            fout=open(build_dir+dir_sep+"TERT.atm","wb")
-            fout.write(file.read(l-8))
-            fout.close 
-            file.seek(file.tell()-l+8)
-            terrain=file.read(l-9).split(b'\0')
-            #print("terrain length : ",len(terrain))
-            file.read(1)
-        elif c==b'TJBO':
-            fout=open(build_dir+dir_sep+"OBJT.atm","wb")
-            fout.write(file.read(l-8))
-            fout.close 
-            file.seek(file.tell()-l+8)
-            objects=[x.decode() for x in file.read(l-9).split(b'\0')]	# X-Plane only supports ASCII
-            file.read(1)
-        elif c==b'YLOP':
-            fout=open(build_dir+dir_sep+"POLY.atm","wb")
-            fout.write(file.read(l-8))
-            fout.close 
-            file.seek(file.tell()-l+8)
-            polygons=[x.decode() for x in file.read(l-9).split(b'\0')]	# X-Plane only supports ASCII
-            file.read(1)
-        elif c==b'WTEN':
-            fout=open(build_dir+dir_sep+"NETW.atm","wb")
-            fout.write(file.read(l-8))
-            fout.close 
-            file.seek(file.tell()-l+8)
-            networks=file.read(l-9).split(b'\0')
-            file.read(1)
-        elif c==b'NMED':
-            fout=open(build_dir+dir_sep+"DEMN.atm","wb")
-            fout.write(file.read(l-8))
-            fout.close 
-            file.seek(file.tell()-l+8)
-            rasternames=file.read(l-9).split(b'\0')
-            file.read(1)
-        else:
-            file.seek(l-8, 1)
-
-    if len(terrain)>256:
-        terrain_im_mult=Image.new("L",(raster_resolution,raster_resolution))
-        terrain_draw_mult=ImageDraw.Draw(terrain_im_mult)
-        mult_draw=True
-        #print(terrain)
-    else:
-        mult_draw=False
-    # Geodata Atom
-    clock=time.time()	# Processor time
-    file.seek(table[b'DOEG'])
-    (l,)=struct.unpack('<I', file.read(4))
-    geodend=file.tell()+l-8
-    ####
-    fout=open(build_dir+dir_sep+"GEOD.atm","wb")
-    #fout.write(file.read(l-8))
-    #file.seek(table[b'DOEG']+4)
-    pool=[]
-    scal=[]
-    po32=[]
-    sc32=[]
-    nbr_of_pools=0
-    while file.tell()<geodend:
-        c=file.read(4)
-        (l,)=struct.unpack('<I', file.read(4))
-        if c == b'23OP':
-            if l>8:
-                file.seek(file.tell()-8)
-                fout.write(file.read(l))
-        elif c == b'23CS':
-            if l>8:
-                file.seek(file.tell()-8)
-                fout.write(file.read(l))
-        elif c == b'LOOP':
-            nbr_of_pools+=1
-            (n,p)=struct.unpack('<IB', file.read(5))
-            thispool = numpy.empty((n,p), numpy.uint16)
-            # Pool data is supplied in column order (by "plane"), so use numpy slicing to assign
-            for i in range(p):
-                (e,)=struct.unpack('<B', file.read(1))	# encoding type - default DSFs use e=3
-                if e&2:		# RLE
-                    offset = 0
-                    while offset<n:
-                        (r,)=struct.unpack('<B', file.read(1))
-                        if (r&128):	# repeat
-                            (d,)=struct.unpack('<H', file.read(2))
-                            thispool[offset:offset+(r&127),i] = d
-                            offset += (r&127)
-                        else:		# non-repeat
-                            thispool[offset:offset+r,i] = numpy.fromstring(file.read(r*2), '<H')
-                            offset += r
-                else:		# raw
-                    thispool[:,i] = numpy.fromstring(file.read(n*2), '<H')
-                if e&1:		# differenced
-                    thispool[:,i] = numpy.cumsum(thispool[:,i], dtype=numpy.uint16)
-            pool.append(thispool)
-        elif c==b'LACS':
-            scal.append(numpy.fromstring(file.read(l-8), '<f').reshape(-1,2))
-        else:
-            file.seek(l-8, 1)
-    
-    while pool and not len(pool[-1]):
-        pool.pop()
-        scal.pop()
-        nbr_of_pools-=1
-    assert len(pool)==len(scal)
-    
-
-    # Rescale pools
-    poolresc=[]
-    for i in range(len(pool)):				# number of pools
-        curpool = pool[i]
-        curscale= scal[i]
-        newpool = numpy.empty(curpool.shape, float)		# need double precision for placements
-        for plane in range(len(curscale)):		# number of planes in this pool
-            (scale,offset) = curscale[plane]
-            if scale:
-                newpool[:,plane] = curpool[:,plane] * (scale/0xffff) + float(offset)
+        if True: #key[:-2]!='terrain_Water': 
+            continue # !!! disabled bathymetry test here !!!
+        for tri in tri_list_kept[key]:
+            tri_p=[]
+            for i in [0,1,2]:
+                [lonp,latp,z,u,v]=tri[i][:5]
+                u=0
+                v=0
+                deep_factor=abs(altitude(lonp-lon0,latp-lat0,bathdem,nbath)-65535)/30
+                deep_factor= 1 if deep_factor > 1 else deep_factor
+                deep_factor= 0 if deep_factor < 0 else deep_factor
+                [pool_idx,pool_nx,pool_ny]=point_params(latp,lonp,lat0,lon0,pools_params,pool_cols,pool_rows)
+                if False: #key[-1]=='1':
+                    key2=str(pool_idx)+'_'+str(pool_nx)+'_'+str(pool_ny)
+                else:
+                    key2=key[:-2]+'_'+str(pool_idx)+'_'+str(pool_nx)+'_'+str(pool_ny)
+                if key2 in dico_new_pt:
+                    [pool_idx,pos_in_pool]=dico_new_pt[key2]
+                    #if key[-1]=='2':
+                    pools[pool_idx,7*pos_in_pool:7*pos_in_pool+7]=[pool_nx,\
+                            pool_ny,0,32768,32768,0,round(deep_factor*65535)]
+                else:
+                    print("Warum ?")
+                    continue 
+                    len_dico_new_pt+=1
+                    if True: #key[-1]=='2': 
+                        pool_idx+=pool_nbr
+                    pos_in_pool=pools_lengths[pool_idx]
+                    dico_new_pt[key2]=[pool_idx,pos_in_pool]
+                    if key[-1]=='1':
+                        pools[pool_idx,7*pos_in_pool:7*pos_in_pool+7]=[pool_nx,\
+                            pool_ny,0,round((1+u)/2*65535),round((1+v)/2*65535),0,0]
+                    else:
+                        pools[pool_idx,7*pos_in_pool:7*pos_in_pool+7]=[pool_nx,\
+                            pool_ny,0,round((1+u)/2*65535),round((1+v)/2*65535),round(tri[i][5]*65535),round(tri[i][6]*65535)]
+                    z=tri[i][2]
+                    pools_z_temp[pool_idx,pos_in_pool]=z
+                    pools_z_max[pool_idx] = pools_z_max[pool_idx] if pools_z_max[pool_idx] >= z else z
+                    pools_z_min[pool_idx] = pools_z_min[pool_idx] if pools_z_min[pool_idx] <= z else z
+                    pools_lengths[pool_idx]+=1
+                tri_p+=[pool_idx,pos_in_pool]
+            if tri_p[0]==tri_p[2] and tri_p[2]==tri_p[4]:
+                pool_idx=tri_p[0]
+                textures['bathymetry_2'][pool_idx]+=[tri_p[1],tri_p[3],tri_p[5]]    
             else:
-                newpool[:,plane] = curpool[:,plane] + float(offset)
-        # numpy doesn't work efficiently skipping around the variable sized pools, so don't consolidate
-        poolresc.append(newpool)
-   
-    # Recover altitudes from DEM either than using -32768
-    [altdem,ndem]=load_altitude_matrix(lat,lon,dem_alternative)
-    for i in range(len(poolresc)):
-        if len(scal[i])>=3: poolresc[i][:,2]=altitude_vec(poolresc[i][:,0]-lon,poolresc[i][:,1]-lat,altdem,ndem)
-    
-    # Now we update the z planes of the pools 
-    for i in range(len(pool)):
-        if len(scal[i])<3: continue 
-        altmax=poolresc[i][:,2].max()
-        altmin=poolresc[i][:,2].min()
-        if altmax-altmin < 770:
+                total_cross_pool+=1
+                pool_idx='cross-pool'
+                textures['bathymetry_2'][pool_idx]+=tri_p
+
+    print("Max pool length : ",max(pools_lengths)," for a limit value of 65535.")
+
+    for pool_idx in range(0,2*pool_nbr):
+        altmin=pools_z_min[pool_idx]
+        altmax=pools_z_max[pool_idx]
+        if altmin < -32000:
+            scale=65535
+            inv_stp=1
+        elif altmax-altmin < 770:
             scale=771   # 65535= 771*85
+            inv_stp=85
         elif altmax-altmin < 1284:
             scale=1285 # 66535=1285*51
+            inv_stp=51
         elif altmax-altmin < 4368:
             scale=4369 # 65535=4369*15
+            inv_stp=15
         else:
             scale=13107
-        scale=4369
-        offset=floor(altmin)
-        scal[i][2]=(scale,offset)
-        pool[i][:,2]=((poolresc[i][:,2]-offset)*(65535/scale)).round().astype(numpy.uint16)
+            inv_stp=5
+        if snap_to_z_grid:
+            scale=65535
+            inv_stp=1
+        pools_params[pool_idx,4]=scale
+        pools_params[pool_idx,5]=floor(altmin) if floor(altmin)>-32000 else -32768
+        for pos_in_pool in range(0,pools_lengths[pool_idx]):
+            pools[pool_idx,pools_planes[pool_idx]*pos_in_pool+2]=int(round((pools_z_temp[pool_idx,\
+                    pos_in_pool]-pools_params[pool_idx,5])*inv_stp))
 
-    # Finally we encode the pools and scals in fout
-    for i in range(len(pool)):
-        fout.write(b'LOOP')
-        #fout.write(longeur de l'atom)
-        (n,p)=pool[i].shape
-        fout.write(struct.pack('<I',8+5+p*(1+2*n)))
-        fout.write(struct.pack('<IB',n,p))
-        for j in range(p):
-            fout.write(struct.pack('<B',0))
-            fout.write(pool[i][:,j].tostring())
-    for i in range(len(scal)):
-        (n,p)=pool[i].shape
-        fout.write(b'LACS')
-        fout.write(struct.pack('<I',8+8*p))
-        fout.write(scal[i].flatten().astype(numpy.float32).tostring())
-
-
-    fout.write(struct.pack('<I',nbr_of_pools))  # BE CAREFUL : we had the number of pools after the atom
-    fout.close()
-
-    # We rename poolresc as pool
-    pool=poolresc
-
-
-    print("%6.3f time in GEOD atom" % (time.time()-clock))
-
-    # X-Plane 10 raster data
-    raster={}
-    elev=elevwidth=elevheight=None
-    if b'SMED' in table:
-        clock=time.time()
-        file.seek(table[b'SMED'])
-        (l,)=struct.unpack('<I', file.read(4))
-        demsend=file.tell()+l-8
-        ####
-        fout=open(build_dir+dir_sep+"DEMS.atm","wb")
-        if dem_alternative == '':
-            fout.write(file.read(l-8))
-        else:
-            layerno=0
-            while file.tell()<demsend:
-                if rasternames[layerno]!=b'elevation':
-                    fout.write(file.read(28))
-                    file.read(4)
-                    (l,)=struct.unpack('<I', file.read(4))
-                    file.seek(file.tell()-8)
-                    fout.write(file.read(l))
-                else:
-                    fout.write(file.read(4))  
-                    (l1,)=struct.unpack('<I', file.read(4))
-                    (ver,bpp,flags,width,height,scale,offset)=struct.unpack('<BBHIIff', file.read(20))
-                    print ('IMED', ver, bpp, flags, width, height, scale, offset, rasternames[layerno])
-                    file.read(4)
-                    (l2,)=struct.unpack('<I', file.read(4))
-                    assert l2==8+bpp*width*height
-                    if flags&3==0:	# float
-                        fmt='f'
-                        assert bpp==4
-                    else:		# signed
-                        if bpp==1:
-                            fmt='b'
-                        elif bpp==2:
-                            fmt='h'
-                        elif bpp==4:
-                            fmt='i'
-                        if flags&3==2:	# unsigned
-                            fmt=fmt.upper()
-                    data = numpy.fromstring(file.read(bpp*width*height), '<'+fmt).reshape(width,height)
-                    [data_alternative,ndem] = load_altitude_matrix(lat,lon,filename=dem_alternative)
-                    data_alternative=data_alternative[::-1].astype(numpy.uint16) 
-                    fout.write(struct.pack('<I',l1))
-                    fout.write(struct.pack('<BBHIIff', ver,bpp,flags,width,height,scale,offset))
-                    fout.write(b"DMED")
-                    fout.write(struct.pack('<I',l2))
-                    fout.write(data_alternative.tobytes())
-                layerno+=1
-        fout.close()
-        print("%6.3f time in DEMS atom" % (time.time()-clock))
-    # Commands Atom
-    clock=time.time()	# Processor time
-    file.seek(table[b'SDMC'])
-    (l,)=struct.unpack('<I', file.read(4))
-    cmdsend=file.tell()+l-8
-    curpool=0
-    netbase=0
-    idx=0
-    near=0
-    far=-1
-    flags=0	# 1=physical, 2=overlay
-    curter='terrain_Water'
-    tri_list=[]
-    ter_list=[]
-    tri_list_kept={}
-    for ter in terrain:
-        tri_list_kept[ter]=[]
-    hole_seeds=[]
-    stripindices = MakeStripIndices()
-    fanindices   = MakeFanIndices()
-    fout=open(build_dir+dir_sep+'CMDS.atm','wb')
-    print(poly_list)
-    print(bbox_list)
-    time.sleep(3)
-    while file.tell()<cmdsend:
-        bcmd=file.read(1)
-        (c,)=struct.unpack('<B', bcmd)
-        print(c)
-        if c==10:	# Network Chain Range 
-            fout.write(bcmd+file.read(4))
-        elif c==9:	# Network Chain 
-            bl=file.read(1)
-            (l,)=struct.unpack('<B', bl)
-            fout.write(bcmd+bl+file.read(l*2))
-        elif c==11:	# Network Chain 32
-            bl=file.read(1)
-            (l,)=struct.unpack('<B', bl)
-            fout.write(bcmd+bl+file.read(l*4))
-        elif c==13:	# Polygon Range 
-            fout.write(bcmd+file.read(6))
-        elif c==15:	# Nested Polygon Range
-            bpn=file.read(3)
-            (param,n)=struct.unpack('<HB', bpn)
-            fout.write(bcmd+bpn+file.read(2*n+2))
-        elif c==27:	# Patch Triangle Strip - cross-pool 
-            (l,)=struct.unpack('<B', file.read(1))
-            array_in=numpy.fromstring(file.read(l*4), '<H').reshape(-1,2)[stripindices[l]]
-            tri_list_loc=numpy.array([pool[p][d] for (p,d) in array_in])
-            loc_keep_list=numpy.zeros(3*(l-2),dtype=numpy.bool)
-            loc_keep_nbr=0
-            for j in range(l-2):
-                poly_tri=tri_list_loc[3*j:3*j+3][:,1::-1].reshape(6)
-                #poly_tri=numpy.concatenate((poly_tri,poly_tri[:2]))
-                keep_tri=True
-                rough_test_passed=True
-                for bbox in bbox_list:
-                    if in_bbox(poly_tri[0:2],bbox):
-                        rough_test_passed=False
-                        break
-                if not rough_test_passed:
-                    if flags&1:
-                        px1=int((poly_tri[1]-lon)*raster_resolution)
-                        px2=int((poly_tri[3]-lon)*raster_resolution)
-                        px3=int((poly_tri[5]-lon)*raster_resolution)
-                        py1=int((lat+1-poly_tri[0])*raster_resolution)
-                        py2=int((lat+1-poly_tri[2])*raster_resolution)
-                        py3=int((lat+1-poly_tri[4])*raster_resolution)
-                        terrain_draw.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx%256) 
-                        if mult_draw: terrain_draw_mult.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx//256) 
-                        #print(c,idx)
-                    for poly_test in poly_list:
-                        if do_overlap(poly_tri,poly_test):
-                            keep_tri=False
-                            break
-                    if keep_tri:
-                        hole_seeds.append([(poly_tri[0]+poly_tri[2]+poly_tri[4])/3,\
-                                (poly_tri[1]+poly_tri[3]+poly_tri[5])/3])
-                if not keep_tri:
-                    if flags&1: 
-                        tri_list.append(tri_list_loc[3*j:3*j+3])
-                        ter_list.append(idx)
-                        #print(c,idx)
-                else:
-                    tri_list_kept[curter].append(tri_list_loc[3*j:3*j+3])
-                    loc_keep_list[3*j:3*j+3]=True
-                    loc_keep_nbr+=1
-            if loc_keep_nbr>0:
-                array_out=array_in[loc_keep_list==True].reshape(1,-1)
-                fout.write(struct.pack('<B',24)+struct.pack('<B',3*loc_keep_nbr)+array_out.tostring())
-        elif c==28:	# Patch Triangle Strip Range 
-            (first,last)=struct.unpack('<HH', file.read(4))
-            loc_keep_list=numpy.arange(first,last,dtype=numpy.uint16)[stripindices[last-first]]
-            loc_keep_nbr=0
-            tri_list_loc=pool[curpool][loc_keep_list]
-            for j in range(last-first-2):
-                poly_tri=tri_list_loc[3*j:3*j+3][:,1::-1].reshape(6)
-                #poly_tri=numpy.concatenate((poly_tri,poly_tri[:2]))
-                keep_tri=True
-                rough_test_passed=True
-                for bbox in bbox_list:
-                    if in_bbox(poly_tri[0:2],bbox):
-                        rough_test_passed=False
-                        break
-                if not rough_test_passed:
-                    if flags&1:
-                        px1=int((poly_tri[1]-lon)*raster_resolution)
-                        px2=int((poly_tri[3]-lon)*raster_resolution)
-                        px3=int((poly_tri[5]-lon)*raster_resolution)
-                        py1=int((lat+1-poly_tri[0])*raster_resolution)
-                        py2=int((lat+1-poly_tri[2])*raster_resolution)
-                        py3=int((lat+1-poly_tri[4])*raster_resolution)
-                        terrain_draw.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx%256) 
-                        if mult_draw: terrain_draw_mult.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx//256) 
-                        #print(c,idx)
-                    for poly_test in poly_list:
-                        if do_overlap(poly_tri,poly_test):
-                            keep_tri=False
-                            break
-                    if keep_tri:
-                        hole_seeds.append([(poly_tri[0]+poly_tri[2]+poly_tri[4])/3,\
-                                (poly_tri[1]+poly_tri[3]+poly_tri[5])/3])
-                if not keep_tri:
-                    loc_keep_list[3*j:3*j+3]=65535
-                    if flags&1: 
-                        tri_list.append(tri_list_loc[3*j:3*j+3])
-                        ter_list.append(idx)
-                        #print(c,idx)
-                else:
-                    tri_list_kept[curter].append(tri_list_loc[3*j:3*j+3])
-                    loc_keep_nbr+=1
-            if loc_keep_nbr>0:
-                array_out=loc_keep_list[loc_keep_list!=65535]
-                fout.write(struct.pack('<B',23)+struct.pack('<B',3*loc_keep_nbr)+array_out.tostring())
-        elif c==1:	# Coordinate Pool Select
-            bcp=file.read(2)
-            (curpool,)=struct.unpack('<H', bcp)
-            fout.write(bcmd+bcp)
-        elif c==2:	# Junction Offset Select
-            fout.write(bcmd+file.read(4))
-        elif c==3:	# Set Definition
-            bidx=file.read(1)
-            (idx,)=struct.unpack('<B', bidx)
-            fout.write(bcmd+bidx)
-        elif c==4:	# Set Definition
-            bidx=file.read(2)
-            (idx,)=struct.unpack('<H', bidx)
-            fout.write(bcmd+bidx)
-        elif c==5:	# Set Definition
-            bidx=file.read(4)
-            (idx,)=struct.unpack('<I', bidx)
-            fout.write(bcmd+bidx)
-        elif c==6:	# Set Road Subtype
-            fout.write(bcmd+file.read(1))
-        elif c==7:	# Object
-            fout.write(bcmd+file.read(2))
-        elif c==8:	# Object Range
-            fout.write(bcmd+file.read(4))
-        elif c==12:	# Polygon
-            bpl=file.read(3)
-            (param,l)=struct.unpack('<HB', bpl)
-            fout.write(bcmd+bpl+file.read(l*2))
-        elif c==14:	# Nested Polygon
-            bpn=file.read(3)
-            (param,n)=struct.unpack('<HB', bpn)
-            btmp=b''
-            for i in range(n):
-                bl=file.read(1)
-                (l,)=struct.unpack('<B', bl)
-                btmp+=bl+file.read(l*2)
-            fout.write(bcmd+bpn+btmp)
-        elif c==16:	# Terrain Patch
-            curter=terrain[idx]
-            fout.write(bcmd)
-        elif c==17:	# Terrain Patch w/ flags
-            bf=file.read(1)
-            (flags,)=struct.unpack('<B', bf)
-            curter=terrain[idx]
-            fout.write(bcmd+bf)
-        elif c==18:	# Terrain Patch w/ flags & LOD
-            bf=file.read(9)
-            (flags,near,far)=struct.unpack('<Bff', bf)
-            curter=terrain[idx]
-            fout.write(bcmd+bf)
-        elif c==23:	# Patch Triangle
-            (l,)=struct.unpack('<B', file.read(1))
-            array_in=numpy.fromstring(file.read(l*2), '<H')
-            tri_list_loc=pool[curpool][array_in]
-            loc_keep_list=numpy.zeros(l,dtype=numpy.bool)
-            loc_keep_nbr=0
-            for j in range(l//3):
-                poly_tri=tri_list_loc[3*j:3*j+3][:,1::-1].reshape(6) 
-                #poly_tri=numpy.concatenate((poly_tri,poly_tri[:2]))
-                keep_tri=True
-                rough_test_passed=True
-                for bbox in bbox_list:
-                    if in_bbox(poly_tri[0:2],bbox):
-                        rough_test_passed=False
-                        break
-                if not rough_test_passed:
-                    if flags&1:
-                        px1=int((poly_tri[1]-lon)*raster_resolution)
-                        px2=int((poly_tri[3]-lon)*raster_resolution)
-                        px3=int((poly_tri[5]-lon)*raster_resolution)
-                        py1=int((lat+1-poly_tri[0])*raster_resolution)
-                        py2=int((lat+1-poly_tri[2])*raster_resolution)
-                        py3=int((lat+1-poly_tri[4])*raster_resolution)
-                        terrain_draw.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx%256) 
-                        if mult_draw: terrain_draw_mult.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx//256) 
-                        #print(c,idx)
-                    for poly_test in poly_list:
-                        if do_overlap(poly_tri,poly_test):
-                            keep_tri=False
-                            break
-                    if keep_tri:
-                        hole_seeds.append([(poly_tri[0]+poly_tri[2]+poly_tri[4])/3,\
-                                (poly_tri[1]+poly_tri[3]+poly_tri[5])/3])
-                if not keep_tri:
-                    if flags&1: 
-                        tri_list.append(tri_list_loc[3*j:3*j+3])
-                        ter_list.append(idx)
-                        #print(c,idx)
-                else:
-                    tri_list_kept[curter].append(tri_list_loc[3*j:3*j+3])
-                    loc_keep_list[3*j:3*j+3]=True
-                    loc_keep_nbr+=1
-            array_out=array_in[loc_keep_list==True]
-            if loc_keep_nbr>0:
-                fout.write(bcmd+struct.pack('<B',3*loc_keep_nbr)+array_out.tostring())
-        elif c==24:	# Patch Triangle - cross-pool
-            (l,)=struct.unpack('<B', file.read(1))
-            array_in=numpy.fromstring(file.read(l*4), '<H')
-            tri_list_loc=numpy.array([pool[p][d] for (p,d) in array_in.reshape(-1,2)])
-            loc_keep_list=numpy.zeros(l*2,dtype=numpy.bool)
-            loc_keep_nbr=0
-            for j in range(l//3):
-                poly_tri=tri_list_loc[3*j:3*j+3][:,1::-1].reshape(6)
-                #poly_tri=numpy.concatenate((poly_tri,poly_tri[:2]))
-                keep_tri=True
-                rough_test_passed=True
-                for bbox in bbox_list:
-                    if in_bbox(poly_tri[0:2],bbox):
-                        rough_test_passed=False
-                        break
-                if not rough_test_passed:
-                    if flags&1:
-                        px1=int((poly_tri[1]-lon)*raster_resolution)
-                        px2=int((poly_tri[3]-lon)*raster_resolution)
-                        px3=int((poly_tri[5]-lon)*raster_resolution)
-                        py1=int((lat+1-poly_tri[0])*raster_resolution)
-                        py2=int((lat+1-poly_tri[2])*raster_resolution)
-                        py3=int((lat+1-poly_tri[4])*raster_resolution)
-                        terrain_draw.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx%256) 
-                        if mult_draw: terrain_draw_mult.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx//256) 
-                        #print(c,idx)
-                    for poly_test in poly_list:
-                        if do_overlap(poly_tri,poly_test):
-                            keep_tri=False
-                            break
-                    if keep_tri:
-                        hole_seeds.append([(poly_tri[0]+poly_tri[2]+poly_tri[4])/3,\
-                                (poly_tri[1]+poly_tri[3]+poly_tri[5])/3])
-                if not keep_tri:
-                    if flags&1: 
-                        tri_list.append(tri_list_loc[3*j:3*j+3])
-                        ter_list.append(idx)
-
-                else:
-                    tri_list_kept[curter].append(tri_list_loc[3*j:3*j+3])
-                    loc_keep_list[6*j:6*j+6]=True
-                    loc_keep_nbr+=1
-            array_out=array_in[loc_keep_list==True]
-            if loc_keep_nbr>0:
-                fout.write(bcmd+struct.pack('<B',3*loc_keep_nbr)+array_out.tostring())
-        elif c==25:	# Patch Triangle Range
-            (first,last)=struct.unpack('<HH', file.read(4))
-            tri_list_loc=pool[curpool][first:last]
-            loc_keep_nbr=0
-            loc_keep_list=numpy.arange(first,last,dtype=numpy.uint16)
-            l=(last-first)
-            for j in range(l//3):
-                poly_tri=tri_list_loc[3*j:3*j+3][:,1::-1].reshape(6)
-                #poly_tri=numpy.concatenate((poly_tri,poly_tri[:2]))
-                keep_tri=True
-                rough_test_passed=True
-                for bbox in bbox_list:
-                    if in_bbox(poly_tri[0:2],bbox):
-                        rough_test_passed=False
-                        break
-                if not rough_test_passed:
-                    if flags&1:
-                        px1=int((poly_tri[1]-lon)*raster_resolution)
-                        px2=int((poly_tri[3]-lon)*raster_resolution)
-                        px3=int((poly_tri[5]-lon)*raster_resolution)
-                        py1=int((lat+1-poly_tri[0])*raster_resolution)
-                        py2=int((lat+1-poly_tri[2])*raster_resolution)
-                        py3=int((lat+1-poly_tri[4])*raster_resolution)
-                        terrain_draw.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx%256) 
-                        if mult_draw: terrain_draw_mult.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx//256) 
-                        #print(c,idx)
-                    for poly_test in poly_list:
-                        if do_overlap(poly_tri,poly_test):
-                            keep_tri=False
-                            break
-                    if keep_tri:
-                        hole_seeds.append([(poly_tri[0]+poly_tri[2]+poly_tri[4])/3,\
-                                (poly_tri[1]+poly_tri[3]+poly_tri[5])/3])
-                if not keep_tri:
-                    loc_keep_list[3*j:3*j+3]=65535 # slightly dangerous...
-                    if flags&1: 
-                        tri_list.append(tri_list_loc[3*j:3*j+3])
-                        ter_list.append(idx)
-                else:
-                    tri_list_kept[curter].append(tri_list_loc[3*j:3*j+3])
-                    loc_keep_nbr+=1
-            if loc_keep_nbr>0:
-                array_out=loc_keep_list[loc_keep_list!=65535]
-                fout.write(struct.pack('<B',23)+struct.pack('<B',3*loc_keep_nbr)+array_out.tostring())
-        elif c==26:	# Patch Triangle Strip 
-            (l,)=struct.unpack('<B', file.read(1))
-            array_in=numpy.fromstring(file.read(l*2), '<H')[stripindices[l]]
-            tri_list_loc=pool[curpool][array_in]
-            loc_keep_list=numpy.zeros(3*(l-2),dtype=numpy.bool)
-            loc_keep_nbr=0
-            for j in range(l-2):
-                poly_tri=tri_list_loc[3*j:3*j+3][:,1::-1].reshape(6)
-                #poly_tri=numpy.concatenate((poly_tri,poly_tri[:2]))
-                keep_tri=True
-                rough_test_passed=True
-                for bbox in bbox_list:
-                    if in_bbox(poly_tri[0:2],bbox):
-                        rough_test_passed=False
-                        break
-                if not rough_test_passed:
-                    if flags&1:
-                        px1=int((poly_tri[1]-lon)*raster_resolution)
-                        px2=int((poly_tri[3]-lon)*raster_resolution)
-                        px3=int((poly_tri[5]-lon)*raster_resolution)
-                        py1=int((lat+1-poly_tri[0])*raster_resolution)
-                        py2=int((lat+1-poly_tri[2])*raster_resolution)
-                        py3=int((lat+1-poly_tri[4])*raster_resolution)
-                        terrain_draw.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx%256) 
-                        if mult_draw: terrain_draw_mult.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx//256) 
-                        #print(c,idx)
-                    terrain_draw.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx%256) 
-                    if mult_draw: terrain_draw_mult.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx//256) 
-                    for poly_test in poly_list:
-                        if do_overlap(poly_tri,poly_test):
-                            keep_tri=False
-                            break
-                    if keep_tri:
-                        hole_seeds.append([(poly_tri[0]+poly_tri[2]+poly_tri[4])/3,\
-                                (poly_tri[1]+poly_tri[3]+poly_tri[5])/3])
-                if not keep_tri:
-                    if flags&1: 
-                        tri_list.append(tri_list_loc[3*j:3*j+3])
-                        ter_list.append(idx)
-                        #print(c,idx)
-                else:
-                    tri_list_kept[curter].append(tri_list_loc[3*j:3*j+3])
-                    loc_keep_list[3*j:3*j+3]=True
-                    loc_keep_nbr+=1
-            if loc_keep_nbr>0:
-                array_out=array_in[loc_keep_list==True]
-                fout.write(struct.pack('<B',23)+struct.pack('<B',3*loc_keep_nbr)+array_out.tostring())
-        elif c==29:	# Patch Triangle Fan
-            (l,)=struct.unpack('<B', file.read(1))
-            array_in=numpy.fromstring(file.read(l*2), '<H')[fanindices[l]]
-            tri_list_loc=pool[curpool][array_in]
-            loc_keep_list=numpy.zeros(3*(l-2),dtype=numpy.bool)
-            loc_keep_nbr=0
-            for j in range(l-2):
-                poly_tri=tri_list_loc[3*j:3*j+3][:,1::-1].reshape(6)
-                #poly_tri=numpy.concatenate((poly_tri,poly_tri[:2]))
-                keep_tri=True
-                rough_test_passed=True
-                for bbox in bbox_list:
-                    if in_bbox(poly_tri[0:2],bbox):
-                        rough_test_passed=False
-                        break
-                if not rough_test_passed:
-                    if flags&1:
-                        px1=int((poly_tri[1]-lon)*raster_resolution)
-                        px2=int((poly_tri[3]-lon)*raster_resolution)
-                        px3=int((poly_tri[5]-lon)*raster_resolution)
-                        py1=int((lat+1-poly_tri[0])*raster_resolution)
-                        py2=int((lat+1-poly_tri[2])*raster_resolution)
-                        py3=int((lat+1-poly_tri[4])*raster_resolution)
-                        terrain_draw.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx%256) 
-                        if mult_draw: terrain_draw_mult.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx//256) 
-                        #print(c,idx)
-                    for poly_test in poly_list:
-                        if do_overlap(poly_tri,poly_test):
-                            keep_tri=False
-                            break
-                    if keep_tri:
-                        hole_seeds.append([(poly_tri[0]+poly_tri[2]+poly_tri[4])/3,\
-                                (poly_tri[1]+poly_tri[3]+poly_tri[5])/3])
-                if not keep_tri:
-                    if flags&1: 
-                        tri_list.append(tri_list_loc[3*j:3*j+3])
-                        ter_list.append(idx)
-                        #print(c,idx)
-                else:
-                    tri_list_kept[curter].append(tri_list_loc[3*j:3*j+3])
-                    loc_keep_list[3*j:3*j+3]=True
-                    loc_keep_nbr+=1
-            if loc_keep_nbr>0:
-                array_out=array_in[loc_keep_list==True]
-                fout.write(struct.pack('<B',23)+struct.pack('<B',3*loc_keep_nbr)+array_out.tostring())
-        elif c==30:	# Patch Triangle Fan - cross-pool
-            print("triangle fan cross-pool!!!!!!!!!!!!!!!!!!!!!")
-            (l,)=struct.unpack('<B', file.read(1))
-            bstring_in=file.read(l*4)
-            bstring_out=b''
-            l_out=0
-            tri_list_loc=numpy.array([pool[p][d] for (p,d) in numpy.fromstring(bstring_in,'<H').reshape(-1,2)])[fanindices[l]] 
-            for j in range(l-2):
-                poly_tri=tri_list_loc[3*j:3*j+3][:,1::-1].reshape(6)
-                #poly_tri=numpy.concatenate((poly_tri,poly_tri[:2]))
-                keep_tri=True
-                rough_test_passed=True
-                for bbox in bbox_list:
-                    if in_bbox(poly_tri[0:2],bbox):
-                        rough_test_passed=False
-                        break
-                if not rough_test_passed:
-                    if flags&1:
-                        px1=int((poly_tri[1]-lon)*raster_resolution)
-                        px2=int((poly_tri[3]-lon)*raster_resolution)
-                        px3=int((poly_tri[5]-lon)*raster_resolution)
-                        py1=int((lat+1-poly_tri[0])*raster_resolution)
-                        py2=int((lat+1-poly_tri[2])*raster_resolution)
-                        py3=int((lat+1-poly_tri[4])*raster_resolution)
-                        terrain_draw.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx%256) 
-                        if mult_draw: terrain_draw_mult.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx//256) 
-                        print(c,idx)
-                    for poly_test in poly_list:
-                        if do_overlap(poly_tri,poly_test):
-                            keep_tri=False
-                            break
-                    if keep_tri:
-                        hole_seeds.append([(poly_tri[0]+poly_tri[2]+poly_tri[4])/3,\
-                                (poly_tri[1]+poly_tri[3]+poly_tri[5])/3])
-                if not keep_tri:
-                    if flags&1: 
-                        tri_list.append(tri_list_loc[3*j:3*j+3])
-                        ter_list.append(idx)
-                        print(c,idx)
-                else:
-                    tri_list_kept[curter].append(tri_list_loc[3*j:3*j+3])
-                    # TODO FIX !!!
-        elif c==31:	# Patch Triangle Fan Range
-            print("triangle fan range!!!!!!!!!!!!!!!!!!!!!")
-            (first,last)=struct.unpack('<HH', file.read(4))
-            bstring_out=b''
-            l_out=0
-            tri_list_loc=pool[curpool][first:][fanindices[last-first]]
-            for j in range(last-first-2):
-                poly_tri=tri_list_loc[3*j:3*j+3][:,1::-1].reshape(6)
-                #poly_tri=numpy.concatenate((poly_tri,poly_tri[:2]))
-                keep_tri=True
-                rough_test_passed=True
-                for bbox in bbox_list:
-                    if in_bbox(poly_tri[0:2],bbox):
-                        rough_test_passed=False
-                        break
-                if not rough_test_passed:
-                    if flags&1:
-                        px1=int((poly_tri[1]-lon)*raster_resolution)
-                        px2=int((poly_tri[3]-lon)*raster_resolution)
-                        px3=int((poly_tri[5]-lon)*raster_resolution)
-                        py1=int((lat+1-poly_tri[0])*raster_resolution)
-                        py2=int((lat+1-poly_tri[2])*raster_resolution)
-                        py3=int((lat+1-poly_tri[4])*raster_resolution)
-                        terrain_draw.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx%256) 
-                        if mult_draw: terrain_draw_mult.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=idx//256) 
-                        print(c,idx)
-                    for poly_test in poly_list:
-                        if do_overlap(poly_tri,poly_test):
-                            keep_tri=False
-                            break
-                    if keep_tri:
-                        hole_seeds.append([(poly_tri[0]+poly_tri[2]+poly_tri[4])/3,\
-                                (poly_tri[1]+poly_tri[3]+poly_tri[5])/3])
-                if not keep_tri:
-                    if flags&1: 
-                        tri_list.append(tri_list_loc[3*j:3*j+3])
-                        ter_list.append(idx)
-                        print(c,idx)
-                else:
-                    tri_list_kept[curter].append(tri_list_loc[3*j:3*j+3])
-                    # TODO FIX !!!
-        elif c==32:	# Comment
-            bl=file.read(1) 
-            (l,)=struct.unpack('<B', bl)
-            fout.write(bmcd+bl+file.read(l))
-        elif c==33:	# Comment
-            bl=file.read(2) 
-            (l,)=struct.unpack('<H', bl)
-            fout.write(bmcd+bl+file.read(l))
-        elif c==34:	# Comment
-            bl=file.read(4) 
-            (l,)=struct.unpack('<I', bl)
-            fout.write(bmcd+bl+file.read(l))
-        else:
-            print("Unrecognised command (%d) at %x" % (c, file.tell()-1))
-    print("%6.3f time in CMDS atom" % (time.time()-clock))
-    file.close()
-    fout.close()
-    terrain_im.save(build_dir+dir_sep+'terrain_map_'+strlat+strlon+'.png')
-    if mult_draw: terrain_im_mult.save(build_dir+dir_sep+'terrain_map_mult_'+strlat+strlon+'.png')
-    print("Elapsed time :",time.time()-timer)
-    return (tri_list,ter_list,tri_list_kept,hole_seeds)
+    return (pool_nbr,pools_params,pools_planes,pools_lengths,pools,textures)
 ##############################################################################
+
+
+
+
+
+##############################################################################
+def write_geod_atom(f,bGEOD,pool_nbr,pools_params,pools_planes,pools_lengths,pools):
+    # f is the file handler we shall write in
+    # bGEOD is an external byte string containing pools/scals which we wish to reuse
+
+    # we first compute the size of the GEOD atom :
+    size_of_geod_atom=8+len(bGEOD)
+    for k in range(0,2*pool_nbr):
+        if pools_lengths[k]>0:
+            size_of_geod_atom+=21+pools_planes[k]*(9+2*pools_lengths[k])
+    if verbose_output==True:
+        print("   Size of GEOD atom : "+str(size_of_geod_atom)+" bytes.")   
+    # next we encode it 
+    f.write(b"DOEG")
+    f.write(struct.pack('<I',size_of_geod_atom))
+    f.write(bGEOD)
+    for k in range(0,2*pool_nbr):
+        if pools_lengths[k]==0:
+            continue
+        f.write(b'LOOP')
+        f.write(struct.pack('<I',13+pools_planes[k]+2*pools_planes[k]*pools_lengths[k]))
+        f.write(struct.pack('<I',pools_lengths[k]))
+        f.write(struct.pack('<B',pools_planes[k]))
+        for l in range(0,pools_planes[k]):
+            f.write(struct.pack('<B',0))
+            for m in range(0,pools_lengths[k]):
+                f.write(struct.pack('<H',pools[k,pools_planes[k]*m+l]))
+    for k in range(0,2*pool_nbr):
+        if pools_lengths[k]==0:
+            continue
+        f.write(b'LACS')
+        f.write(struct.pack('<I',8+8*pools_planes[k]))
+        for l in range(0,2*pools_planes[k]):
+            f.write(struct.pack('<f',pools_params[k,l]))
+   
+    try:
+        application.progress_attr.set(95)
+        if application.red_flag.get()==1:
+            print("Attribution process interrupted.")
+            return
+    except:
+        pass
+    return size_of_geod_atom
+##############################################################################
+
+##############################################################################
+def write_dems_atom(f,bDEMS):
+    if bDEMS!=b'':
+        if verbose_output==True:
+            print("   Size of DEMS atom : "+str(len(bDEMS))+" bytes.")   
+        f.write(b"SMED")
+        f.write(struct.pack('<I',8+len(bDEMS)))
+        f.write(bDEMS)
+    return len(bDEMS)
+##############################################################################
+
+##############################################################################
+def write_cmds_atom(f,bCMDS,textures,dico_textures,dico_new_pool):
+    # f is the file handler we shall write in
+    # bCMDS is an external byte string contained commands which we wish to reuse
+    # textures is the dictionnary for the textured mesh
+    # dico_new_pool is the dictionnary for the index of pools after elimination of zero length ones
+   
+    # we first compute the size of the CMDS atom :
+    size_of_cmds_atom=8+len(bCMDS)
+    for key in textures:
+        if len(textures[key])==0:
+            continue
+        size_of_cmds_atom+=3
+        for pool_idx in textures[key]:
+            if pool_idx != 'cross-pool':
+                size_of_cmds_atom+= 13+2*(len(textures[key][pool_idx])+\
+                        ceil(len(textures[key][pool_idx])/255))
+            else:
+                size_of_cmds_atom+= 13+2*(len(textures[key][pool_idx])+\
+                        ceil(len(textures[key][pool_idx])/510))
+    if verbose_output==True:
+        print("   Size of CMDS atom : "+str(size_of_cmds_atom)+" bytes.")
+    f.write(b'SDMC')                               # CMDS header 
+    f.write(struct.pack('<I',size_of_cmds_atom))   # CMDS length
+    f.write(bCMDS)
+    for key in textures:
+        if len(textures[key])==0:
+            continue
+        texture_idx=dico_textures[key] 
+        #print("texture_idx = "+str(texture_idx))
+        f.write(struct.pack('<B',4))           # SET DEFINITION 16
+        f.write(struct.pack('<H',texture_idx)) # TERRAIN INDEX
+        flag=int(key[-1])
+        lod=-1 if flag==1 else overlay_lod
+        for pool_idx in textures[key]:
+            #print("  pool_idx = "+str(pool_idx))
+            if pool_idx != 'cross-pool':
+                f.write(struct.pack('<B',1))                          # POOL SELECT
+                f.write(struct.pack('<H',dico_new_pool[pool_idx]))    # POOL INDEX
+    
+                f.write(struct.pack('<B',18))    # TERRAIN PATCH FLAGS AND LOD
+                f.write(struct.pack('<B',flag))  # FLAG
+                f.write(struct.pack('<f',0))     # NEAR LOD
+                f.write(struct.pack('<f',lod))    # FAR LOD
+                
+                blocks=floor(len(textures[key][pool_idx])/255)
+                #print("     "+str(blocks)+" blocks")    
+                for j in range(0,blocks):
+                    f.write(struct.pack('<B',23))   # PATCH TRIANGLE
+                    f.write(struct.pack('<B',255))  # COORDINATE COUNT
+
+                    for k in range(0,255):
+                        f.write(struct.pack('<H',textures[key][pool_idx][255*j+k]))  # COORDINATE IDX
+                remaining_tri_p=len(textures[key][pool_idx])%255
+                if remaining_tri_p != 0:
+                    f.write(struct.pack('<B',23))               # PATCH TRIANGLE
+                    f.write(struct.pack('<B',remaining_tri_p))  # COORDINATE COUNT
+                    for k in range(0,remaining_tri_p):
+                        f.write(struct.pack('<H',textures[key][pool_idx][255*blocks+k]))  # COORDINATE IDX
+            elif pool_idx == 'cross-pool':
+                pool_idx_init=textures[key][pool_idx][0]
+                f.write(struct.pack('<B',1))                               # POOL SELECT
+                f.write(struct.pack('<H',dico_new_pool[pool_idx_init]))    # POOL INDEX
+                f.write(struct.pack('<B',18))    # TERRAIN PATCH FLAGS AND LOD
+                f.write(struct.pack('<B',flag))  # FLAG
+                f.write(struct.pack('<f',0))     # NEAR LOD
+                f.write(struct.pack('<f',lod))  # FAR LOD
+                
+                blocks=floor(len(textures[key][pool_idx])/510)
+                for j in range(0,blocks):
+                    f.write(struct.pack('<B',24))   # PATCH TRIANGLE CROSS-POOL
+                    f.write(struct.pack('<B',255))  # COORDINATE COUNT
+                    for k in range(0,255):
+                        f.write(struct.pack('<H',dico_new_pool[textures[key][pool_idx][510*j+2*k]]))    # POOL IDX
+                        f.write(struct.pack('<H',textures[key][pool_idx][510*j+2*k+1]))                 # POS_IN_POOL IDX
+                remaining_tri_p=int((len(textures[key][pool_idx])%510)/2)
+                if remaining_tri_p != 0:
+                    f.write(struct.pack('<B',24))               # PATCH TRIANGLE CROSS-POOL
+                    f.write(struct.pack('<B',remaining_tri_p))  # COORDINATE COUNT
+                    for k in range(0,remaining_tri_p):
+                        f.write(struct.pack('<H',dico_new_pool[textures[key][pool_idx][510*blocks+2*k]]))   # POOL IDX
+                        f.write(struct.pack('<H',textures[key][pool_idx][510*blocks+2*k+1]))                # POS_IN_PO0L IDX
+    try:
+        application.progress_attr.set(98)
+        if application.red_flag.get()==1:
+            print("Attribution process interrupted.")
+            return
+    except:
+        pass
+    return size_of_cmds_atom
+##############################################################################
+
 
 ##############################################################################
 # Indices for making n-2 triangles out of n vertices of a tri strip
 class MakeStripIndices(dict):
     def __missing__(self, n):
         a = numpy.concatenate([i%2 and [i, i+2, i+1] or [i, i+1, i+2] for i in range(n-2)])
-        assert len(a) == 3*(n-2), a
         self[n] = a
         return a
 ##############################################################################
@@ -8313,10 +9089,10 @@ class MakeFanIndices(dict):
         a = zeros(3*(n-2), int)
         a[1:n*3:3] += numpy.arange(1,n-1)
         a[2:n*3:3] += numpy.arange(2,n)
-        assert len(a) == 3*(n-2), a
         self[n] = a
         return a
 ##############################################################################
+
 
 ##############################################################################
 #                                                                            #
@@ -8325,10 +9101,17 @@ class MakeFanIndices(dict):
 ##############################################################################
 
 if __name__ == '__main__':
+    initialize_providers_dict()
+    initialize_extents_dict()
+    initialize_color_filters_dict()
+    initialize_combined_providers_dict()
     if len(sys.argv)==1: # switch to the graphical interface
         ortho_list=[]
         zone_list=[]
-        exec(open(Ortho4XP_dir+dir_sep+'Ortho4XP.cfg').read())
+        try: 
+            exec(open(Ortho4XP_dir+dir_sep+'Ortho4XP.cfg').read())
+        except:
+            print("Global configuration file not found or corrupted, using factory defaults.")
         if not os.path.exists(Ortho4XP_dir+dir_sep+'OSM_data'):
             os.makedirs(Ortho4XP_dir+dir_sep+'OSM_data')
         if not os.path.exists(Ortho4XP_dir+dir_sep+'Tiles'):
@@ -8372,30 +9155,30 @@ if __name__ == '__main__':
     build_mesh(lat,lon,build_dir)
     print("\nStep 2.5 : Building Masks for Tile "+strlat+strlon+" : ")
     print("----------\n")
-    mesh_filename = build_dir+dir_sep+'Data'+strlat+strlon+".mesh"
+    mesh_file_name = build_dir+dir_sep+'Data'+strlat+strlon+".mesh"
     if complex_masks==False:
-        mesh_filename_list=[mesh_filename]
+        mesh_file_name_list=[mesh_file_name]
     else:
-        mesh_filename_list=[]
+        mesh_file_name_list=[]
         for closelat in [lat-1,lat,lat+1]:
             for closelon in [lon-1,lon,lon+1]:
                 strcloselat='{:+.0f}'.format(closelat).zfill(3)
                 strcloselon='{:+.0f}'.format(closelon).zfill(4)
-                closemesh_filename=build_dir+dir_sep+'..'+'zOrtho4XP_'+strcloselat+strcloselon+\
+                closemesh_file_name=build_dir+dir_sep+'..'+'zOrtho4XP_'+strcloselat+strcloselon+\
                                dir_sep+'Data'+strcloselat+strcloselon+".mesh"
-                if os.path.isfile(closemesh_filename):
-                    mesh_filename_list.append(closemesh_filename)
+                if os.path.isfile(closemesh_file_name):
+                    mesh_file_name_list.append(closemesh_file_name)
     build_dir=Ortho4XP_dir+dir_sep+'Tiles'+dir_sep+'zOrtho4XP_'+strlat+strlon
     if not os.path.exists(build_dir+dir_sep+"textures"):
         os.makedirs(build_dir+dir_sep+"textures")
-    build_masks(lat,lon,build_dir,mesh_filename_list)
+    build_masks(lat,lon,build_dir,mesh_file_name_list,maskszl)
     ortho_list=zone_list[:]
     if default_website!='None':
         ortho_list.append([[lat,lon,lat,lon+1,lat+1,lon+1,lat+1,lon,lat,lon],\
                     str(default_zl),str(default_website)])
     print("\nStep 3 : Building Tile "+strlat+strlon+" : ")
     print("--------\n")
-    build_tile(lat,lon,build_dir,mesh_filename,False)
+    build_tile(lat,lon,build_dir,mesh_file_name,False)
     print('\nBon vol !')
 ##############################################################################
 #                                                                            #
