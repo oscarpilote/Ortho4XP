@@ -1,0 +1,3 @@
+grid_type=webmercator
+url_template=http://{switch:a,b,c}.tile.openstreetmap.org/{zoom}/{x}/{y}.png
+

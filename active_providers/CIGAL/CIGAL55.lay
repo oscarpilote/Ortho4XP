@@ -1,0 +1,7 @@
+request_type=wmts
+epsg_code=2154
+layers=CRL:CRL_ORTHORVB_2014_55_TIFA_L93
+tilematrixset=EPSG:2154:512
+tile_size=512
+url_prefix=http://www.cigalsace.org/geoserver/gwc/service/wmts?
+extent=Meuse_200m

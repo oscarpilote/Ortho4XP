@@ -1,0 +1,6 @@
+#### Created with : ../mask_region.py Wallonie_500m rel[admin_level=4][name=Wallonie] 4326 0.0003 0.02 15
+### Created with : ../mask_region.py Wallonie_500m rel[admin_level=4][name=Wallonie] 4326 0.0003 0.02 4
+## Created with : ../mask_region.py Wallonie_500m rel[admin_level=4][name=Wallonie] 4326 0.0003 0.02 0
+# Created with : ../mask_region.py Wallonie_500m rel[admin_level=4][name=Wallonie] 4326 0.0002 0.01 3
+mask_bounds=2.8320347,49.4869821,6.418097,50.8221222
+blur_radius=3

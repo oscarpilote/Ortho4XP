@@ -1,0 +1,3 @@
+grid_type=webmercator
+url_template=http://r{switch:0,1,2,3}.ortho.tiles.virtualearth.net/tiles/a{quadkey}.jpeg?g=136
+imagery_dir=grouped

@@ -1,0 +1,17 @@
+#request_type=wms
+#wms_size=512
+#wms_version=1.1.1
+#epsg_code=3857
+#url_prefix=http://geoservice.siglr.org/wmsopendata?language=fre&
+#max_threads=4
+#layers=ign_ortho_66_2016
+#super_resol_factor=2
+extent=Pyrénées-Orientales
+request_type=local_tms
+epsg_code=2154
+resolutions=0.2
+top_left_corner=0 0
+tile_size=5000
+url_template=/home/oscarpilote/Touro/66/cut/66-2015-{x}-{y}-LA93-0M20-E080.jpg
+extent=Pyrénées-Orientales
+max_threads=2

@@ -1,0 +1,4 @@
+## Created with : ../mask_region.py Liguria rel[admin_level=4][name=Liguria] 4326 0.0003 0.02 10
+# Created with : ../mask_region.py Liguria rel[admin_level=4][name:it=Liguria] 4326 0.0003 0.02 10
+mask_bounds=7.4751614,43.723752346,10.0920351,44.6964424
+blur_radius=10

@@ -1,0 +1,8 @@
+request_type=local_tms
+epsg_code=2154
+resolutions=0.2
+top_left_corner=0 0
+tile_size=5000
+url_template=/media/oscarpilote/Data-ext4/Orthophoto-ProjetZ/2016_25cm_JP2-080_FD31_RVB_Express-été/16FD3125-2016-{x}-{y}-LA93.JP2
+extent=Ariège
+

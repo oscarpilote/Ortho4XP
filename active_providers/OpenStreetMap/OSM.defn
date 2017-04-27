@@ -1,0 +1,3 @@
+request_type=tms
+grid_type=gmap
+url_template=http://{switch:a,b,c}.tile.openstreetmap.org/{zoom}/{x}/{y}.png
