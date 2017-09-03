@@ -35,7 +35,7 @@ px256_list=['OSM','BI','GO2','Arc','Here','USA_2','FR','FRorth','FRom','FRsat','
 wms2048_list=['DE','IT','PL','SLO','CRO','SE2','BE_Wa','NE','NE2','DK','USA_1','GE','EST'] 
 
 # If the provider uses a different projection than epsg:4326 indicate it here below
-st_proj_coord_dict={'USA_1':'2056','DE':'25832','SE2':'3006','SLO':'102060','GE':'2056','EST':'3301'}
+st_proj_coord_dict={'DE':'25832','SE2':'3006','SLO':'102060','GE':'2056','EST':'3301'}
 
 ##############################################################################
 def http_requests_form(til_x_left,til_y_top,zoomlevel,website):
