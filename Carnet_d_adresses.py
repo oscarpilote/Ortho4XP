@@ -71,7 +71,7 @@ def http_requests_form(til_x_left,til_y_top,zoomlevel,website):
         url="http://mts"+str(server)+".google.com/vt/lyrs=s&x="+\
             str(til_x)+"&y="+str(til_y)+"&z="+str(zoomlevel)
         fake_headers={\
-            'Host':'khms'+str(server)+'.google.com',\
+            'Host':'mts'+str(server)+'.google.com',\
             'User-Agent': user_agent_generic,\
             'Accept':'image/png,image/*;q=0.8,*/*;q=0.5',\
             'Accept-Language':'fr,fr-FR;q=0.8,en-US;q=0.5,en;q=0.3',\
