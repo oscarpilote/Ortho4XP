@@ -1,0 +1,7 @@
+request_type=wms
+wms_size=512
+wms_version=1.1.1
+epsg_code=2154
+url_prefix=https://www.ppige-npdc.fr/geoserver/opendata/ortho_2015_rgb/wms?
+layers=ortho_2015_rgb
+extent=Nord-Pas-de-Calais_500m

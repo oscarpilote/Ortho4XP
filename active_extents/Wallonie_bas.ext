@@ -1,0 +1,3 @@
+# Created with : ../mask_region.py Wallonie_bas JOSM 4326 0.0001 0.01 4
+mask_bounds=4.1171221,49.4869821,6.1957132,50.203007752
+blur_radius=4

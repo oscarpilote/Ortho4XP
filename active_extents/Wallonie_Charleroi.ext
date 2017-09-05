@@ -1,0 +1,3 @@
+# Created with : ../mask_region.py Wallonie_Charleroi JOSM 4326 0.0003 0.01 20
+mask_bounds=3.302747886,50.36717883,4.53864888,50.569986855
+blur_radius=20

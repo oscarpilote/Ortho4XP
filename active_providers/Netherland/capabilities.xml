@@ -1,0 +1,249 @@
+<?xml version="1.0"?>
+<Capabilities xmlns="http://www.opengis.net/wmts/1.0" xmlns:ows="http://www.opengis.net/ows/1.1" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:gml="http://www.opengis.net/gml" xsi:schemaLocation="http://www.opengis.net/wmts/1.0   ../wmtsGetCapabilities_response.xsd" version="1.0.0">
+  <ows:ServiceIdentification>
+    <ows:Title>PDOK-achtergrond luchtfoto</ows:Title>
+    <ows:Abstract>PDOK-achtergrond luchtfoto, 2015, resolutie 50cm</ows:Abstract>
+    <ows:ServiceType>OGC WMTS</ows:ServiceType>
+    <ows:ServiceTypeVersion>1.0.0</ows:ServiceTypeVersion>
+    <ows:Fees>free, fair use</ows:Fees>
+    <ows:AccessConstraints>CC-BY-NC licentie. De luchtfoto mag vrij gebruikt worden voor niet-commerciele toepassingen. Partijen die de luchtfoto willen verwerken in commerciele producten dienen een licentie aan te schaffen bij een zelf te selecteren leverancier.</ows:AccessConstraints>
+  </ows:ServiceIdentification>
+  <ows:ServiceProvider>
+    <ows:ProviderName></ows:ProviderName>
+    <ows:ProviderSite xlink:href="http://geodata1.nationaalgeoregister.nl/luchtfoto2015/wms"/>
+    <ows:ServiceContact>
+      <ows:IndividualName>Beheer PDOK</ows:IndividualName>
+      <ows:PositionName>Contactpunt</ows:PositionName>
+      <ows:ContactInfo>
+        <ows:Phone>
+          <ows:Voice></ows:Voice>
+          <ows:Facsimile></ows:Facsimile>
+        </ows:Phone>
+        <ows:Address>
+          <ows:DeliveryPoint></ows:DeliveryPoint>
+          <ows:City></ows:City>
+          <ows:PostalCode></ows:PostalCode>
+          <ows:Country></ows:Country>
+          <ows:ElectronicMailAddress>beheerPDOK@kadaster.nl</ows:ElectronicMailAddress>
+        </ows:Address>
+      </ows:ContactInfo>
+    </ows:ServiceContact>
+  </ows:ServiceProvider>
+  <ows:OperationsMetadata>
+    <ows:Operation name="GetCapabilities">
+      <ows:DCP>
+        <ows:HTTP>
+          <ows:Get xlink:href="http://geodata1.nationaalgeoregister.nl/luchtfoto/wmts?">
+            <ows:Constraint name="GetEncoding">
+              <ows:AllowedValues>
+                <ows:Value>KVP</ows:Value>
+              </ows:AllowedValues>
+            </ows:Constraint>
+          </ows:Get>
+        </ows:HTTP>
+      </ows:DCP>
+    </ows:Operation>
+    <ows:Operation name="GetTile">
+      <ows:DCP>
+        <ows:HTTP>
+          <ows:Get xlink:href="http://geodata1.nationaalgeoregister.nl/luchtfoto/wmts?">
+            <ows:Constraint name="GetEncoding">
+              <ows:AllowedValues>
+                <ows:Value>KVP</ows:Value>
+              </ows:AllowedValues>
+            </ows:Constraint>
+          </ows:Get>
+        </ows:HTTP>
+      </ows:DCP>
+    </ows:Operation>
+  </ows:OperationsMetadata>
+  <Contents>
+    <Layer>
+      <ows:Title>PDOK-achtergrond luchtfoto 2015</ows:Title>
+      <ows:Abstract></ows:Abstract>
+      <ows:WGS84BoundingBox>
+        <ows:LowerCorner>-1.65729160261 48.0405018722</ows:LowerCorner>
+        <ows:UpperCorner>12.4317272647 56.1105896455</ows:UpperCorner>
+      </ows:WGS84BoundingBox>
+      <ows:Identifier>luchtfoto</ows:Identifier>
+      <Style>
+        <ows:Identifier>default</ows:Identifier>
+      </Style>
+      <Format>image/jpeg</Format>
+      <TileMatrixSetLink>
+        <TileMatrixSet>nltilingschema</TileMatrixSet>
+      </TileMatrixSetLink>
+    </Layer>
+    <Layer>
+      <ows:Title>PDOK-achtergrond luchtfoto 2015</ows:Title>
+      <ows:Abstract></ows:Abstract>
+      <ows:WGS84BoundingBox>
+        <ows:LowerCorner>-1.65729160261 48.0405018722</ows:LowerCorner>
+        <ows:UpperCorner>12.4317272647 56.1105896455</ows:UpperCorner>
+      </ows:WGS84BoundingBox>
+      <ows:Identifier>luchtfoto_jpeg</ows:Identifier>
+      <Style>
+        <ows:Identifier>default</ows:Identifier>
+      </Style>
+      <Format>image/jpeg</Format>
+      <TileMatrixSetLink>
+        <TileMatrixSet>nltilingschema</TileMatrixSet>
+      </TileMatrixSetLink>
+    </Layer>
+    <Layer>
+      <ows:Title>PDOK-achtergrond luchtfoto 2015</ows:Title>
+      <ows:Abstract></ows:Abstract>
+      <ows:WGS84BoundingBox>
+        <ows:LowerCorner>-1.65729160261 48.0405018722</ows:LowerCorner>
+        <ows:UpperCorner>12.4317272647 56.1105896455</ows:UpperCorner>
+      </ows:WGS84BoundingBox>
+      <ows:Identifier>luchtfoto_png</ows:Identifier>
+      <Style>
+        <ows:Identifier>default</ows:Identifier>
+      </Style>
+      <Format>image/png</Format>
+      <TileMatrixSetLink>
+        <TileMatrixSet>nltilingschema</TileMatrixSet>
+      </TileMatrixSetLink>
+    </Layer>
+    <TileMatrixSet>
+      <ows:Identifier>nltilingschema</ows:Identifier>
+      <ows:SupportedCRS>EPSG:28992</ows:SupportedCRS>
+      <TileMatrix>
+        <ows:Identifier>00</ows:Identifier>
+        <ScaleDenominator>12288000.0</ScaleDenominator>
+        <TopLeftCorner>-285401.92 903401.92</TopLeftCorner>
+        <TileWidth>256</TileWidth>
+        <TileHeight>256</TileHeight>
+        <MatrixWidth>1</MatrixWidth>
+        <MatrixHeight>1</MatrixHeight>
+      </TileMatrix>
+      <TileMatrix>
+        <ows:Identifier>01</ows:Identifier>
+        <ScaleDenominator>6144000.0</ScaleDenominator>
+        <TopLeftCorner>-285401.92 903401.92</TopLeftCorner>
+        <TileWidth>256</TileWidth>
+        <TileHeight>256</TileHeight>
+        <MatrixWidth>2</MatrixWidth>
+        <MatrixHeight>2</MatrixHeight>
+      </TileMatrix>
+      <TileMatrix>
+        <ows:Identifier>02</ows:Identifier>
+        <ScaleDenominator>3072000.0</ScaleDenominator>
+        <TopLeftCorner>-285401.92 903401.92</TopLeftCorner>
+        <TileWidth>256</TileWidth>
+        <TileHeight>256</TileHeight>
+        <MatrixWidth>4</MatrixWidth>
+        <MatrixHeight>4</MatrixHeight>
+      </TileMatrix>
+      <TileMatrix>
+        <ows:Identifier>03</ows:Identifier>
+        <ScaleDenominator>1536000.0</ScaleDenominator>
+        <TopLeftCorner>-285401.92 903401.92</TopLeftCorner>
+        <TileWidth>256</TileWidth>
+        <TileHeight>256</TileHeight>
+        <MatrixWidth>8</MatrixWidth>
+        <MatrixHeight>8</MatrixHeight>
+      </TileMatrix>
+      <TileMatrix>
+        <ows:Identifier>04</ows:Identifier>
+        <ScaleDenominator>768000.0</ScaleDenominator>
+        <TopLeftCorner>-285401.92 903401.92</TopLeftCorner>
+        <TileWidth>256</TileWidth>
+        <TileHeight>256</TileHeight>
+        <MatrixWidth>16</MatrixWidth>
+        <MatrixHeight>16</MatrixHeight>
+      </TileMatrix>
+      <TileMatrix>
+        <ows:Identifier>05</ows:Identifier>
+        <ScaleDenominator>384000.0</ScaleDenominator>
+        <TopLeftCorner>-285401.92 903401.92</TopLeftCorner>
+        <TileWidth>256</TileWidth>
+        <TileHeight>256</TileHeight>
+        <MatrixWidth>32</MatrixWidth>
+        <MatrixHeight>32</MatrixHeight>
+      </TileMatrix>
+      <TileMatrix>
+        <ows:Identifier>06</ows:Identifier>
+        <ScaleDenominator>192000.0</ScaleDenominator>
+        <TopLeftCorner>-285401.92 903401.92</TopLeftCorner>
+        <TileWidth>256</TileWidth>
+        <TileHeight>256</TileHeight>
+        <MatrixWidth>64</MatrixWidth>
+        <MatrixHeight>64</MatrixHeight>
+      </TileMatrix>
+      <TileMatrix>
+        <ows:Identifier>07</ows:Identifier>
+        <ScaleDenominator>96000.0</ScaleDenominator>
+        <TopLeftCorner>-285401.92 903401.92</TopLeftCorner>
+        <TileWidth>256</TileWidth>
+        <TileHeight>256</TileHeight>
+        <MatrixWidth>128</MatrixWidth>
+        <MatrixHeight>128</MatrixHeight>
+      </TileMatrix>
+      <TileMatrix>
+        <ows:Identifier>08</ows:Identifier>
+        <ScaleDenominator>48000.0</ScaleDenominator>
+        <TopLeftCorner>-285401.92 903401.92</TopLeftCorner>
+        <TileWidth>256</TileWidth>
+        <TileHeight>256</TileHeight>
+        <MatrixWidth>256</MatrixWidth>
+        <MatrixHeight>256</MatrixHeight>
+      </TileMatrix>
+      <TileMatrix>
+        <ows:Identifier>09</ows:Identifier>
+        <ScaleDenominator>24000.0</ScaleDenominator>
+        <TopLeftCorner>-285401.92 903401.92</TopLeftCorner>
+        <TileWidth>256</TileWidth>
+        <TileHeight>256</TileHeight>
+        <MatrixWidth>512</MatrixWidth>
+        <MatrixHeight>512</MatrixHeight>
+      </TileMatrix>
+      <TileMatrix>
+        <ows:Identifier>10</ows:Identifier>
+        <ScaleDenominator>12000.0</ScaleDenominator>
+        <TopLeftCorner>-285401.92 903401.92</TopLeftCorner>
+        <TileWidth>256</TileWidth>
+        <TileHeight>256</TileHeight>
+        <MatrixWidth>1024</MatrixWidth>
+        <MatrixHeight>1024</MatrixHeight>
+      </TileMatrix>
+      <TileMatrix>
+        <ows:Identifier>11</ows:Identifier>
+        <ScaleDenominator>6000.0</ScaleDenominator>
+        <TopLeftCorner>-285401.92 903401.92</TopLeftCorner>
+        <TileWidth>256</TileWidth>
+        <TileHeight>256</TileHeight>
+        <MatrixWidth>2048</MatrixWidth>
+        <MatrixHeight>2048</MatrixHeight>
+      </TileMatrix>
+      <TileMatrix>
+        <ows:Identifier>12</ows:Identifier>
+        <ScaleDenominator>3000.0</ScaleDenominator>
+        <TopLeftCorner>-285401.92 903401.92</TopLeftCorner>
+        <TileWidth>256</TileWidth>
+        <TileHeight>256</TileHeight>
+        <MatrixWidth>4096</MatrixWidth>
+        <MatrixHeight>4096</MatrixHeight>
+      </TileMatrix>
+      <TileMatrix>
+        <ows:Identifier>13</ows:Identifier>
+        <ScaleDenominator>1500.0</ScaleDenominator>
+        <TopLeftCorner>-285401.92 903401.92</TopLeftCorner>
+        <TileWidth>256</TileWidth>
+        <TileHeight>256</TileHeight>
+        <MatrixWidth>8192</MatrixWidth>
+        <MatrixHeight>8192</MatrixHeight>
+      </TileMatrix>
+      <TileMatrix>
+        <ows:Identifier>14</ows:Identifier>
+        <ScaleDenominator>750.0</ScaleDenominator>
+        <TopLeftCorner>-285401.92 903401.92</TopLeftCorner>
+        <TileWidth>256</TileWidth>
+        <TileHeight>256</TileHeight>
+        <MatrixWidth>16384</MatrixWidth>
+        <MatrixHeight>16384</MatrixHeight>
+      </TileMatrix>
+    </TileMatrixSet>
+  </Contents>
+</Capabilities>
