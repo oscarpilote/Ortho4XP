@@ -1,4 +1,9 @@
 .idea/
+/Archives
+/bin
+/Masks
+/tmp
+/Previews/*.jpg
 /last_map_position.txt
 /Elevation_Data
 /Orthophotos
