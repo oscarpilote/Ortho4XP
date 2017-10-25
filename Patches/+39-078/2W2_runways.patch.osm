@@ -72,7 +72,8 @@
     <nd ref='-10' />
     <tag k='altitude_high' v='243' />
     <tag k='altitude_low' v='237' />
-    <tag k='cell_size' v='2' />
+    <tag k='cell_size' v='1' />
+    <tag k='profile' v='atanh' />
   </way>
   <way id='-138' action='modify' visible='true'>
     <nd ref='-12' />
@@ -82,7 +83,7 @@
     <nd ref='-12' />
     <tag k='altitude_high' v='243' />
     <tag k='altitude_low' v='230' />
-    <tag k='cell_size' v='2' />
+    <tag k='cell_size' v='1' />
   </way>
   <way id='-140' action='modify' visible='true'>
     <nd ref='-20' />
@@ -116,8 +117,8 @@
     <nd ref='-34' />
     <tag k='altitude_high' v='233' />
     <tag k='altitude_low' v='232' />
-    <tag k='cell_size' v='2' />
-    <tag k='profile' v='spline' />
+    <tag k='cell_size' v='1' />
+    <tag k='profile' v='atanh' />
   </way>
   <way id='-148' action='modify' visible='true'>
     <nd ref='-46' />
@@ -127,8 +128,7 @@
     <nd ref='-46' />
     <tag k='altitude_high' v='235' />
     <tag k='altitude_low' v='234' />
-    <tag k='cell_size' v='2' />
-    <tag k='profile' v='spline' />
+    <tag k='cell_size' v='1' />
   </way>
   <way id='-150' action='modify' visible='true'>
     <nd ref='-50' />
@@ -146,8 +146,8 @@
     <nd ref='-54' />
     <tag k='altitude_high' v='234' />
     <tag k='altitude_low' v='233' />
-    <tag k='cell_size' v='2' />
-    <tag k='profile' v='spline' />
+    <tag k='cell_size' v='1' />
+    <tag k='profile' v='atanh' />
   </way>
   <way id='-154' action='modify' visible='true'>
     <nd ref='-58' />
@@ -200,7 +200,7 @@
     <nd ref='-76' />
     <tag k='altitude_high' v='235' />
     <tag k='altitude_low' v='232' />
-    <tag k='cell_size' v='2' />
+    <tag k='cell_size' v='1' />
     <tag k='profile' v='spline' />
   </way>
   <way id='-164' action='modify' visible='true'>
@@ -219,7 +219,7 @@
     <nd ref='-92' />
     <tag k='altitude_high' v='233' />
     <tag k='altitude_low' v='232' />
-    <tag k='cell_size' v='2' />
+    <tag k='cell_size' v='1' />
     <tag k='profile' v='spline' />
   </way>
   <way id='-168' action='modify' visible='true'>
@@ -247,8 +247,7 @@
     <nd ref='-104' />
     <tag k='altitude_high' v='235' />
     <tag k='altitude_low' v='233' />
-    <tag k='cell_size' v='2' />
-    <tag k='profile' v='spline' />
+    <tag k='cell_size' v='1' />
   </way>
   <way id='-174' action='modify' visible='true'>
     <nd ref='-106' />
@@ -266,8 +265,8 @@
     <nd ref='-28' />
     <tag k='altitude_high' v='237' />
     <tag k='altitude_low' v='235' />
-    <tag k='cell_size' v='2' />
-    <tag k='profile' v='spline' />
+    <tag k='cell_size' v='1' />
+    <tag k='profile' v='atanh' />
   </way>
   <way id='-178' action='modify' visible='true'>
     <nd ref='-100' />
@@ -287,7 +286,7 @@
     <nd ref='-128' />
     <tag k='altitude_high' v='237' />
     <tag k='altitude_low' v='235' />
-    <tag k='cell_size' v='2' />
+    <tag k='cell_size' v='1' />
     <tag k='profile' v='spline' />
   </way>
   <way id='-182' action='modify' visible='true'>
