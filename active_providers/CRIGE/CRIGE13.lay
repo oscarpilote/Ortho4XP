@@ -1,9 +1,0 @@
-request_type=wms
-wms_size=512
-wms_version=1.1.1
-epsg_code=2154
-url_prefix=http://geoservices.crige-paca.org:80/geoserver/crige_ortho/wms?
-layers=ORTHO_2014_DEPT13_RVB15
-max_threads=16
-
-extent=Bouches-du-Rhône

@@ -1,8 +1,0 @@
-request_type=local_tms
-epsg_code=2154
-resolutions=0.2
-top_left_corner=0 0
-tile_size=5000
-url_template=/home/oscarpilote/Touro/81/16FD8125-2016-{x}-{y}-LA93.JP2
-extent=Tarn
-

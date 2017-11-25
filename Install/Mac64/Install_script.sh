@@ -33,7 +33,7 @@ echo
 echo "Installation of python/pillow"
 echo "-----------------------------"
 echo
-exec brew install libtiff libjpeg webp little-cms2
+exec brew install libtiff libjpeg webp little-cms2 spatialindex
 exec pip3 install Pillow
 echo
 echo "Installation of python/pyproj (optional)"
@@ -42,5 +42,3 @@ echo
 exec pip3 install pyproj
 echo
 echo "Installation succesful (hopefully)!"
-
-
