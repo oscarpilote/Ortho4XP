@@ -1,7 +1,0 @@
-request_type=wms
-wms_size=512
-wms_version=1.1.1
-epsg_code=2154
-url_prefix=http://geoservices.crige-paca.org:80/geoserver/crige_ortho/wms?
-layers=ORTHO_EXPRESS_2015_DEPT05_RVB20
-extent=Hautes-Alpes
