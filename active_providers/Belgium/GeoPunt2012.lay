@@ -1,8 +1,0 @@
-request_type=tms
-grid_type=webmercator
-url_template=http://tile.informatievlaanderen.be/ws/raadpleegdiensten/wmts?SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetTile&LAYER=omzrgb12vl&STYLE=&FORMAT=image/png&TILEMATRIXSET=GoogleMapsVL&TILEMATRIX={zoom}&TILEROW={y}&TILECOL={x}
-max_threads=64
-super_resol_factor=2
-extent=GeoPunt
-color_filters=GeoPunt2012
-

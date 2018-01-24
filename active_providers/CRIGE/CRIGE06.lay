@@ -1,5 +1,0 @@
-request_type=wms
-wms_size=999
-epsg_code=2154
-extent=Alpes-Maritimes
-max_threads=2

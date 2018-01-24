@@ -1,4 +1,0 @@
-## Created with : ../mask_region.py Geolittoral_+50+001 none 4326 0.0003 0.02 20
-# Created with : ../mask_region.py Geolittoral_+50+001 none 4326 0.0003 0.02 20
-mask_bounds=1.137233391,49.962256218,1.828719908,50.882132906
-blur_radius=20

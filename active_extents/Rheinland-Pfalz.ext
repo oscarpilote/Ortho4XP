@@ -1,3 +1,0 @@
-# Created with : ../mask_region.py RheinLand-Pfalz_50m rel[admin_level=4][name=Rheinland-Pfalz] 4326 0.0003 0.02 0
-mask_bounds=6.0922494,48.9464472,8.5283135,50.9623256
-blur_radius=0

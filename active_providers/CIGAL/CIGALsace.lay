@@ -1,7 +1,0 @@
-request_type=wmts
-layers=cigal:CIGAL_ORTHORVB_2015_ALSACE_TIF_L93
-epsg_code=2154
-tilematrixset=EPSG:2154:512
-tile_size=512
-url_prefix=http://www.cigalsace.org/geoserver/gwc/service/wmts?
-extent=Alsace

@@ -1,5 +1,0 @@
-### Created with : ../mask_region.py Wallonie_trop_bleu_droit JOSM 4326 0.0001 0.01 0
-## Created with : ../mask_region.py Wallonie_trop_bleu_droit JOSM 4326 0.0001 0.01 5
-# Created with : ../mask_region.py Wallonie_trop_bleu_droit JOSM 4326 0.0001 0.01 0
-mask_bounds=4.526797926,50.168829675,6.418097,50.562611592
-blur_radius=0
