@@ -3549,7 +3549,10 @@ def convert_textures(strlat,strlon,build_dir):
                 while busy_slots_conv > 0:
                     print("  ...")
                     time.sleep(3)
-                application.progress_conv.set(100) 
+                try:
+                    application.progress_conv.set(100)
+                except:
+                    pass
                 print("  Conversion of textures completed."+\
                       "                         ")
     return
