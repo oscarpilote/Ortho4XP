@@ -1,0 +1,15 @@
+#provider_code extent_code color_filter   priority 
+
+AltoAdige1415  AltoAdige   AltoAdige1415  medium
+Itris          Tirol       Itris          medium
+PCN06          Trentino    PCN06_N46E011  medium
+PCN06          Veneto      PCN06_N46E011  medium 
+
+#Further ones might be as follows
+#OST Carinthia none medium
+#PCN12 Friuli none medium
+#Aosta2005 ValleAosta none medium
+#CH Suisse none medium
+#FRorth Savoie none medium
+#FRorth Haute-Savoie none medium
+#CRIGE06 Alpes-Maritimes none medium
