@@ -346,6 +346,10 @@ def build_masks(tile):
             # To smoothen the thresolding introduced above we do a global short extent gaussian blur
             b_img_array=numpy.array(Image.fromarray(b_img_array).convert("L").\
                     filter(ImageFilter.GaussianBlur(2)),dtype=numpy.uint8)
+        else:
+            # Just a (futile) copy
+            b_img_array=numpy.array(img_array)
+
         
         # Ensure land is kept to 255 on the mask to avoid unecessary ones, crop to final size, and take the
         # max with the possible custom extent mask

@@ -304,7 +304,7 @@ def initialize_local_combined_providers_dict(tile):
     global local_combined_providers_dict
     UI.vprint(1,"-> Initializing providers with potential data on this tile.")
     local_combined_providers_dict={} 
-    test_set=set(tile.default_website)
+    test_set=set([tile.default_website])
     for region in tile.zone_list[:]:
         test_set.add(region[2])
     for provider_code in test_set.intersection(combined_providers_dict):
