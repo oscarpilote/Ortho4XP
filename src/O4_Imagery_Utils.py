@@ -354,13 +354,14 @@ def read_tilematrixsets(file_name):
     f.close()
     return tilematrixsets
 
-def has_data(bbox_4326,extent_code,return_mask=False,mask_size=(4096,4096),is_sharp_resize=False,is_mask_layer=False):
-    # This function checks wether a given provider has data instersecting the given bbox in epsg:4326
+def has_data(bbox,extent_code,return_mask=False,mask_size=(4096,4096),is_sharp_resize=False,is_mask_layer=False):
+    # This function checks wether a given provider has data instersecting the given bbox. 
+    # IMPORTANT : THE EXTENT AND THE BBOX NEED TO BE USING THE SAME REFERENCE FRAME (e.g. ESPG CODE) 
     # It returns either False or True or (in the latter case) the mask image over the bbox and properly resized accroding to input parameter.
     # is_sharp_resize determined if the upsamplique of the extent mask is nearest (good when sharp transitions are ) or bicubic (good in all other cases)
-    # is_mask_layer allows to "multiply" extent masks with water masks, this is a smooth alternative for the old sea_texture_params. 
-    # (x0,y0) is top-left, (x1,y1) is bottom-right
-    (x0,y0,x1,y1)=bbox_4326
+    # is_mask_layer (assuming EPSG:4326) allows to "multiply" extent masks with water masks, this is a smooth alternative for the old sea_texture_params. 
+    # IMPORTANT TOO : (x0,y0) is the top-left corner, (x1,y1) is the bottom-right
+    (x0,y0,x1,y1)=bbox
     try:
         # global layers need special treatment 
         if extent_code=='global' and (not is_mask_layer or (x1-x0)==1):

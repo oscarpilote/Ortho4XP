@@ -369,7 +369,7 @@ def build_masks(tile):
 ##############################################################################
 
 ##############################################################################
-def triangulation_to_image(name,pixel_size):
+def triangulation_to_image(name,pixel_size,grid_size_or_bbox):
     f_node = open(name+'.1.node','r')
     nbr_pt=int(f_node.readline().split()[0])
     vertices=numpy.zeros(2*nbr_pt)
@@ -381,10 +381,15 @@ def triangulation_to_image(name,pixel_size):
     xmax=vertices[::2].max()
     ymin=vertices[1::2].min()
     ymax=vertices[1::2].max()
-    xmin=floor((xmin-0.02)/0.02)*0.02
-    xmax=ceil((xmax+0.02)/0.02)*0.02
-    ymin=floor((ymin-0.02)/0.02)*0.02
-    ymax=ceil((ymax+0.02)/0.02)*0.02
+    if isinstance(grid_size_or_bbox,tuple): # bbox
+        bbox = grid_size_or_bbox
+        (xmin,ymin,xmax,ymax)=bbox
+    else: # float
+        grid_size = grid_size_or_bbox
+        xmin=floor((xmin-grid_size)/grid_size)*grid_size
+        xmax=ceil((xmax+grid_size)/grid_size)*grid_size
+        ymin=floor((ymin-grid_size)/grid_size)*grid_size
+        ymax=ceil((ymax+grid_size)/grid_size)*grid_size
     mask_im=Image.new("1",(int((xmax-xmin)/pixel_size),int((ymax-ymin)/pixel_size)))
     mask_draw=ImageDraw.Draw(mask_im)
     f_ele  = open(name+'.1.ele','r')
@@ -408,18 +413,17 @@ def triangulation_to_image(name,pixel_size):
 if __name__ == '__main__':
     UI.log=False
     UI.verbosity=2
-    Syntax='Syntax :\n--------\n(PYTHON PROGRAM NAME) extent_code [OSM query] pixel_size buffer_size blur_size\nAll three sizes in meters, buffer_size can be negative too.\nIf OSM query is not provided, data must be cached in an extent_code.osm file.\n\nExample :(from a subdirectory of Extents)\n---------\npython3 ../../src/O4_Mask_Utils.py Suisse rel[\"admin_level\"=\"2\"][\"name:fr\"=\"Suisse\"] 20 0 400'
+    Syntax='Syntax :\n--------\n(PYTHON) extent_code [OSM query] pixel_size buffer_size blur_size [EPSG code]\nAll three sizes in meters, buffer_size can be negative too.\nIf OSM query is not used, data must be cached in an extent_code.osm.bz2 file. EPSG code defaults to 4326, if it is used the OSM query needs to be used too.\n\nExample :(from a subdirectory of Extents)\n---------\npython3 ../../src/O4_Mask_Utils.py Suisse rel[\"admin_level\"=\"2\"][\"name:fr\"=\"Suisse\"] 20 0 400'
     epsg_code='4326'
     name=sys.argv[1]
-    cached_file_name=name+'.osm'
     nargs=len(sys.argv)
-    if not nargs in (5,6):
+    if not nargs in (5,6,7,8):
         print(Syntax)
         sys.exit(1)
     if nargs==5 and not os.path.exists(cached_file_name):
         print(Syntax)
         sys.exit(1)
-    if nargs==6:
+    if nargs in (6,7):
         query_tmp=sys.argv[2]
         query=''
         for char in query_tmp:
@@ -433,10 +437,16 @@ if __name__ == '__main__':
                 query+=char
     else:
         query=None
+    if nargs in (7,8):
+        epsg_code=sys.argv[3]
+    if nargs==8:
+        grid_size_or_bbox = eval(sys.argv[4])
+    else:
+        grid_size= 0.02 if epsg_code=='4326' else 2000 
     pixel_size=float(sys.argv[nargs-3])
     buffer_width=float(sys.argv[nargs-2])/pixel_size
     mask_width=int(int(sys.argv[nargs-1])/pixel_size)
-    pixel_size/=111120
+    pixel_size = pixel_size/111120 if epsg_code=='4326' else pixel_size # assuming meters if not degrees
     vector_map=VECT.Vector_Map()
     osm_layer=OSM.OSM_layer()
     cached_file_name=name+'.osm.bz2'
@@ -461,12 +471,22 @@ if __name__ == '__main__':
         del(vector_map)
         time.sleep(1)
         sys.exit(0)
+    if epsg_code!='4326':
+        name+='_'+epsg_code
+        print("Changing coordinates to match EPSG code")
+        import pyproj
+        import shapely.ops
+        s_proj=pyproj.Proj(init='epsg:4326')
+        t_proj=pyproj.Proj(init='epsg:'+epsg_code)
+        reprojection = lambda x, y: pyproj.transform(s_proj, t_proj, x, y)
+        multipolygon_area=shapely.ops.transform(reprojection,multipolygon_area)
+
     vector_map.encode_MultiPolygon(multipolygon_area,VECT.dummy_alt,'DUMMY',check=True,cut=False)
     vector_map.write_node_file(name+'.node')
     vector_map.write_poly_file(name+'.poly')
     print("Triangulate...")
     MESH.triangulate(name,os.path.join(os.path.dirname(sys.argv[0]),'..'))
-    ((xmin,ymin,xmax,ymax),mask_im)=triangulation_to_image(name,pixel_size)
+    ((xmin,ymin,xmax,ymax),mask_im)=triangulation_to_image(name,pixel_size,grid_size_or_bbox)
     print("Mask size : ",mask_im.size,"pixels.")
     buffer=''
     try:
@@ -508,8 +528,8 @@ if __name__ == '__main__':
         img_array[img_array>=128]=255
         img_array[img_array<128]*=2  
         img_array=numpy.array(img_array,dtype=numpy.uint8)
-        masks_im=Image.fromarray(img_array)
-        masks_im.save(name+".png")
+        mask_im=Image.fromarray(img_array)
+    mask_im.save(name+".png")
     for f in [name+'.poly',name+'.node',name+'.1.node',name+'.1.ele']:
         try: 
             os.remove(f)

@@ -275,7 +275,7 @@ class Vector_Map():
         f= open(node_file_name,'w')
         f.write(str(total_nodes)+' 2 1 0\n')
         for idx in sorted(list(self.nodes_dico.keys())):
-            f.write(str(idx)+' '+' '.join(['{:.17f}'.format(x) for x in (self.nodes_dico[idx][0],self.nodes_dico[idx][1],self.data_nodes[idx])])+'\n')
+            f.write(str(idx)+' '+' '.join(['{:.15f}'.format(x) for x in (self.nodes_dico[idx][0],self.nodes_dico[idx][1],self.data_nodes[idx])])+'\n')
         f.close() 
     
     def write_poly_file(self,poly_file_name): 
