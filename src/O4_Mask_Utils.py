@@ -228,7 +228,7 @@ def build_masks(tile):
             (px4,py4)=GEO.wgs84_to_pix(lathere+1,lonhere,tile.mask_zl)
             px1-=px0; px2-=px0; px3-=px0; px4-=px0; py1-=py0; py2-=py0; py3-=py0; py4-=py0
             mask_draw.polygon([(px1,py1),(px2,py2),(px3,py3),(px4,py4)],fill='white')
-        # 3) We overwrite the with part of the mask with black where water was detected in the first part above
+        # 3) We overwrite the withe part of the mask with black where water was detected in the first part above
         for [lat1,lon1,lat2,lon2,lat3,lon3] in dico_masks[(til_x,til_y)]:
             (px1,py1)=GEO.wgs84_to_pix(lat1,lon1,tile.mask_zl)
             (px2,py2)=GEO.wgs84_to_pix(lat2,lon2,tile.mask_zl)

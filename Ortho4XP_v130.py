@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import sys
 import os
 Ortho4XP_dir='..' if getattr(sys,'frozen',False) else '.'

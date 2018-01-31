@@ -275,7 +275,7 @@ class Vector_Map():
         f= open(node_file_name,'w')
         f.write(str(total_nodes)+' 2 1 0\n')
         for idx in sorted(list(self.nodes_dico.keys())):
-            f.write(str(idx)+' '+str(self.nodes_dico[idx][0])+' '+str(self.nodes_dico[idx][1])+' '+str(self.data_nodes[idx])+'\n')        
+            f.write(str(idx)+' '+' '.join(['{:.17f}'.format(x) for x in (self.nodes_dico[idx][0],self.nodes_dico[idx][1],self.data_nodes[idx])])+'\n')
         f.close() 
     
     def write_poly_file(self,poly_file_name): 
@@ -291,7 +291,7 @@ class Vector_Map():
         f.write('\n'+str(len(self.holes))+'\n')
         idx=1
         for hole in self.holes:        
-            f.write(str(idx)+' '+' '.join([str(h) for h in hole])+'\n')
+            f.write(str(idx)+' '+' '.join(['{:.15f}'.format(h) for h in hole])+'\n')
             idx+=1
         total_seeds=numpy.sum([len(self.seeds[key]) for key in self.seeds])
         if total_seeds==0:
@@ -303,7 +303,7 @@ class Vector_Map():
                 (key,marker)=long_key
                 if key not in self.seeds: continue
                 for seed in self.seeds[key]:
-                    f.write(str(idx)+' '+' '.join([str(s) for s in seed])+' '+str(marker)+'\n')
+                    f.write(str(idx)+' '+' '.join(['{:.15f}'.format(s) for s in seed])+' '+str(marker)+'\n')
                     idx+=1
         f.close()
         return 

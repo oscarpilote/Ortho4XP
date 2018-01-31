@@ -249,7 +249,7 @@ def extract_mesh_to_obj(mesh_file,til_x_left,til_y_top,zoomlevel,provider_code):
     for i in range(1,nbr_vert+1):
         j=textured_nodes[i]
         f.write("vn "+'{:.9f}'.format(pt_in[5*j+3])+" "+\
-                '{:.9f}'.format(pt_in[5*j+4])+" "+'{:.9f}'.format(sqrt(1-pt_in[5*j+3]**2-pt_in[5*j+4]**2))+"\n")
+                '{:.9f}'.format(pt_in[5*j+4])+" "+'{:.9f}'.format(sqrt(max(1-pt_in[5*j+3]**2-pt_in[5*j+4]**2),0))+"\n")
     f.write("\n")
     for i in range(1,nbr_vert+1):
         j=textured_nodes[i]
@@ -278,15 +278,16 @@ def build_mesh(tile):
     UI.vprint(0,"\nStep 2 : Building mesh tile "+FNAMES.short_latlon(tile.lat,tile.lon)+" : \n--------\n")
     UI.progress_bar(1,0)
     timer=time.time()
+    tri_verbosity='Q' if UI.verbosity<=1 else 'V'
     if tile.iterate==0:
-        Tri_option = ' -pAuYBQ '
+        Tri_option = '-pAuYB'+tri_verbosity
     else:
-        Tri_option = ' -pruYBQ '
+        Tri_option = '-pruYB'+tri_verbosity
     poly_file    = FNAMES.input_poly_file(tile)
     alt_file     = FNAMES.alt_file(tile)
     weight_file  = FNAMES.weight_file(tile)
     if not os.path.isfile(poly_file):
-        UI.exit_message_and_bottom_line("ERROR: Could not find ",poly_file)
+        UI.exit_message_and_bottom_line("\nERROR: Could not find ",poly_file)
         return 0
     
     tile.ensure_elevation_data()
@@ -295,18 +296,28 @@ def build_mesh(tile):
     
     weight_array=numpy.ones((1000,1000),dtype=numpy.float32)
     build_curv_tol_weight_map(tile,weight_array)
-    UI.vprint(2,"Mean curv_tol weight array",weight_array.mean())
     weight_array.tofile(weight_file)
     
     del(weight_array)
     
     curv_tol_scaling=tile.dem.nxdem/(1000*(tile.dem.x1-tile.dem.x0))
     hmin_effective=max(tile.hmin,(tile.dem.y1-tile.dem.y0)*GEO.lat_to_m/tile.dem.nydem/2)
-    mesh_cmd=[Triangle4XP_cmd.strip(),Tri_option.strip(),str(GEO.lon_to_m(tile.lat)),
-              str(GEO.lat_to_m),str(tile.dem.nxdem),str(tile.dem.nydem),str(tile.dem.x0),str(tile.dem.y0),
-              str(tile.dem.x1),str(tile.dem.y1),str(tile.dem.nodata),str(tile.curvature_tol*curv_tol_scaling),
-              str(tile.min_angle),str(hmin_effective),alt_file,weight_file,poly_file]
-    UI.vprint(2,mesh_cmd)
+    mesh_cmd=[Triangle4XP_cmd.strip(),
+              Tri_option.strip(),
+              '{:.9g}'.format(GEO.lon_to_m(tile.lat)),
+              '{:.9g}'.format(GEO.lat_to_m),
+              '{:n}'.format(tile.dem.nxdem),
+              '{:n}'.format(tile.dem.nydem),
+              '{:.9g}'.format(tile.dem.x0),
+              '{:.9g}'.format(tile.dem.y0),
+              '{:.9g}'.format(tile.dem.x1),
+              '{:.9g}'.format(tile.dem.y1),
+              '{:.9g}'.format(tile.dem.nodata),
+              '{:.9g}'.format(tile.curvature_tol*curv_tol_scaling),
+              '{:.9g}'.format(tile.min_angle),str(hmin_effective),alt_file,weight_file,poly_file]
+    
+    UI.vprint(1,"-> Start of the mesh algorithm Triangle4XP.")
+    UI.vprint(2,'  Mesh command:',' '.join(mesh_cmd))
     fingers_crossed=subprocess.Popen(mesh_cmd,stdout=subprocess.PIPE,bufsize=0)
     while True:
         line = fingers_crossed.stdout.readline()
@@ -314,8 +325,12 @@ def build_mesh(tile):
             break
         else:
             print(line.decode("utf-8")[:-1])
+    fingers_crossed.poll()        
     if fingers_crossed.returncode:
-        UI.exit_message_and_bottom_line("ERROR: Triangle4XP crashed (presumably a memory error).")
+        UI.exit_message_and_bottom_line("\nERROR: Triangle4XP crashed !\n\n"+\
+                                        "If the reason is not due to the limited amount of RAM please\n"+\
+                                        "file a bug including the .node and .poly files for that you\n"+\
+                                        "will find in "+str(tile.build_dir)+".\n")
         return 0
         
     if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
@@ -343,8 +358,9 @@ def triangulate(name,path_to_Ortho4XP_dir):
             break
         else:
             print(line.decode("utf-8")[:-1])
+    fingers_crossed.poll()        
     if fingers_crossed.returncode:
-        print("ERROR: triangle crashed, check osm mask data.")
+        print("\nERROR: triangle crashed, check osm mask data.\n")
         return 0
     return 1
 ##############################################################################   

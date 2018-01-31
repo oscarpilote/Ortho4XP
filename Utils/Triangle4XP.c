@@ -3268,9 +3268,11 @@ void info()
 
 void internalerror()
 {
+  /*
   printf("  Please report this bug to jrs@cs.berkeley.edu\n");
   printf("  Include the message above, your input data set, and the exact\n");
   printf("    command line you used to run Triangle.\n");
+  */
   triexit(1);
 }
 
@@ -8155,14 +8157,14 @@ struct otri *flipedge;                    /* Handle for the triangle abc. */
   sym(*flipedge, top);
 #ifdef SELF_CHECK
   if (top.tri == m->dummytri) {
-    printf("Internal error in flip():  Attempt to flip on boundary.\n");
+    printf("  Internal error in flip():  Attempt to flip on boundary.\n");
     lnextself(*flipedge);
     return;
   }
   if (m->checksegments) {
     tspivot(*flipedge, toplsubseg);
     if (toplsubseg.ss != m->dummysub) {
-      printf("Internal error in flip():  Attempt to flip a segment.\n");
+      printf("  Internal error in flip():  Attempt to flip a segment.\n");
       lnextself(*flipedge);
       return;
     }
@@ -8290,14 +8292,14 @@ struct otri *flipedge;                    /* Handle for the triangle abc. */
   sym(*flipedge, top);
 #ifdef SELF_CHECK
   if (top.tri == m->dummytri) {
-    printf("Internal error in unflip():  Attempt to flip on boundary.\n");
+    printf("  Internal error in unflip():  Attempt to flip on boundary.\n");
     lnextself(*flipedge);
     return;
   }
   if (m->checksegments) {
     tspivot(*flipedge, toplsubseg);
     if (toplsubseg.ss != m->dummysub) {
-      printf("Internal error in unflip():  Attempt to flip a subsegment.\n");
+      printf("  Internal error in unflip():  Attempt to flip a subsegment.\n");
       lnextself(*flipedge);
       return;
     }
@@ -8639,33 +8641,33 @@ int triflaws;
 
 #ifdef SELF_CHECK
     if (counterclockwise(m, b, rightvertex, leftvertex, botvertex) < 0.0) {
-      printf("Internal error in insertvertex():\n");
+      printf("  Internal error in insertvertex():\n");
       printf(
             "  Clockwise triangle prior to edge vertex insertion (bottom).\n");
     }
     if (mirrorflag) {
       if (counterclockwise(m, b, leftvertex, rightvertex, topvertex) < 0.0) {
-        printf("Internal error in insertvertex():\n");
+        printf("  Internal error in insertvertex():\n");
         printf("  Clockwise triangle prior to edge vertex insertion (top).\n");
       }
       if (counterclockwise(m, b, rightvertex, topvertex, newvertex) < 0.0) {
-        printf("Internal error in insertvertex():\n");
+        printf("  Internal error in insertvertex():\n");
         printf(
             "  Clockwise triangle after edge vertex insertion (top right).\n");
       }
       if (counterclockwise(m, b, topvertex, leftvertex, newvertex) < 0.0) {
-        printf("Internal error in insertvertex():\n");
+        printf("  Internal error in insertvertex():\n");
         printf(
             "  Clockwise triangle after edge vertex insertion (top left).\n");
       }
     }
     if (counterclockwise(m, b, leftvertex, botvertex, newvertex) < 0.0) {
-      printf("Internal error in insertvertex():\n");
+      printf("  Internal error in insertvertex():\n");
       printf(
           "  Clockwise triangle after edge vertex insertion (bottom left).\n");
     }
     if (counterclockwise(m, b, botvertex, rightvertex, newvertex) < 0.0) {
-      printf("Internal error in insertvertex():\n");
+      printf(" Internal error in insertvertex():\n");
       printf(
         "  Clockwise triangle after edge vertex insertion (bottom right).\n");
     }
@@ -8759,19 +8761,19 @@ int triflaws;
 
 #ifdef SELF_CHECK
     if (counterclockwise(m, b, rightvertex, leftvertex, botvertex) < 0.0) {
-      printf("Internal error in insertvertex():\n");
+      printf("  Internal error in insertvertex():\n");
       printf("  Clockwise triangle prior to vertex insertion.\n");
     }
     if (counterclockwise(m, b, rightvertex, leftvertex, newvertex) < 0.0) {
-      printf("Internal error in insertvertex():\n");
+      printf("  Internal error in insertvertex():\n");
       printf("  Clockwise triangle after vertex insertion (top).\n");
     }
     if (counterclockwise(m, b, leftvertex, botvertex, newvertex) < 0.0) {
-      printf("Internal error in insertvertex():\n");
+      printf("  Internal error in insertvertex():\n");
       printf("  Clockwise triangle after vertex insertion (left).\n");
     }
     if (counterclockwise(m, b, botvertex, rightvertex, newvertex) < 0.0) {
-      printf("Internal error in insertvertex():\n");
+      printf("  Internal error in insertvertex():\n");
       printf("  Clockwise triangle after vertex insertion (right).\n");
     }
 #endif /* SELF_CHECK */
@@ -8941,7 +8943,7 @@ int triflaws;
           if (newvertex != (vertex) NULL) {
             if (counterclockwise(m, b, leftvertex, newvertex, rightvertex) <
                 0.0) {
-              printf("Internal error in insertvertex():\n");
+              printf("  Internal error in insertvertex():\n");
               printf("  Clockwise triangle prior to edge flip (bottom).\n");
             }
             /* The following test has been removed because constrainededge() */
@@ -8950,18 +8952,18 @@ int triflaws;
 /*
             if (counterclockwise(m, b, rightvertex, farvertex, leftvertex) <
                 0.0) {
-              printf("Internal error in insertvertex():\n");
+              printf("  Internal error in insertvertex():\n");
               printf("  Clockwise triangle prior to edge flip (top).\n");
             }
 */
             if (counterclockwise(m, b, farvertex, leftvertex, newvertex) <
                 0.0) {
-              printf("Internal error in insertvertex():\n");
+              printf("  Internal error in insertvertex():\n");
               printf("  Clockwise triangle after edge flip (left).\n");
             }
             if (counterclockwise(m, b, newvertex, rightvertex, farvertex) <
                 0.0) {
-              printf("Internal error in insertvertex():\n");
+              printf("  Internal error in insertvertex():\n");
               printf("  Clockwise triangle after edge flip (right).\n");
             }
           }
@@ -9206,7 +9208,7 @@ struct otri *deltri;
   while (!otriequal(*deltri, countingtri)) {
 #ifdef SELF_CHECK
     if (countingtri.tri == m->dummytri) {
-      printf("Internal error in deletevertex():\n");
+      printf("  Internal error in deletevertex():\n");
       printf("  Attempt to delete boundary vertex.\n");
       internalerror();
     }
@@ -9217,7 +9219,7 @@ struct otri *deltri;
 
 #ifdef SELF_CHECK
   if (edgecount < 3) {
-    printf("Internal error in deletevertex():\n  Vertex has degree %d.\n",
+    printf("  Internal error in deletevertex():\n  Vertex has degree %d.\n",
            edgecount);
     internalerror();
   }
@@ -11858,7 +11860,7 @@ vertex searchpoint;
     /* Turn left until satisfied. */
     onextself(*searchtri);
     if (searchtri->tri == m->dummytri) {
-      printf("Internal error in finddirection():  Unable to find a\n");
+      printf("  Internal error in finddirection():  Unable to find a\n");
       printf("  triangle leading from (%.12g, %.12g) to", startvertex[0],
              startvertex[1]);
       printf("  (%.12g, %.12g).\n", searchpoint[0], searchpoint[1]);
@@ -11873,7 +11875,7 @@ vertex searchpoint;
     /* Turn right until satisfied. */
     oprevself(*searchtri);
     if (searchtri->tri == m->dummytri) {
-      printf("Internal error in finddirection():  Unable to find a\n");
+      printf("  Internal error in finddirection():  Unable to find a\n");
       printf("  triangle leading from (%.12g, %.12g) to", startvertex[0],
              startvertex[1]);
       printf("  (%.12g, %.12g).\n", searchpoint[0], searchpoint[1]);
@@ -11952,7 +11954,7 @@ vertex endpoint2;
   ety = torg[1] - endpoint2[1];
   denom = ty * ex - tx * ey;
   if (denom == 0.0) {
-    printf("Internal error in segmentintersection():");
+    printf("  Internal error in segmentintersection():");
     printf("  Attempt to find intersection of parallel segments.\n");
     internalerror();
   }
@@ -11973,7 +11975,7 @@ vertex endpoint2;
   /* Insert the intersection vertex.  This should always succeed. */
   success = insertvertex(m, b, newvertex, splittri, splitsubseg, 0, 0);
   if (success != SUCCESSFULVERTEX) {
-    printf("Internal error in segmentintersection():\n");
+    printf("  Internal error in segmentintersection():\n");
     printf("  Failure to split a segment.\n");
     internalerror();
   }
@@ -12006,7 +12008,7 @@ vertex endpoint2;
     onextself(*splittri);
   } else if ((rightvertex[0] != endpoint1[0]) ||
              (rightvertex[1] != endpoint1[1])) {
-    printf("Internal error in segmentintersection():\n");
+    printf("  Internal error in segmentintersection():\n");
     printf("  Topological inconsistency after splitting a segment.\n");
     /* Added for Triangle4XP */
     printf("  Splitting subsegment (%.12g, %.12g) (%.12g, %.12g) at (%.12g, %.12g).\n",torg[0], torg[1], tdest[0], tdest[1], newvertex[0], newvertex[1]);
@@ -12182,7 +12184,7 @@ int newmark;
       success = insertvertex(m, b, newvertex, &searchtri1, &brokensubseg,
                              0, 0);
       if (success != SUCCESSFULVERTEX) {
-        printf("Internal error in conformingedge():\n");
+        printf("  Internal error in conformingedge():\n");
         printf("  Failure to split a segment.\n");
         internalerror();
       }
@@ -12515,7 +12517,7 @@ int newmark;
     /* Search for the segment's first endpoint by point location. */
     if (locate(m, b, endpoint1, &searchtri1) != ONVERTEX) {
       printf(
-        "Internal error in insertsegment():  Unable to locate PSLG vertex\n");
+        "  Internal error in insertsegment():  Unable to locate PSLG vertex\n");
       printf("  (%.12g, %.12g) in triangulation.\n",
              endpoint1[0], endpoint1[1]);
       internalerror();
@@ -12548,7 +12550,7 @@ int newmark;
     /* Search for the segment's second endpoint by point location. */
     if (locate(m, b, endpoint2, &searchtri2) != ONVERTEX) {
       printf(
-        "Internal error in insertsegment():  Unable to locate PSLG vertex\n");
+        "  Internal error in insertsegment():  Unable to locate PSLG vertex\n");
       printf("  (%.12g, %.12g) in triangulation.\n",
              endpoint2[0], endpoint2[1]);
       internalerror();
@@ -13663,7 +13665,7 @@ int triflaws;
         success = insertvertex(m, b, newvertex, &enctri, &currentenc,
                                1, triflaws);
         if ((success != SUCCESSFULVERTEX) && (success != ENCROACHINGVERTEX)) {
-          printf("Internal error in splitencsegs():\n");
+          printf("  Internal error in splitencsegs():\n");
           printf("  Failure to split a segment.\n");
           internalerror();
         }
@@ -15003,7 +15005,7 @@ char **argv;
   index = 0;
 #else /* not TRILIBRARY */
   if (!b->quiet) {
-    printf("Writing %s.\n", polyfilename);
+    printf("  Writing %s.\n", polyfilename);
   }
   outfile = fopen(polyfilename, "w");
   if (outfile == (FILE *) NULL) {
@@ -15678,7 +15680,7 @@ struct behavior *b;
   int acutebiggest;
   int i, ii, j, k;
 
-  printf("Mesh quality statistics:\n\n");
+  printf("  Mesh quality statistics:\n\n");
   radconst = PI / 18.0;
   degconst = 180.0 / PI;
   for (i = 0; i < 8; i++) {
@@ -15909,7 +15911,7 @@ struct behavior *b;
 
   if (b->verbose) {
     quality_statistics(m, b);
-    printf("Memory allocation statistics:\n\n");
+    printf("  Memory allocation statistics:\n\n");
     printf("  Maximum number of vertices: %ld\n", m->vertices.maxitems);
     printf("  Maximum number of triangles: %ld\n", m->triangles.maxitems);
     if (m->subsegs.maxitems > 0) {
@@ -15944,7 +15946,7 @@ struct behavior *b;
            m->flipstackers.maxitems * m->flipstackers.itembytes +
            m->splaynodes.maxitems * m->splaynodes.itembytes);
 
-    printf("Algorithmic statistics:\n\n");
+    printf("  Algorithmic statistics:\n\n");
     if (!b->weighted) {
       printf("  Number of incircle tests: %ld\n", m->incirclecount);
     } else {

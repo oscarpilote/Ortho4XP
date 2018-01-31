@@ -73,14 +73,16 @@ class DEM():
             self.alt_dem=self.rs.ReadAsArray().astype(numpy.float32)
             (self.nxdem,self.nydem)=(self.ds.RasterXSize,self.ds.RasterYSize) 
             self.nodata=self.rs.GetNoDataValue()
-            if self.nodata is None: self.nodata=-32768
+            if self.nodata is None: 
+                UI.vprint(1,"  WARNING: raster DEM do not advertise its no_data value, assuming -32768.")
+                self.nodata=-32768
             try: 
                 self.epsg=int(self.ds.GetProjection().split('"')[-2])
             except:
-                UI.vprint(1,"  Raster did not contain EPSG code information, assuming 4326.") 
+                UI.vprint(1,"  WARNIG: raster did not advertise its EPSG code, assuming 4326.") 
                 self.epsg=4326
             if self.epsg!=4326:
-                UI.lvprint(1,"  Error, unsupported EPSG code :",self.epsg,". Only EPSG 4326 is supported, data replaced with zero altitude.") 
+                UI.lvprint(1,"  ERROR: unsupported EPSG code ",self.epsg,". Only EPSG:4326 is supported, data replaced with zero altitude.") 
                 self.nxdem=self.nydem=1201
                 self.alt_dem=numpy.zeros([1201,1201],dtype=numpy.float32)
                 self.x0=self.y0=0
@@ -94,7 +96,7 @@ class DEM():
                 self.x1=self.x0+(self.nxdem-1)*self.geo[1] 
                 self.y0=self.y1+(self.nydem-1)*self.geo[5]  
         elif not has_gdal:
-            UI.lvprint(1,"  Error, unsupported raster (install Gdal):", file_name, "-> replaced with zero altitude.") 
+            UI.lvprint(1,"  WARNING: unsupported raster (install Gdal):", file_name, "-> replaced with zero altitude.") 
             self.nxdem=self.nydem=1201
             self.alt_dem=numpy.zeros([1201,1201],dtype=numpy.float32)
             self.x0=self.y0=0
@@ -124,7 +126,7 @@ class DEM():
             self.alt_dem[self.alt_dem==self.nodata]=atemp[self.alt_dem==self.nodata]
             step+=1
             if step>10:
-                print("The hole seems to big to be filled as is... I fill the remainder with zero.")
+                print("    The hole seems to big to be filled as is... I'm filling the remainder with zero.")
                 self.alt_dem[self.alt_dem==self.nodata]=0
                 break
         if step: UI.vprint(1,"          Done.\n") 
@@ -133,6 +135,7 @@ class DEM():
         if self.nodata!=0 and (self.alt_dem==self.nodata).any():
             UI.vprint(1,"    Caution: Replacing nodata nodes with zero altitude.")
             self.alt_dem[self.alt_dem==self.nodata]=0
+            self.nodata=0
         return
 
     def write_to_file(self,filename):

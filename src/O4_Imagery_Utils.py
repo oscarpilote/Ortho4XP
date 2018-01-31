@@ -34,7 +34,7 @@ request_headers_generic={
             }
 
 if 'dar' in sys.platform:
-    dds_convert_cmd = os.path.join(UI.Ortho4XP_dir,"Utils","nvcompress","nvcompress-osx") 
+    dds_convert_cmd = os.path.join(UI.Ortho4XP_dir,"Utils","nvcompress","nvcompress.app") 
     gdal_transl_cmd = 'gdal_translate'
     devnull_rdir    = " >/dev/null 2>&1"
 elif 'win' in sys.platform: 
@@ -1080,7 +1080,7 @@ def convert_texture(tile,til_x_left,til_y_top,zoomlevel,provider_code,type='dds'
         file_to_convert=os.path.join(UI.Ortho4XP_dir,'tmp',png_file_name)
         big_image.save(file_to_convert) 
         # If one wanted to distribute jpegs instead of dds, uncomment the next line
-        # big_image.convert('RGB').save(os.path.join(build_dir,'textures',out_file_name.replace('dds','jpg')),quality=70)
+        # big_image.convert('RGB').save(os.path.join(tile.build_dir,'textures',out_file_name.replace('dds','jpg')),quality=70)
     # now if provider_code was not in local_combined_providers_dict but color correction is required
     elif providers_dict[provider_code]['color_filters']!='none':
         jpeg_file_name=FNAMES.jpeg_file_name_from_attributes(til_x_left,til_y_top,zoomlevel,provider_code)
