@@ -150,8 +150,11 @@ def include_patches(vector_map,tile):
                 alti_way=tile.dem.alt_vec_mean(way)+float(wtags['cst_alt_rel'])
             elif 'var_alt_rel' in wtags:
                 alti_way=alti_way_orig+float(wtags['var_alt_rel'])
-            elif 'altitude' in wtags:                   # deprecated : for backward compatibility only
-                alti_way=numpy.ones((len(way),1))*float(wtags['altitude'])
+            elif 'altitude' in wtags:    # deprecated : for backward compatibility only
+                try:
+                    alti_way=numpy.ones((len(way),1))*float(wtags['altitude'])
+                except:
+                    alti_way=tile.dem.alt_vec_mean(way)    
             elif 'altitude_high' in wtags:
                 cplx_patch=True
                 if len(way)!=5 or (way[0]!=way[-1]).all():

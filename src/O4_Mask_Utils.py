@@ -62,7 +62,10 @@ def build_masks(tile):
             close_mesh_file_name=FNAMES.mesh_file(close_build_dir,close_lat,close_lon)
             if os.path.isfile(close_mesh_file_name):
                 mesh_file_name_list.append(close_mesh_file_name)
+    ####################
     dico_masks={}
+    dico_masks_inland={}
+    ####################
     [til_x_min,til_y_min]=GEO.wgs84_to_orthogrid(tile.lat+1,tile.lon,tile.mask_zl)
     [til_x_max,til_y_max]=GEO.wgs84_to_orthogrid(tile.lat,tile.lon+1,tile.mask_zl)
     UI.vprint(1,"-> Deleting existing masks")
@@ -118,49 +121,49 @@ def build_masks(tile):
             a=(til_x2//16)%4
             b=(til_y2//16)%4
             if (til_x,til_y) in dico_masks:
-                dico_masks[(til_x,til_y)].append([lat1,lon1,lat2,lon2,lat3,lon3])
+                dico_masks[(til_x,til_y)].append((lat1,lon1,lat2,lon2,lat3,lon3))
             else:
-                dico_masks[(til_x,til_y)]=[[lat1,lon1,lat2,lon2,lat3,lon3]]
+                dico_masks[(til_x,til_y)]=[(lat1,lon1,lat2,lon2,lat3,lon3)]
             if a==0: 
                 if (til_x-16,til_y) in dico_masks:
-                    dico_masks[(til_x-16,til_y)].append([lat1,lon1,lat2,lon2,lat3,lon3])
+                    dico_masks[(til_x-16,til_y)].append((lat1,lon1,lat2,lon2,lat3,lon3))
                 else:
-                    dico_masks[(til_x-16,til_y)]=[[lat1,lon1,lat2,lon2,lat3,lon3]]
+                    dico_masks[(til_x-16,til_y)]=[(lat1,lon1,lat2,lon2,lat3,lon3)]
                 if b==0: 
                     if (til_x-16,til_y-16) in dico_masks:
-                        dico_masks[(til_x-16,til_y-16)].append([lat1,lon1,lat2,lon2,lat3,lon3])
+                        dico_masks[(til_x-16,til_y-16)].append((lat1,lon1,lat2,lon2,lat3,lon3))
                     else:
-                        dico_masks[(til_x-16,til_y-16)]=[[lat1,lon1,lat2,lon2,lat3,lon3]]
+                        dico_masks[(til_x-16,til_y-16)]=[(lat1,lon1,lat2,lon2,lat3,lon3)]
                 elif b==3:
                     if (til_x-16,til_y+16) in dico_masks:
-                        dico_masks[(til_x-16,til_y+16)].append([lat1,lon1,lat2,lon2,lat3,lon3])
+                        dico_masks[(til_x-16,til_y+16)].append((lat1,lon1,lat2,lon2,lat3,lon3))
                     else:
-                        dico_masks[(til_x-16,til_y+16)]=[[lat1,lon1,lat2,lon2,lat3,lon3]]
+                        dico_masks[(til_x-16,til_y+16)]=[(lat1,lon1,lat2,lon2,lat3,lon3)]
             elif a==3:
                 if (til_x+16,til_y) in dico_masks:
-                    dico_masks[(til_x+16,til_y)].append([lat1,lon1,lat2,lon2,lat3,lon3])
+                    dico_masks[(til_x+16,til_y)].append((lat1,lon1,lat2,lon2,lat3,lon3))
                 else:
-                    dico_masks[(til_x+16,til_y)]=[[lat1,lon1,lat2,lon2,lat3,lon3]]
+                    dico_masks[(til_x+16,til_y)]=[(lat1,lon1,lat2,lon2,lat3,lon3)]
                 if b==0: 
                     if (til_x+16,til_y-16) in dico_masks:
-                        dico_masks[(til_x+16,til_y-16)].append([lat1,lon1,lat2,lon2,lat3,lon3])
+                        dico_masks[(til_x+16,til_y-16)].append((lat1,lon1,lat2,lon2,lat3,lon3))
                     else:
-                        dico_masks[(til_x+16,til_y-16)]=[[lat1,lon1,lat2,lon2,lat3,lon3]]
+                        dico_masks[(til_x+16,til_y-16)]=[(lat1,lon1,lat2,lon2,lat3,lon3)]
                 elif b==3:
                     if (til_x+16,til_y+16) in dico_masks:
-                        dico_masks[(til_x+16,til_y+16)].append([lat1,lon1,lat2,lon2,lat3,lon3])
+                        dico_masks[(til_x+16,til_y+16)].append((lat1,lon1,lat2,lon2,lat3,lon3))
                     else:
-                        dico_masks[(til_x+16,til_y+16)]=[[lat1,lon1,lat2,lon2,lat3,lon3]]
+                        dico_masks[(til_x+16,til_y+16)]=[(lat1,lon1,lat2,lon2,lat3,lon3)]
             if b==0: 
                 if (til_x,til_y-16) in dico_masks:
-                    dico_masks[(til_x,til_y-16)].append([lat1,lon1,lat2,lon2,lat3,lon3])
+                    dico_masks[(til_x,til_y-16)].append((lat1,lon1,lat2,lon2,lat3,lon3))
                 else:
-                    dico_masks[(til_x,til_y-16)]=[[lat1,lon1,lat2,lon2,lat3,lon3]]
+                    dico_masks[(til_x,til_y-16)]=[(lat1,lon1,lat2,lon2,lat3,lon3)]
             elif b==3:
                 if (til_x,til_y+16) in dico_masks:
-                    dico_masks[(til_x,til_y+16)].append([lat1,lon1,lat2,lon2,lat3,lon3])
+                    dico_masks[(til_x,til_y+16)].append((lat1,lon1,lat2,lon2,lat3,lon3))
                 else:
-                    dico_masks[(til_x,til_y+16)]=[[lat1,lon1,lat2,lon2,lat3,lon3]]
+                    dico_masks[(til_x,til_y+16)]=[(lat1,lon1,lat2,lon2,lat3,lon3)]
         f_mesh.close()
         if not tile.use_masks_for_inland:
             UI.vprint(2,"   Taking care of inland water near shoreline")
@@ -196,7 +199,10 @@ def build_masks(tile):
                 b=(til_y2//16)%4
                 # Here an inland water tri is added ONLY if sea water tri were already added for this mask extent
                 if (til_x,til_y) in dico_masks:
-                    dico_masks[(til_x,til_y)].append([lat1,lon1,lat2,lon2,lat3,lon3])
+                    if (til_x,til_y) in dico_masks_inland:
+                        dico_masks_inland[(til_x,til_y)].append((lat1,lon1,lat2,lon2,lat3,lon3))
+                    else:
+                        dico_masks_inland[(til_x,til_y)]=[(lat1,lon1,lat2,lon2,lat3,lon3)]
             f_mesh.close()
     UI.vprint(1,"-> Construction of the masks")
     if tile.masks_use_DEM_too:
@@ -215,7 +221,7 @@ def build_masks(tile):
         px0-=1024
         py0-=1024
         # 1) We start with a black mask 
-        mask_im=Image.new("1",(4096+2*1024,4096+2*1024),'black')
+        mask_im=Image.new("L",(4096+2*1024,4096+2*1024),'black')
         mask_draw=ImageDraw.Draw(mask_im)
         # 2) We fill it with white over the extent of each tile around for which we had a mesh available
         for mesh_file_name in mesh_file_name_list:
@@ -228,15 +234,23 @@ def build_masks(tile):
             (px4,py4)=GEO.wgs84_to_pix(lathere+1,lonhere,tile.mask_zl)
             px1-=px0; px2-=px0; px3-=px0; px4-=px0; py1-=py0; py2-=py0; py3-=py0; py4-=py0
             mask_draw.polygon([(px1,py1),(px2,py2),(px3,py3),(px4,py4)],fill='white')
-        # 3) We overwrite the withe part of the mask with black where water was detected in the first part above
-        for [lat1,lon1,lat2,lon2,lat3,lon3] in dico_masks[(til_x,til_y)]:
+        # 3a)  We overwrite the withe part of the mask with grey (ratio_water dependent) where inland water was detected in the first part above   
+        if (til_x,til_y) in dico_masks_inland:    
+            for (lat1,lon1,lat2,lon2,lat3,lon3) in dico_masks_inland[(til_x,til_y)]:
+                (px1,py1)=GEO.wgs84_to_pix(lat1,lon1,tile.mask_zl)
+                (px2,py2)=GEO.wgs84_to_pix(lat2,lon2,tile.mask_zl)
+                (px3,py3)=GEO.wgs84_to_pix(lat3,lon3,tile.mask_zl)
+                px1-=px0; px2-=px0; px3-=px0; py1-=py0; py2-=py0; py3-=py0
+                mask_draw.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=int(255*(1-tile.ratio_water)))   
+        # 3b) We overwrite the withe + grey part of the mask with black where sea water was detected in the first part above
+        for (lat1,lon1,lat2,lon2,lat3,lon3) in dico_masks[(til_x,til_y)]:
             (px1,py1)=GEO.wgs84_to_pix(lat1,lon1,tile.mask_zl)
             (px2,py2)=GEO.wgs84_to_pix(lat2,lon2,tile.mask_zl)
             (px3,py3)=GEO.wgs84_to_pix(lat3,lon3,tile.mask_zl)
             px1-=px0; px2-=px0; px3-=px0; py1-=py0; py2-=py0; py3-=py0
             mask_draw.polygon([(px1,py1),(px2,py2),(px3,py3)],fill='black')
         del(mask_draw)
-        mask_im=mask_im.convert("L") 
+        #mask_im=mask_im.convert("L") 
         img_array=numpy.array(mask_im,dtype=numpy.uint8)
         
         if tile.masks_use_DEM_too:

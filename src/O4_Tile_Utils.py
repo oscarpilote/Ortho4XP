@@ -50,7 +50,7 @@ def build_tile(tile):
     timer=time.time()
     
     tile.write_to_config()
-    tile.ensure_elevation_data()
+    #tile.ensure_elevation_data()
     
     IMG.initialize_local_combined_providers_dict(tile)
 
