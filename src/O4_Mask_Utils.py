@@ -416,6 +416,7 @@ if __name__ == '__main__':
     Syntax='Syntax :\n--------\n(PYTHON) extent_code [OSM query] pixel_size buffer_size blur_size [EPSG code]\nAll three sizes in meters, buffer_size can be negative too.\nIf OSM query is not used, data must be cached in an extent_code.osm.bz2 file. EPSG code defaults to 4326, if it is used the OSM query needs to be used too.\n\nExample :(from a subdirectory of Extents)\n---------\npython3 ../../src/O4_Mask_Utils.py Suisse rel[\"admin_level\"=\"2\"][\"name:fr\"=\"Suisse\"] 20 0 400'
     epsg_code='4326'
     name=sys.argv[1]
+    cached_file_name=name+'.osm.bz2'
     nargs=len(sys.argv)
     if not nargs in (5,6,7,8):
         print(Syntax)
@@ -449,7 +450,6 @@ if __name__ == '__main__':
     pixel_size = pixel_size/111120 if epsg_code=='4326' else pixel_size # assuming meters if not degrees
     vector_map=VECT.Vector_Map()
     osm_layer=OSM.OSM_layer()
-    cached_file_name=name+'.osm.bz2'
     if not os.path.exists(cached_file_name):
         print("OSM query...")
         if not OSM.OSM_query_to_OSM_layer(query,'',osm_layer,cached_file_name=cached_file_name):

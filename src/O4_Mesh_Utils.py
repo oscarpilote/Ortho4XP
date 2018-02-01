@@ -144,7 +144,7 @@ def post_process_nodes_altitudes(tile):
     f_node = open(FNAMES.output_node_file(tile),'w')
     f_node.write(init_line_f_node)
     for i in range(0,nbr_pt):
-        f_node.write(str(i+1)+" "+' '.join((str(x) for x in vertices[6*i:6*i+6]))+"\n")
+        f_node.write(str(i+1)+" "+' '.join(('{:.15f}'.format(x) for x in vertices[6*i:6*i+6]))+"\n")
     f_node.write(end_line_f_node)
     f_node.close()
     return vertices
