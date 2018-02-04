@@ -43,6 +43,13 @@ OS X
 1) Install homebrew (a package manager which will NEVER put any mess on your system since it is sandboxed)
 /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 
-2) Instructions will follow as soon as I get access to a Mac. 
+
+2) Install Brew based dependencies
+brew install python3 imagemagick spatialindex p7zip
+
+3) Install python based dependencies
+pip3.6 install numpy overpy requests Image Pyproj shapely rtree pillow
+
+Launch with "python Ortho4XP_v130.py".
 
 
