@@ -48,7 +48,7 @@ OS X
 brew install python3 imagemagick spatialindex p7zip
 
 3) Install python based dependencies
-pip3.6 install numpy overpy requests Image Pyproj shapely rtree libspatialindex pillow
+pip3.6 install numpy overpy requests Image Pyproj shapely rtree pillow
 
 Launch with "python Ortho4XP_v130.py".
 
