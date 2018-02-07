@@ -1,4 +1,4 @@
-#!/bin/bash
+#!env bash
 
 if ! which -s brew ; then
     echo
@@ -32,37 +32,17 @@ if ! which -s magick ; then
 fi
 
 echo
-echo "Installation of python/requests"
-echo "-------------------------------"
+echo "Installing additional dependencies"
 echo
-$pip_command install requests
+brew install spatialindex
 
-echo
-echo "Installation of python/overpy"
-echo "-----------------------------"
-echo
-$pip_command install overpy
-
-echo
-echo "Installation of python/numpy"
-echo "-----------------------------"
-echo
-$pip_command install numpy
-
-echo
-echo "Installation of python/pillow"
-echo "-----------------------------"
-echo
-brew install libtiff libjpeg webp little-cms2
-$pip_command install Pillow
-
-echo
-echo "Installation of python/pyproj (optional)"
-echo "----------------------------------------"
-echo
-$pip_command install pyproj
+for dep in "numpy" "requests" "pyproj" "shapely" "rtree" ; do
+    echo
+    echo "Installation of python/${dep}"
+    echo "--------------------------------"
+    $pip_command install $dep
+done
 
 echo
 echo "Installation successful (hopefully)!"
-
 
