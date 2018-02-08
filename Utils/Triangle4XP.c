@@ -1,4 +1,4 @@
-/* Last modified : September 17th 2015                                       */
+/* Last modified : February 8th 2018                                         */
 /*****************************************************************************/
 /*                                                                           */
 /*                              Triangle4XP                                  */
@@ -16,16 +16,16 @@
 /*   triangle based on additional code. In the present implementation, it is */ 
 /*   defined in such a way that the maximum curvature of the terrain to be   */
 /*   meshed in the proposed triangle is computed (based on external data)    */
-/*   and tested against the size of the triangle. If curv_tol * size*        */
-/*   is too big the triangle is rejected and asked for refinement. The       */
-/*   process also stops if size becomes to small  and is enforced            */
-/*   (wathever the curvature is ) if size is too big. The three relevant     */
-/*   parameters are called curv_tol, hmin and min_angle below in the code.   */
+/*   and tested against the size of the triangle.                            */
+/*   Another modification is concerned with  element attributes which can    */
+/*   can be of different types here for the same triangle. Not only dummy    */
+/*   edges are non blocking for the plague algorithm, but any edge whose     */
+/*   attribute bit is different from one of the attribute  being plagued.    */
 /*                                                                           */
-/*   For the ease of reading and/or further adaptation, every change in the  */
-/*   original triangle.c file of Jonathan Shewchuk is enclosed by comments   */
-/*   of the form "Strart of : Added for Triangle4XP" and "End of : Added for */
-/*   Triangle4XP".                                                           */
+/*   For the ease of reading and/or further adaptation I have enclosed       */
+/*   the important changes in the original triangle.c file of Jonathan       */
+/*   Shewchuk by comments of the form "Strart of : Added for Triangle4XP"    */
+/*   and "End of : Added for Triangle4XP".                                   */
 /*                                                                           */
 /*                              Oscar Pilote, June 29th 2015                 */
 /*                                                                           */
@@ -3330,7 +3330,7 @@ struct behavior *b;
 
   for (i = STARTINDEX; i < argc; i++) {
 #ifndef TRILIBRARY
-    if (argv[i][0] == '-' && !isdigit(atoi(&argv[i][1]))) {
+    if (argv[i][0] == '-' && argv[i][1]>'9') {
 #endif /* not TRILIBRARY */
       for (j = STARTINDEX; argv[i][j] != '\0'; j++) {
         if (argv[i][j] == 'p') {
@@ -7627,7 +7627,7 @@ struct behavior *b;
   vertex triorg;
 
   if (b->verbose) {
-    printf("    Constructing mapping from vertices to triangles.\n");
+    printf("   Constructing mapping from vertices to triangles.\n");
   }
   traversalinit(&m->triangles);
   triangleloop.tri = triangletraverse(m);
@@ -10151,7 +10151,7 @@ struct otri *startghost;
   triangle ptr;                         /* Temporary variable used by sym(). */
 
   if (b->verbose) {
-    printf("  Removing ghost triangles.\n");
+    printf("   Removing ghost triangles.\n");
   }
   /* Find an edge on the convex hull to start point location from. */
   lprev(*startghost, searchedge);
@@ -10211,7 +10211,7 @@ struct behavior *b;
   int i, j;
 
   if (b->verbose) {
-    printf("  Sorting vertices.\n");
+    printf("   Sorting vertices.\n");
   }
 
   /* Allocate an array of pointers to vertices for sorting. */
@@ -10227,9 +10227,9 @@ struct behavior *b;
   for (j = 1; j < m->invertices; j++) {
     if ((sortarray[i][0] == sortarray[j][0])
         && (sortarray[i][1] == sortarray[j][1])) {
-      if (!b->quiet) {
+      if (b->verbose>1) {
         printf(
-"Warning:  A duplicate vertex at (%.12g, %.12g) appeared and was ignored.\n",
+"WARNING:  A duplicate vertex at (%.12g, %.12g) appeared and was ignored.\n",
                sortarray[j][0], sortarray[j][1]);
       }
       setvertextype(sortarray[j], UNDEADVERTEX);
@@ -10252,7 +10252,7 @@ struct behavior *b;
   }
 
   if (b->verbose) {
-    printf("  Forming triangulation.\n");
+    printf("   Forming triangulation.\n");
   }
 
   /* Form the Delaunay triangulation. */
@@ -10471,9 +10471,9 @@ struct behavior *b;
     starttri.tri = m->dummytri;
     if (insertvertex(m, b, vertexloop, &starttri, (struct osub *) NULL, 0, 0)
         == DUPLICATEVERTEX) {
-      if (!b->quiet) {
+      if (b->verbose>1) {
         printf(
-"Warning:  A duplicate vertex at (%.12g, %.12g) appeared and was ignored.\n",
+"WARNING:  A duplicate vertex at (%.12g, %.12g) appeared and was ignored.\n",
                vertexloop[0], vertexloop[1]);
       }
       setvertextype(vertexloop, UNDEADVERTEX);
@@ -11258,7 +11258,7 @@ struct behavior *b;
   /*if (!b->quiet) {*/
   if (1==1) {
     printf(
-      "  Constructing Delaunay triangulation by divide-and-conquer method.\n");
+      "   Constructing Delaunay triangulation by divide-and-conquer method.\n");
   }
   hulledges = divconqdelaunay(m, b);
 #else /* not REDUCED */
@@ -11408,11 +11408,11 @@ FILE *polyfile;
 #else /* not TRILIBRARY */
   /* Read the triangles from an .ele file. */
   if (!b->quiet) {
-    printf("  Opening %s.\n", elefilename);
+    printf("   Opening %s.\n", elefilename);
   }
   elefile = fopen(elefilename, "r");
   if (elefile == (FILE *) NULL) {
-    printf("  Error:  Cannot access file %s.\n", elefilename);
+    printf("   ERROR:  Cannot access file %s.\n", elefilename);
     triexit(1);
   }
   /* Read number of triangles, number of vertices per triangle, and */
@@ -11425,7 +11425,7 @@ FILE *polyfile;
   } else {
     incorners = (int) strtol(stringptr, &stringptr, 0);
     if (incorners < 3) {
-      printf("Error:  Triangles in %s must have at least 3 vertices.\n",
+      printf("ERROR:  Triangles in %s must have at least 3 vertices.\n",
              elefilename);
       triexit(1);
     }
@@ -11478,17 +11478,17 @@ FILE *polyfile;
   if (b->vararea) {
     /* Open an .area file, check for consistency with the .ele file. */
     if (!b->quiet) {
-      printf("  Opening %s.\n", areafilename);
+      printf("   Opening %s.\n", areafilename);
     }
     areafile = fopen(areafilename, "r");
     if (areafile == (FILE *) NULL) {
-      printf("  Error:  Cannot access file %s.\n", areafilename);
+      printf("   ERROR:  Cannot access file %s.\n", areafilename);
       triexit(1);
     }
     stringptr = readline(inputline, areafile, areafilename);
     areaelements = (int) strtol(stringptr, &stringptr, 0);
     if (areaelements != m->inelements) {
-      printf("Error:  %s and %s disagree on number of triangles.\n",
+      printf("ERROR:  %s and %s disagree on number of triangles.\n",
              elefilename, areafilename);
       triexit(1);
     }
@@ -11496,7 +11496,7 @@ FILE *polyfile;
 #endif /* not TRILIBRARY */
 
   if (!b->quiet) {
-    printf("Reconstructing mesh.\n");
+    printf("   Reconstructing mesh.\n");
   }
   /* Allocate a temporary array that maps each vertex to some adjacent */
   /*   triangle.  I took care to allocate all the permanent memory for */
@@ -11509,7 +11509,7 @@ FILE *polyfile;
   }
 
   if (b->verbose) {
-    printf("  Assembling triangles.\n");
+    printf("   Assembling triangles.\n");
   }
   /* Read the triangles from the .ele file, and link */
   /*   together those that share an edge.            */
@@ -11534,14 +11534,14 @@ FILE *polyfile;
     for (j = 0; j < 3; j++) {
       stringptr = findfield(stringptr);
       if (*stringptr == '\0') {
-        printf("Error:  Triangle %ld is missing vertex %d in %s.\n",
+        printf("ERROR:  Triangle %ld is missing vertex %d in %s.\n",
                elementnumber, j + 1, elefilename);
         triexit(1);
       } else {
         corner[j] = (int) strtol(stringptr, &stringptr, 0);
         if ((corner[j] < b->firstnumber) ||
             (corner[j] >= b->firstnumber + m->invertices)) {
-          printf("Error:  Triangle %ld has an invalid vertex index.\n",
+          printf("ERROR:  Triangle %ld has an invalid vertex index.\n",
                  elementnumber);
           triexit(1);
         }
@@ -11658,7 +11658,7 @@ FILE *polyfile;
   hullsize = 0;                      /* Prepare to count the boundary edges. */
   if (b->poly) {
     if (b->verbose) {
-      printf("  Marking segments in triangulation.\n");
+      printf("   Marking segments in triangulation.\n");
     }
     /* Read the segments from the .poly file, and link them */
     /*   to their neighboring triangles.                    */
@@ -11679,7 +11679,7 @@ FILE *polyfile;
       /* Skip the first (segment number) field. */
       stringptr = findfield(stringptr);
       if (*stringptr == '\0') {
-        printf("Error:  Segment %ld has no endpoints in %s.\n", segmentnumber,
+        printf("ERROR:  Segment %ld has no endpoints in %s.\n", segmentnumber,
                polyfilename);
         triexit(1);
       } else {
@@ -11687,7 +11687,7 @@ FILE *polyfile;
       }
       stringptr = findfield(stringptr);
       if (*stringptr == '\0') {
-        printf("Error:  Segment %ld is missing its second endpoint in %s.\n",
+        printf("ERROR:  Segment %ld is missing its second endpoint in %s.\n",
                segmentnumber, polyfilename);
         triexit(1);
       } else {
@@ -11705,7 +11705,7 @@ FILE *polyfile;
       for (j = 0; j < 2; j++) {
         if ((end[j] < b->firstnumber) ||
             (end[j] >= b->firstnumber + m->invertices)) {
-          printf("Error:  Segment %ld has an invalid vertex index.\n", 
+          printf("ERROR:  Segment %ld has an invalid vertex index.\n", 
                  segmentnumber);
           triexit(1);
         }
@@ -11862,10 +11862,10 @@ vertex searchpoint;
     /* Turn left until satisfied. */
     onextself(*searchtri);
     if (searchtri->tri == m->dummytri) {
-      printf("  Internal error in finddirection():  Unable to find a\n");
-      printf("  triangle leading from (%.12g, %.12g) to", startvertex[0],
+      printf("   Internal error in finddirection():  Unable to find a\n");
+      printf("   triangle leading from (%.12g, %.12g) to", startvertex[0],
              startvertex[1]);
-      printf("  (%.12g, %.12g).\n", searchpoint[0], searchpoint[1]);
+      printf("   (%.12g, %.12g).\n", searchpoint[0], searchpoint[1]);
       internalerror();
     }
     apex(*searchtri, leftvertex);
@@ -11877,10 +11877,10 @@ vertex searchpoint;
     /* Turn right until satisfied. */
     oprevself(*searchtri);
     if (searchtri->tri == m->dummytri) {
-      printf("  Internal error in finddirection():  Unable to find a\n");
-      printf("  triangle leading from (%.12g, %.12g) to", startvertex[0],
+      printf("   Internal error in finddirection():  Unable to find a\n");
+      printf("   triangle leading from (%.12g, %.12g) to", startvertex[0],
              startvertex[1]);
-      printf("  (%.12g, %.12g).\n", searchpoint[0], searchpoint[1]);
+      printf("   (%.12g, %.12g).\n", searchpoint[0], searchpoint[1]);
       internalerror();
     }
     dest(*searchtri, rightvertex);
@@ -11956,8 +11956,8 @@ vertex endpoint2;
   ety = torg[1] - endpoint2[1];
   denom = ty * ex - tx * ey;
   if (denom == 0.0) {
-    printf("  Internal error in segmentintersection():");
-    printf("  Attempt to find intersection of parallel segments.\n");
+    printf("   Internal error in segmentintersection():");
+    printf("   Attempt to find intersection of parallel segments.\n");
     internalerror();
   }
   split = (ey * etx - ex * ety) / denom;
@@ -11971,14 +11971,14 @@ vertex endpoint2;
   setvertextype(newvertex, INPUTVERTEX);
   if (b->verbose > 1) {
     printf(
-  "  Splitting subsegment (%.12g, %.12g) (%.12g, %.12g) at (%.12g, %.12g).\n",
+  "   Splitting subsegment (%.12g, %.12g) (%.12g, %.12g) at (%.12g, %.12g).\n",
            torg[0], torg[1], tdest[0], tdest[1], newvertex[0], newvertex[1]);
   }
   /* Insert the intersection vertex.  This should always succeed. */
   success = insertvertex(m, b, newvertex, splittri, splitsubseg, 0, 0);
   if (success != SUCCESSFULVERTEX) {
-    printf("  Internal error in segmentintersection():\n");
-    printf("  Failure to split a segment.\n");
+    printf("   Internal error in segmentintersection():\n");
+    printf("   Failure to split a segment.\n");
     internalerror();
   }
   /* Record a triangle whose origin is the new vertex. */
@@ -12010,10 +12010,10 @@ vertex endpoint2;
     onextself(*splittri);
   } else if ((rightvertex[0] != endpoint1[0]) ||
              (rightvertex[1] != endpoint1[1])) {
-    printf("  Internal error in segmentintersection():\n");
-    printf("  Topological inconsistency after splitting a segment.\n");
+    printf("   Internal error in segmentintersection():\n");
+    printf("   Topological inconsistency after splitting a segment.\n");
     /* Added for Triangle4XP */
-    printf("  Splitting subsegment (%.12g, %.12g) (%.12g, %.12g) at (%.12g, %.12g).\n",torg[0], torg[1], tdest[0], tdest[1], newvertex[0], newvertex[1]);
+    printf("   Splitting subsegment (%.12g, %.12g) (%.12g, %.12g) at (%.12g, %.12g).\n",torg[0], torg[1], tdest[0], tdest[1], newvertex[0], newvertex[1]);
     /* End of Added for Triangle4XP */
     internalerror();
   }
@@ -12683,7 +12683,7 @@ char *polyfilename;
   if (b->poly) {
     /*if (!b->quiet) {*/
     if (1==1) {
-      printf("  Recovering segments in Delaunay triangulation.\n");
+      printf("   Recovering segments in Delaunay triangulation.\n");
       fflush(stdout);
     }
 #ifdef TRILIBRARY
@@ -12714,7 +12714,7 @@ char *polyfilename;
     if (m->insegments > 0) {
       makevertexmap(m, b);
       if (b->verbose) {
-        printf("  Recovering PSLG segments.\n");
+        printf("   Recovering PSLG segments.\n");
         fflush(stdout);
       }
     }
@@ -12757,14 +12757,14 @@ char *polyfilename;
 #endif /* not TRILIBRARY */
       if ((end1 < b->firstnumber) ||
           (end1 >= b->firstnumber + m->invertices)) {
-        if (!b->quiet) {
-          printf("Warning:  Invalid first endpoint of segment %d in %s.\n",
+        if (b->verbose>1) {
+          printf("WARNING:  Invalid first endpoint of segment %d in %s.\n",
                  b->firstnumber + i, polyfilename);
         }
       } else if ((end2 < b->firstnumber) ||
                  (end2 >= b->firstnumber + m->invertices)) {
-        if (!b->quiet) {
-          printf("Warning:  Invalid second endpoint of segment %d in %s.\n",
+        if (b->verbose>1) {
+          printf("WARNING:  Invalid second endpoint of segment %d in %s.\n",
                  b->firstnumber + i, polyfilename);
         }
       } else {
@@ -12772,8 +12772,8 @@ char *polyfilename;
         endpoint1 = getvertex(m, b, end1);
         endpoint2 = getvertex(m, b, end2);
         if ((endpoint1[0] == endpoint2[0]) && (endpoint1[1] == endpoint2[1])) {
-          if (!b->quiet) {
-            printf("Warning:  Endpoints of segment %d are coincident in %s.\n",
+          if (b->verbose>1) {
+            printf("WARNING:  Endpoints of segment %d are coincident in %s.\n",
                    b->firstnumber + i, polyfilename);
           }
         } else {
@@ -12787,7 +12787,7 @@ char *polyfilename;
   if (b->convex || !b->poly) {
     /* Enclose the convex hull with subsegments. */
     if (b->verbose) {
-      printf("  Enclosing convex hull with segments.\n");
+      printf("   Enclosing convex hull with segments.\n");
     }
     markhull(m, b);
   }
@@ -12828,7 +12828,7 @@ struct behavior *b;
   subseg sptr;                      /* Temporary variable used by tspivot(). */
 
   if (b->verbose) {
-    printf("  Marking concavities (external triangles) for elimination.\n");
+    printf("   Marking concavities (external triangles) for elimination.\n");
   }
   /* Find a triangle handle on the hull. */
   hulltri.tri = m->dummytri;
@@ -12913,7 +12913,7 @@ struct behavior *b;
   subseg sptr;                      /* Temporary variable used by tspivot(). */
 
   if (b->verbose) {
-    printf("  Marking neighbors of marked triangles.\n");
+    printf("   Marking neighbors of marked triangles.\n");
   }
   /* Loop through all the infected triangles, spreading the virus to */
   /*   their neighbors, then to their neighbors' neighbors.          */
@@ -13000,7 +13000,7 @@ struct behavior *b;
   }
 
   if (b->verbose) {
-    printf("  Deleting marked triangles.\n");
+    printf("   Deleting marked triangles.\n");
   }
 
   traversalinit(&m->viri);
@@ -13124,7 +13124,7 @@ REAL area;
   subseg sptr;                      /* Temporary variable used by tspivot(). */
 
   if (b->verbose > 1) {
-    printf("  Marking neighbors of marked triangles.\n");
+    printf("   Marking neighbors of marked triangles.\n");
   }
   /* Loop through all the infected triangles, spreading the attribute      */
   /*   and/or area constraint to their neighbors, then to their neighbors' */
@@ -13197,7 +13197,7 @@ REAL area;
 
   /* Uninfect all triangles. */
   if (b->verbose > 1) {
-    printf("  Unmarking marked triangles.\n");
+    printf("   Unmarking marked triangles.\n");
   }
   traversalinit(&m->viri);
   virusloop = (triangle **) traverse(&m->viri);
@@ -13248,9 +13248,9 @@ int regions;
 
   /*if (!(b->quiet || (b->noholes && b->convex))) {*/
   if ((b->noholes && b->convex)) {
-    printf("  Removing unwanted triangles.\n");
+    printf("   Removing unwanted triangles.\n");
     if (b->verbose && (holes > 0)) {
-      printf("  Marking holes for elimination.\n");
+      printf("   Marking holes for elimination.\n");
     }
   }
 
@@ -13353,13 +13353,13 @@ int regions;
     if (1==1) {  
       if (b->regionattrib) {
         if (b->vararea) {
-          printf("  Spreading regional attributes and area constraints.\n");
+          printf("   Spreading regional attributes and area constraints.\n");
         } else {
-          printf("  Spreading regional attributes.\n");
+          printf("   Spreading regional attributes.\n");
           fflush(stdout);
         }
       } else { 
-        printf("  Spreading regional area constraints.\n");
+        printf("   Spreading regional area constraints.\n");
       }
     }
     if (b->regionattrib && !b->refine) {
@@ -13648,14 +13648,14 @@ int triflaws;
         setvertextype(newvertex, SEGMENTVERTEX);
         if (b->verbose > 1) {
           printf(
-  "  Splitting subsegment (%.12g, %.12g) (%.12g, %.12g) at (%.12g, %.12g).\n",
+  "   Splitting subsegment (%.12g, %.12g) (%.12g, %.12g) at (%.12g, %.12g).\n",
                  eorg[0], eorg[1], edest[0], edest[1],
                  newvertex[0], newvertex[1]);
         }
         /* Check whether the new vertex lies on an endpoint. */
         if (((newvertex[0] == eorg[0]) && (newvertex[1] == eorg[1])) ||
             ((newvertex[0] == edest[0]) && (newvertex[1] == edest[1]))) {
-          printf("Error:  Ran out of precision at (%.12g, %.12g).\n",
+          printf("ERROR:  Ran out of precision at (%.12g, %.12g).\n",
                  newvertex[0], newvertex[1]);
           printf("I attempted to split a segment to a smaller size than\n");
           printf("  can be accommodated by the finite precision of\n");
@@ -13667,8 +13667,8 @@ int triflaws;
         success = insertvertex(m, b, newvertex, &enctri, &currentenc,
                                1, triflaws);
         if ((success != SUCCESSFULVERTEX) && (success != ENCROACHINGVERTEX)) {
-          printf("  Internal error in splitencsegs():\n");
-          printf("  Failure to split a segment.\n");
+          printf("   Internal error in splitencsegs():\n");
+          printf("   Failure to split a segment.\n");
           internalerror();
         }
         if (m->steinerleft > 0) {
@@ -13708,7 +13708,7 @@ struct behavior *b;
   struct otri triangleloop;
 
   if (b->verbose) {
-    printf("  Making a list of bad triangles.\n");
+    printf("   Making a list of bad triangles.\n");
   }
   traversalinit(&m->triangles);
   triangleloop.orient = 0;
@@ -13761,7 +13761,7 @@ struct badtriang *badtri;
   if (!deadtri(badotri.tri) && (borg == badtri->triangorg) &&
       (bdest == badtri->triangdest) && (bapex == badtri->triangapex)) {
     if (b->verbose > 1) {
-      printf("  Splitting this triangle at its circumcenter:\n");
+      printf("   Splitting this triangle at its circumcenter:\n");
       printf("    (%.12g, %.12g) (%.12g, %.12g) (%.12g, %.12g)\n", borg[0],
              borg[1], bdest[0], bdest[1], bapex[0], bapex[1]);
     }
@@ -13775,9 +13775,9 @@ struct badtriang *badtri;
     if (((newvertex[0] == borg[0]) && (newvertex[1] == borg[1])) ||
         ((newvertex[0] == bdest[0]) && (newvertex[1] == bdest[1])) ||
         ((newvertex[0] == bapex[0]) && (newvertex[1] == bapex[1]))) {
-      if (!b->quiet) {
+      if (b->verbose>1) {
         printf(
-             "Warning:  New vertex (%.12g, %.12g) falls on existing vertex.\n",
+             "WARNING:  New vertex (%.12g, %.12g) falls on existing vertex.\n",
                newvertex[0], newvertex[1]);
         errorflag = 1;
       }
@@ -13817,7 +13817,7 @@ struct badtriang *badtri;
         /*   delete the new vertex.                                   */
         undovertex(m, b);
         if (b->verbose > 1) {
-          printf("  Rejecting (%.12g, %.12g).\n", newvertex[0], newvertex[1]);
+          printf("   Rejecting (%.12g, %.12g).\n", newvertex[0], newvertex[1]);
         }
         vertexdealloc(m, newvertex);
       } else if (success == VIOLATINGVERTEX) {
@@ -13828,7 +13828,7 @@ struct badtriang *badtri;
         /* Couldn't insert the new vertex because a vertex is already there. */
         if (!b->quiet) {
           printf(
-            "Warning:  New vertex (%.12g, %.12g) falls on existing vertex.\n",
+            "WARNING:  New vertex (%.12g, %.12g) falls on existing vertex.\n",
                  newvertex[0], newvertex[1]);
           errorflag = 1;
         }
@@ -13875,20 +13875,20 @@ struct behavior *b;
 
   /*if (!b->quiet) {*/
   if (1==1) {
-    printf("  Adding Steiner points to enforce quality.\n");
+    printf("   Adding Steiner points to enforce quality.\n");
     fflush(stdout);
   }
   /* Initialize the pool of encroached subsegments. */
   poolinit(&m->badsubsegs, sizeof(struct badsubseg), BADSUBSEGPERBLOCK,
            BADSUBSEGPERBLOCK, 0);
   if (b->verbose) {
-    printf("  Looking for encroached subsegments.\n");
+    printf("   Looking for encroached subsegments.\n");
     fflush(stdout);
   }
   /* Test all segments to see if they're encroached. */
   tallyencs(m, b);
   if (b->verbose && (m->badsubsegs.items > 0)) {
-    printf("  Splitting encroached subsegments.\n");
+    printf("   Splitting encroached subsegments.\n");
   }
   /* Fix encroached subsegments without noting bad triangles. */
   splitencsegs(m, b, 0);
@@ -13912,7 +13912,7 @@ struct behavior *b;
              FLIPSTACKERPERBLOCK, 0);
     m->checkquality = 1;
     if (b->verbose) {
-      printf("  Splitting bad triangles.\n");
+      printf("   Splitting bad triangles.\n");
     }
     while ((m->badtriangles.items > 0) && (m->steinerleft != 0)) {
       /* Fix one bad triangle by inserting a vertex at its circumcenter. */
@@ -13937,7 +13937,7 @@ struct behavior *b;
   /* Might we have run out of Steiner points too soon? */
   if (!b->quiet && b->conformdel && (m->badsubsegs.items > 0) &&
       (m->steinerleft == 0)) {
-    printf("\nWarning:  I ran out of Steiner points, but the mesh has\n");
+    printf("\nWARNING:  I ran out of Steiner points, but the mesh has\n");
     if (m->badsubsegs.items == 1) {
       printf("  one encroached subsegment, and therefore might not be truly\n"
              );
@@ -14166,11 +14166,11 @@ FILE **polyfile;
   if (b->poly) {
     /* Read the vertices from a .poly file. */
     if (!b->quiet) {
-      printf("  Opening %s.\n", polyfilename);
+      printf("   Opening %s.\n", polyfilename);
     }
     *polyfile = fopen(polyfilename, "r");
     if (*polyfile == (FILE *) NULL) {
-      printf("  Error:  Cannot access file %s.\n", polyfilename);
+      printf("ERROR:  Cannot access file %s.\n", polyfilename);
       triexit(1);
     }
     /* Read number of vertices, number of dimensions, number of vertex */
@@ -14214,11 +14214,11 @@ FILE **polyfile;
   if (m->readnodefile) {
     /* Read the vertices from a .node file. */
     if (!b->quiet) {
-      printf("  Opening %s.\n", nodefilename);
+      printf("   Opening %s.\n", nodefilename);
     }
     infile = fopen(nodefilename, "r");
     if (infile == (FILE *) NULL) {
-      printf("  Error:  Cannot access file %s.\n", nodefilename);
+      printf("ERROR:  Cannot access file %s.\n", nodefilename);
       triexit(1);
     }
     /* Read number of vertices, number of dimensions, number of vertex */
@@ -14246,11 +14246,11 @@ FILE **polyfile;
   }
 
   if (m->invertices < 3) {
-    printf("Error:  Input must have at least three input vertices.\n");
+    printf("ERROR:  Input must have at least three input vertices.\n");
     triexit(1);
   }
   if (m->mesh_dim != 2) {
-    printf("Error:  Triangle only works with two-dimensional meshes.\n");
+    printf("ERROR:  Triangle only works with two-dimensional meshes.\n");
     triexit(1);
   }
   if (m->nextras == 0) {
@@ -14271,13 +14271,13 @@ FILE **polyfile;
     }
     stringptr = findfield(stringptr);
     if (*stringptr == '\0') {
-      printf("Error:  Vertex %d has no x coordinate.\n", b->firstnumber + i);
+      printf("ERROR:  Vertex %d has no x coordinate.\n", b->firstnumber + i);
       triexit(1);
     }
     x = (REAL) strtod(stringptr, &stringptr);
     stringptr = findfield(stringptr);
     if (*stringptr == '\0') {
-      printf("Error:  Vertex %d has no y coordinate.\n", b->firstnumber + i);
+      printf("ERROR:  Vertex %d has no y coordinate.\n", b->firstnumber + i);
       triexit(1);
     }
     y = (REAL) strtod(stringptr, &stringptr);
@@ -14370,7 +14370,7 @@ int numberofpointattribs;
   m->nextras = numberofpointattribs;
   m->readnodefile = 0;
   if (m->invertices < 3) {
-    printf("Error:  Input must have at least three input vertices.\n");
+    printf("ERROR:  Input must have at least three input vertices.\n");
     triexit(1);
   }
   if (m->nextras == 0) {
@@ -14461,7 +14461,7 @@ int *regions;
       stringptr = readline(inputline, polyfile, polyfilename);
       stringptr = findfield(stringptr);
       if (*stringptr == '\0') {
-        printf("Error:  Hole %d has no x coordinate.\n",
+        printf("ERROR:  Hole %d has no x coordinate.\n",
                b->firstnumber + (i >> 1));
         triexit(1);
       } else {
@@ -14469,7 +14469,7 @@ int *regions;
       }
       stringptr = findfield(stringptr);
       if (*stringptr == '\0') {
-        printf("Error:  Hole %d has no y coordinate.\n",
+        printf("ERROR:  Hole %d has no y coordinate.\n",
                b->firstnumber + (i >> 1));
         triexit(1);
       } else {
@@ -14635,7 +14635,7 @@ char **argv;
 
 #ifdef TRILIBRARY
   if (!b->quiet) {
-    printf("Writing vertices.\n");
+    printf("   Writing vertices.\n");
   }
   /* Allocate memory for output vertices if necessary. */
   if (*pointlist == (REAL *) NULL) {
@@ -14658,11 +14658,11 @@ char **argv;
 #else /* not TRILIBRARY */
   /*if (!b->quiet) {*/
   if (1==1) {
-  printf("  Computing altitude and normal maps.\n");
+  printf("   Computing altitude and normal maps.\n");
   }
   outfile = fopen(nodefilename, "w");
   if (outfile == (FILE *) NULL) {
-    printf("  Error:  Cannot create file %s.\n", nodefilename);
+    printf("   Error:  Cannot create file %s.\n", nodefilename);
     triexit(1);
   }
   /* Number of vertices, number of dimensions, number of vertex attributes, */
@@ -14752,7 +14752,7 @@ char **argv;
     }
     vertexloop = vertextraverse(m);
   }
-  printf("  Node file %s written to disk.\n", nodefilename);
+  printf("   Node file %s written to disk.\n", nodefilename);
 #ifndef TRILIBRARY
   finishfile(outfile, argc, argv);
 #endif /* not TRILIBRARY */
@@ -14844,7 +14844,7 @@ char **argv;
 
 #ifdef TRILIBRARY
   if (!b->quiet) {
-    printf("Writing triangles.\n");
+    printf("   Writing triangles.\n");
   }
   /* Allocate memory for output triangles if necessary. */
   if (*trianglelist == (int *) NULL) {
@@ -14865,11 +14865,11 @@ char **argv;
 #else /* not TRILIBRARY */
   /*if (!b->quiet) {*/
   if (1==1) {
-    printf("  Tri file  %s  written to disk.\n", elefilename);
+    printf("   Tri file  %s  written to disk.\n", elefilename);
   }
   outfile = fopen(elefilename, "w");
   if (outfile == (FILE *) NULL) {
-    printf("  Error:  Cannot create file %s.\n", elefilename);
+    printf("   Error:  Cannot create file %s.\n", elefilename);
     triexit(1);
   }
   /* Number of triangles, vertices per triangle, attributes per triangle. */
@@ -14990,7 +14990,7 @@ char **argv;
 
 #ifdef TRILIBRARY
   if (!b->quiet) {
-    printf("Writing segments.\n");
+    printf("   Writing segments.\n");
   }
   /* Allocate memory for output segments if necessary. */
   if (*segmentlist == (int *) NULL) {
@@ -15007,11 +15007,11 @@ char **argv;
   index = 0;
 #else /* not TRILIBRARY */
   if (!b->quiet) {
-    printf("  Writing %s.\n", polyfilename);
+    printf("   Writing %s.\n", polyfilename);
   }
   outfile = fopen(polyfilename, "w");
   if (outfile == (FILE *) NULL) {
-    printf("  Error:  Cannot create file %s.\n", polyfilename);
+    printf("ERROR:  Cannot create file %s.\n", polyfilename);
     triexit(1);
   }
   /* The zero indicates that the vertices are in a separate .node file. */
@@ -15132,7 +15132,7 @@ char **argv;
 
 #ifdef TRILIBRARY
   if (!b->quiet) {
-    printf("Writing edges.\n");
+    printf("   Writing edges.\n");
   }
   /* Allocate memory for edges if necessary. */
   if (*edgelist == (int *) NULL) {
@@ -15147,7 +15147,7 @@ char **argv;
   index = 0;
 #else /* not TRILIBRARY */
   if (!b->quiet) {
-    printf("Writing %s.\n", edgefilename);
+    printf("   Writing %s.\n", edgefilename);
   }
   outfile = fopen(edgefilename, "w");
   if (outfile == (FILE *) NULL) {
@@ -15298,7 +15298,7 @@ char **argv;
 
 #ifdef TRILIBRARY
   if (!b->quiet) {
-    printf("Writing Voronoi vertices.\n");
+    printf("   Writing Voronoi vertices.\n");
   }
   /* Allocate memory for Voronoi vertices if necessary. */
   if (*vpointlist == (REAL *) NULL) {
@@ -15317,7 +15317,7 @@ char **argv;
   attribindex = 0;
 #else /* not TRILIBRARY */
   if (!b->quiet) {
-    printf("Writing %s.\n", vnodefilename);
+    printf("   Writing %s.\n", vnodefilename);
   }
   outfile = fopen(vnodefilename, "w");
   if (outfile == (FILE *) NULL) {
@@ -15370,7 +15370,7 @@ char **argv;
 
 #ifdef TRILIBRARY
   if (!b->quiet) {
-    printf("Writing Voronoi edges.\n");
+    printf("   Writing Voronoi edges.\n");
   }
   /* Allocate memory for output Voronoi edges if necessary. */
   if (*vedgelist == (int *) NULL) {
@@ -15386,7 +15386,7 @@ char **argv;
   coordindex = 0;
 #else /* not TRILIBRARY */
   if (!b->quiet) {
-    printf("Writing %s.\n", vedgefilename);
+    printf("   Writing %s.\n", vedgefilename);
   }
   outfile = fopen(vedgefilename, "w");
   if (outfile == (FILE *) NULL) {
@@ -15494,7 +15494,7 @@ char **argv;
 
 #ifdef TRILIBRARY
   if (!b->quiet) {
-    printf("Writing neighbors.\n");
+    printf("   Writing neighbors.\n");
   }
   /* Allocate memory for neighbors if necessary. */
   if (*neighborlist == (int *) NULL) {
@@ -15505,7 +15505,7 @@ char **argv;
   index = 0;
 #else /* not TRILIBRARY */
   if (!b->quiet) {
-    printf("Writing %s.\n", neighborfilename);
+    printf("   Writing %s.\n", neighborfilename);
   }
   outfile = fopen(neighborfilename, "w");
   if (outfile == (FILE *) NULL) {
@@ -15590,7 +15590,7 @@ char **argv;
   long outvertices;
 
   if (!b->quiet) {
-    printf("Writing %s.\n", offfilename);
+    printf("   Writing %s.\n", offfilename);
   }
 
   if (b->jettison) {
@@ -15682,7 +15682,7 @@ struct behavior *b;
   int acutebiggest;
   int i, ii, j, k;
 
-  printf("  Mesh quality statistics:\n\n");
+  printf("   Mesh quality statistics:\n\n");
   radconst = PI / 18.0;
   degconst = 180.0 / PI;
   for (i = 0; i < 8; i++) {
@@ -15816,33 +15816,33 @@ struct behavior *b;
     }
   }
 
-  printf("  Smallest area: %16.5g   |  Largest area: %16.5g\n",
+  printf("   Smallest area: %16.5g   |  Largest area: %16.5g\n",
          smallestarea, biggestarea);
-  printf("  Shortest edge: %16.5g   |  Longest edge: %16.5g\n",
+  printf("   Shortest edge: %16.5g   |  Longest edge: %16.5g\n",
          shortest, longest);
-  printf("  Shortest altitude: %12.5g   |  Largest aspect ratio: %8.5g\n\n",
+  printf("   Shortest altitude: %12.5g   |  Largest aspect ratio: %8.5g\n\n",
          minaltitude, worstaspect);
 
-  printf("  Triangle aspect ratio histogram:\n");
-  printf("  1.1547 - %-6.6g    :  %8d    | %6.6g - %-6.6g     :  %8d\n",
+  printf("   Triangle aspect ratio histogram:\n");
+  printf("   1.1547 - %-6.6g    :  %8d    | %6.6g - %-6.6g     :  %8d\n",
          ratiotable[0], aspecttable[0], ratiotable[7], ratiotable[8],
          aspecttable[8]);
   for (i = 1; i < 7; i++) {
-    printf("  %6.6g - %-6.6g    :  %8d    | %6.6g - %-6.6g     :  %8d\n",
+    printf("   %6.6g - %-6.6g    :  %8d    | %6.6g - %-6.6g     :  %8d\n",
            ratiotable[i - 1], ratiotable[i], aspecttable[i],
            ratiotable[i + 7], ratiotable[i + 8], aspecttable[i + 8]);
   }
-  printf("  %6.6g - %-6.6g    :  %8d    | %6.6g -            :  %8d\n",
+  printf("   %6.6g - %-6.6g    :  %8d    | %6.6g -            :  %8d\n",
          ratiotable[6], ratiotable[7], aspecttable[7], ratiotable[14],
          aspecttable[15]);
-  printf("  (Aspect ratio is longest edge divided by shortest altitude)\n\n");
+  printf("   (Aspect ratio is longest edge divided by shortest altitude)\n\n");
 
-  printf("  Smallest angle: %15.5g   |  Largest angle: %15.5g\n\n",
+  printf("   Smallest angle: %15.5g   |  Largest angle: %15.5g\n\n",
          smallestangle, biggestangle);
 
-  printf("  Angle histogram:\n");
+  printf("   Angle histogram:\n");
   for (i = 0; i < 9; i++) {
-    printf("    %3d - %3d degrees:  %8d    |    %3d - %3d degrees:  %8d\n",
+    printf("     %3d - %3d degrees:  %8d    |    %3d - %3d degrees:  %8d\n",
            i * 10, i * 10 + 10, angletable[i],
            i * 10 + 90, i * 10 + 100, angletable[i + 9]);
   }
@@ -15880,32 +15880,32 @@ struct behavior *b;
 #endif /* not ANSI_DECLARATORS */
 
 {
-  printf("\n  Statistics:\n\n");
-  printf("  Input vertices: %d\n", m->invertices);
+  printf("\n   Statistics:\n\n");
+  printf("   Input vertices: %d\n", m->invertices);
   if (b->refine) {
-    printf("  Input triangles: %d\n", m->inelements);
+    printf("   Input triangles: %d\n", m->inelements);
   }
   if (b->poly) {
-    printf("  Input segments: %d\n", m->insegments);
+    printf("   Input segments: %d\n", m->insegments);
     if (!b->refine) {
-      printf("  Input holes: %d\n", m->holes);
+      printf("   Input holes: %d\n", m->holes);
     }
   }
 
-  printf("\n  Mesh vertices: ");
+  printf("\n   Mesh vertices: ");
   printfcomma(m->vertices.items - m->undeads);
   printf("\n");
-  printf("                  -----------------\n");
-  printf("  Mesh triangles: ---> ");
+  printf("                   -----------------\n");
+  printf("   Mesh triangles: ---> ");
   printfcomma(m->triangles.items);
-  printf(" <---\n"); 
-  printf("                  -----------------\n");
-  printf("  Mesh edges: %ld\n", m->edges);
-  printf("  Mesh exterior boundary edges: %ld\n", m->hullsize);
+  printf("\n"); 
+  printf("                   -----------------\n");
+  printf("   Mesh edges: %ld\n", m->edges);
+  printf("   Mesh exterior boundary edges: %ld\n", m->hullsize);
   if (b->poly || b->refine) {
-    printf("  Mesh interior boundary edges: %ld\n",
+    printf("   Mesh interior boundary edges: %ld\n",
            m->subsegs.items - m->hullsize);
-    printf("  Mesh subsegments (constrained edges): %ld\n",
+    printf("   Mesh subsegments (constrained edges): %ld\n",
            m->subsegs.items);
   }
   printf("\n");
@@ -15913,32 +15913,32 @@ struct behavior *b;
 
   if (b->verbose) {
     quality_statistics(m, b);
-    printf("  Memory allocation statistics:\n\n");
-    printf("  Maximum number of vertices: %ld\n", m->vertices.maxitems);
-    printf("  Maximum number of triangles: %ld\n", m->triangles.maxitems);
+    printf("   Memory allocation statistics:\n\n");
+    printf("   Maximum number of vertices: %ld\n", m->vertices.maxitems);
+    printf("   Maximum number of triangles: %ld\n", m->triangles.maxitems);
     if (m->subsegs.maxitems > 0) {
-      printf("  Maximum number of subsegments: %ld\n", m->subsegs.maxitems);
+      printf("   Maximum number of subsegments: %ld\n", m->subsegs.maxitems);
     }
     if (m->viri.maxitems > 0) {
-      printf("  Maximum number of viri: %ld\n", m->viri.maxitems);
+      printf("   Maximum number of viri: %ld\n", m->viri.maxitems);
     }
     if (m->badsubsegs.maxitems > 0) {
-      printf("  Maximum number of encroached subsegments: %ld\n",
+      printf("   Maximum number of encroached subsegments: %ld\n",
              m->badsubsegs.maxitems);
     }
     if (m->badtriangles.maxitems > 0) {
-      printf("  Maximum number of bad triangles: %ld\n",
+      printf("   Maximum number of bad triangles: %ld\n",
              m->badtriangles.maxitems);
     }
     if (m->flipstackers.maxitems > 0) {
-      printf("  Maximum number of stacked triangle flips: %ld\n",
+      printf("   Maximum number of stacked triangle flips: %ld\n",
              m->flipstackers.maxitems);
     }
     if (m->splaynodes.maxitems > 0) {
-      printf("  Maximum number of splay tree nodes: %ld\n",
+      printf("   Maximum number of splay tree nodes: %ld\n",
              m->splaynodes.maxitems);
     }
-    printf("  Approximate heap memory use (bytes): %ld\n\n",
+    printf("   Approximate heap memory use (bytes): %ld\n\n",
            m->vertices.maxitems * m->vertices.itembytes +
            m->triangles.maxitems * m->triangles.itembytes +
            m->subsegs.maxitems * m->subsegs.itembytes +
@@ -15948,23 +15948,23 @@ struct behavior *b;
            m->flipstackers.maxitems * m->flipstackers.itembytes +
            m->splaynodes.maxitems * m->splaynodes.itembytes);
 
-    printf("  Algorithmic statistics:\n\n");
+    printf("   Algorithmic statistics:\n\n");
     if (!b->weighted) {
-      printf("  Number of incircle tests: %ld\n", m->incirclecount);
+      printf("   Number of incircle tests: %ld\n", m->incirclecount);
     } else {
-      printf("  Number of 3D orientation tests: %ld\n", m->orient3dcount);
+      printf("   Number of 3D orientation tests: %ld\n", m->orient3dcount);
     }
-    printf("  Number of 2D orientation tests: %ld\n", m->counterclockcount);
+    printf("   Number of 2D orientation tests: %ld\n", m->counterclockcount);
     if (m->hyperbolacount > 0) {
-      printf("  Number of right-of-hyperbola tests: %ld\n",
+      printf("   Number of right-of-hyperbola tests: %ld\n",
              m->hyperbolacount);
     }
     if (m->circletopcount > 0) {
-      printf("  Number of circle top computations: %ld\n",
+      printf("   Number of circle top computations: %ld\n",
              m->circletopcount);
     }
     if (m->circumcentercount > 0) {
-      printf("  Number of triangle circumcenter computations: %ld\n",
+      printf("   Number of triangle circumcenter computations: %ld\n",
              m->circumcentercount);
     }
     printf("\n");
@@ -16053,12 +16053,12 @@ char **argv;
 #endif /* not TRILIBRARY */
 
   /* Start of : Added for Triangle4XP */
-  printf("  Loading altitudes from DEM file.\n");
+  printf("   Loading altitudes from DEM file.\n");
   fflush(stdout);
   alt = (float *) malloc(sizeof(float)*nxdem*nydem); 
   alt_file = fopen(b.alt_filename, "rb");
   if (alt_file == (FILE *) NULL) {
-    printf("  Error:  Cannot access file %s.\n", b.alt_filename);
+    printf("   Error:  Cannot access file %s.\n", b.alt_filename);
     triexit(1);
   }
   for (i=0 ; i<nydem ; i++)
@@ -16070,12 +16070,12 @@ char **argv;
     }
   fclose(alt_file);
   
-  printf("  Loading curv_tol geographic weights.\n");
+  printf("   Loading curv_tol geographic weights.\n");
   fflush(stdout);
   weight = (float *) malloc(sizeof(float)*1001*1001); 
   weight_file = fopen(b.weight_filename, "rb");
   if (weight_file == (FILE *) NULL) {
-    printf("  Error:  Cannot access file %s.\n", b.weight_filename);
+    printf("   Error:  Cannot access file %s.\n", b.weight_filename);
     triexit(1);
   }
   for (i=0 ; i<1001 ; i++)
@@ -16087,7 +16087,7 @@ char **argv;
     }
   fclose(weight_file);
   
-  printf("  Computing curvatures from altitudes.\n");
+  printf("   Computing curvatures from altitudes.\n");
   fflush(stdout);
   hme = (float *) malloc(sizeof(float)*(nxdem-2)*(nydem-2)); 
   for (i=1 ; i<(nydem-1) ; i++)
