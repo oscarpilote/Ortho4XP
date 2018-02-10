@@ -1,0 +1,38 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<osm version='0.6' upload='true' generator='JOSM'>
+  <node id='-3822' action='modify' visible='true' lat='43.20310784709' lon='1.41713418311' />
+  <node id='-3823' action='modify' visible='true' lat='43.20441399187' lon='1.4196972393' />
+  <node id='-3825' action='modify' visible='true' lat='43.20424914196' lon='1.41990200885' />
+  <node id='-3827' action='modify' visible='true' lat='43.20268592863' lon='1.41771296155' />
+  <node id='-3845' action='modify' visible='true' lat='43.20229657062' lon='1.41710382436' />
+  <node id='-3847' action='modify' visible='true' lat='43.20246884985' lon='1.41692384932' />
+  <node id='-3849' action='modify' visible='true' lat='43.20251336039' lon='1.41698386221' />
+  <node id='-3851' action='modify' visible='true' lat='43.20256852051' lon='1.41702494123' />
+  <node id='-3853' action='modify' visible='true' lat='43.2026457446' lon='1.41701196891' />
+  <node id='-3855' action='modify' visible='true' lat='43.20277209493' lon='1.41696471103' />
+  <node id='-3857' action='modify' visible='true' lat='43.2028998462' lon='1.4169118812' />
+  <node id='-3859' action='modify' visible='true' lat='43.2029681219' lon='1.41692074671' />
+  <way id='-3824' action='modify' visible='true'>
+    <nd ref='-3822' />
+    <nd ref='-3823' />
+    <nd ref='-3825' />
+    <nd ref='-3827' />
+    <nd ref='-3822' />
+    <tag k='altitude_high' v='297.43' />
+    <tag k='altitude_low' v='267.41' />
+  </way>
+  <way id='-3842' action='modify' visible='true'>
+    <nd ref='-3822' />
+    <nd ref='-3827' />
+    <nd ref='-3845' />
+    <nd ref='-3847' />
+    <nd ref='-3849' />
+    <nd ref='-3851' />
+    <nd ref='-3853' />
+    <nd ref='-3855' />
+    <nd ref='-3857' />
+    <nd ref='-3859' />
+    <nd ref='-3822' />
+    <tag k='altitude' v='297.43' />
+  </way>
+</osm>

@@ -1,0 +1,50 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<osm version='0.6' upload='true' generator='JOSM'>
+  <node id='-8' action='modify' visible='true' lat='42.0591346233' lon='1.51367394776' />
+  <node id='-10' action='modify' visible='true' lat='42.05368103266' lon='1.51649121077' />
+  <node id='-12' action='modify' visible='true' lat='42.0538940773' lon='1.51737563849' />
+  <node id='-14' action='modify' visible='true' lat='42.05945304342' lon='1.51535247435' />
+  <node id='-16' action='modify' visible='true' lat='42.05971962439' lon='1.51335639766' />
+  <node id='-18' action='modify' visible='true' lat='42.05982771733' lon='1.51327932047' />
+  <node id='-20' action='modify' visible='true' lat='42.06055892947' lon='1.51256207443' />
+  <node id='-22' action='modify' visible='true' lat='42.06079351677' lon='1.51227139815' />
+  <node id='-24' action='modify' visible='true' lat='42.06095986861' lon='1.51208366973' />
+  <node id='-26' action='modify' visible='true' lat='42.06123412339' lon='1.51193227583' />
+  <node id='-28' action='modify' visible='true' lat='42.06154884054' lon='1.51182932799' />
+  <node id='-30' action='modify' visible='true' lat='42.06201641741' lon='1.51323426331' />
+  <node id='-32' action='modify' visible='true' lat='42.06200742558' lon='1.51332509965' />
+  <node id='-34' action='modify' visible='true' lat='42.06119735877' lon='1.51378231554' />
+  <node id='-36' action='modify' visible='true' lat='42.06046297481' lon='1.51420624006' />
+  <node id='-38' action='modify' visible='true' lat='42.06059967896' lon='1.51469011351' />
+  <node id='-40' action='modify' visible='true' lat='42.05977091213' lon='1.51511470785' />
+  <node id='-42' action='modify' visible='true' lat='42.05937067335' lon='1.5136465067' />
+  <way id='-44' action='modify' visible='true'>
+    <nd ref='-8' />
+    <nd ref='-10' />
+    <nd ref='-12' />
+    <nd ref='-14' />
+    <nd ref='-8' />
+    <tag k='altitude_high' v='1005.84' />
+    <tag k='altitude_low' v='981.67' />
+  </way>
+  <way id='-46' action='modify' visible='true'>
+    <nd ref='-8' />
+    <nd ref='-42' />
+    <nd ref='-16' />
+    <nd ref='-18' />
+    <nd ref='-20' />
+    <nd ref='-22' />
+    <nd ref='-24' />
+    <nd ref='-26' />
+    <nd ref='-28' />
+    <nd ref='-30' />
+    <nd ref='-32' />
+    <nd ref='-34' />
+    <nd ref='-36' />
+    <nd ref='-38' />
+    <nd ref='-40' />
+    <nd ref='-14' />
+    <nd ref='-8' />
+    <tag k='altitude' v='1005.84' />
+  </way>
+</osm>

@@ -1,0 +1,47 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<osm version='0.6' upload='true' generator='JOSM'>
+  <node id='-5690' action='modify' visible='true' lat='43.45505822153' lon='1.07135026904' />
+  <node id='-5691' action='modify' visible='true' lat='43.45588489555' lon='1.07148268904' />
+  <node id='-5693' action='modify' visible='true' lat='43.45647125051' lon='1.0793484371' />
+  <node id='-5695' action='modify' visible='true' lat='43.45629822833' lon='1.0799310851' />
+  <node id='-5697' action='modify' visible='true' lat='43.45593295765' lon='1.0797324551' />
+  <node id='-5699' action='modify' visible='true' lat='43.45559652218' lon='1.0795338251' />
+  <node id='-5701' action='modify' visible='true' lat='43.45547155996' lon='1.07901738709' />
+  <node id='-5703' action='modify' visible='true' lat='43.45537543499' lon='1.07820962509' />
+  <node id='-5705' action='modify' visible='true' lat='43.45491403305' lon='1.07863336909' />
+  <node id='-5707' action='modify' visible='true' lat='43.45468333075' lon='1.07826259309' />
+  <node id='-5709' action='modify' visible='true' lat='43.45459681716' lon='1.07764021908' />
+  <node id='-5711' action='modify' visible='true' lat='43.4546544929' lon='1.07676624708' />
+  <node id='-5713' action='modify' visible='true' lat='43.4546544929' lon='1.07610414707' />
+  <node id='-5715' action='modify' visible='true' lat='43.4547313938' lon='1.07519044907' />
+  <node id='-5717' action='modify' visible='true' lat='43.45444301493' lon='1.07507789207' />
+  <node id='-5719' action='modify' visible='true' lat='43.45417386007' lon='1.07492560906' />
+  <node id='-5721' action='modify' visible='true' lat='43.45396238041' lon='1.07468725306' />
+  <node id='-5723' action='modify' visible='true' lat='43.45375570639' lon='1.07436944506' />
+  <node id='-5725' action='modify' visible='true' lat='43.45360190202' lon='1.07350871505' />
+  <node id='-5727' action='modify' visible='true' lat='43.45516395954' lon='1.07293268805' />
+  <way id='-5692' action='modify' visible='true'>
+    <nd ref='-5690' />
+    <nd ref='-5691' />
+    <nd ref='-5693' />
+    <nd ref='-5695' />
+    <nd ref='-5697' />
+    <nd ref='-5699' />
+    <nd ref='-5701' />
+    <nd ref='-5703' />
+    <nd ref='-5705' />
+    <nd ref='-5707' />
+    <nd ref='-5709' />
+    <nd ref='-5711' />
+    <nd ref='-5713' />
+    <nd ref='-5715' />
+    <nd ref='-5717' />
+    <nd ref='-5719' />
+    <nd ref='-5721' />
+    <nd ref='-5723' />
+    <nd ref='-5725' />
+    <nd ref='-5727' />
+    <nd ref='-5690' />
+    <tag k='altitude' v='mean' />
+  </way>
+</osm>

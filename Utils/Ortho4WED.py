@@ -406,17 +406,28 @@ if __name__ == '__main__':
                     small_image=Image.new('RGB',(256,256),'white')
                     big_image.paste(small_image,((til_x-til_x_min)*256,(til_y-til_y_min)*256))
     
-    big_image.save(icao_code+".jpg")
+    big_image.save(icao_code+"_"+website+"_"+sys.argv[2]+".jpg")
     
     [latmaxphoto,lonminphoto]=gtile_to_wgs84(til_x_min,til_y_min,zoomlevel)
     [latminphoto,lonmaxphoto]=gtile_to_wgs84(til_x_max+1,til_y_max+1,zoomlevel)
     
-    print("\nOrthophoto has been saved under "+icao_code+".jpg")
+    fichier = open(icao_code+"_"+website+"_"+sys.argv[2]+".txt", "w")
+
+    print("\nOrthophoto has been saved under "+icao_code+"_"+website+"_"+sys.argv[2]+".jpg")
+    fichier.write("Orthophoto has been saved under "+icao_code+"_"+website+"_"+sys.argv[2]+".jpg\n")
     print("You can open it in WED and use the following for anchoring its corners:")
+    fichier.write("You can open it in WED and use the following for anchoring its corners:\n")
     print("Upper left  corner is lat="+'{:+.6f}'.format(latmaxphoto)+" lon="+'{:+.6f}'.format(lonminphoto))
+    fichier.write("Upper left  corner is lat="+'{:+.6f}'.format(latmaxphoto)+" lon="+'{:+.6f}'.format(lonminphoto)+"\n")
     print("Upper right corner is lat="+'{:+.6f}'.format(latmaxphoto)+" lon="+'{:+.6f}'.format(lonmaxphoto))
+    fichier.write("Upper right corner is lat="+'{:+.6f}'.format(latmaxphoto)+" lon="+'{:+.6f}'.format(lonmaxphoto)+"\n")
     print("Lower left  corner is lat="+'{:+.6f}'.format(latminphoto)+" lon="+'{:+.6f}'.format(lonminphoto))
+    fichier.write("Lower left  corner is lat="+'{:+.6f}'.format(latminphoto)+" lon="+'{:+.6f}'.format(lonminphoto)+"\n")
     print("Lower right corner is lat="+'{:+.6f}'.format(latminphoto)+" lon="+'{:+.6f}'.format(lonmaxphoto))
+    fichier.write("Lower right corner is lat="+'{:+.6f}'.format(latminphoto)+" lon="+'{:+.6f}'.format(lonmaxphoto)+"\n")
+
+    fichier.close()
+
 ##############################################################################
     
 

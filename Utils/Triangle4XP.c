@@ -1492,7 +1492,7 @@ REAL   area;
           maxcurv = (tmp > maxcurv) ? tmp : maxcurv;
       }
   }
-  if  (maxlen2*pow(maxcurv,2) > errormax/(ndem-1)) {
+  if  (maxlen2*pow(maxcurv,2) > errormax*pow(1200.0/ndem,2)*0.001) {
       return 1;
   } else {
     return 0;
@@ -15771,6 +15771,22 @@ struct behavior *b;
 /*                                                                           */
 /*****************************************************************************/
 
+void printfcomma (long int n) {
+    if (n < 0) {
+        printf ("-");
+        printfcomma (-n);
+        return;
+    }
+    if (n < 1000) {
+        printf ("%ld", n);
+        return;
+    }
+    printfcomma (n/1000);
+    printf (",%03ld", n%1000);
+}
+
+
+
 #ifdef ANSI_DECLARATORS
 void statistics(struct mesh *m, struct behavior *b)
 #else /* not ANSI_DECLARATORS */
@@ -15792,9 +15808,13 @@ struct behavior *b;
     }
   }
 
-  printf("\n  Mesh vertices: %ld\n", m->vertices.items - m->undeads);
+  printf("\n  Mesh vertices: ");
+  printfcomma(m->vertices.items - m->undeads);
+  printf("\n");
   printf("                  -----------------\n");
-  printf("  Mesh triangles: ---> %ld <---\n", m->triangles.items);
+  printf("  Mesh triangles: ---> ");
+  printfcomma(m->triangles.items);
+  printf(" <---\n"); 
   printf("                  -----------------\n");
   printf("  Mesh edges: %ld\n", m->edges);
   printf("  Mesh exterior boundary edges: %ld\n", m->hullsize);
@@ -15805,6 +15825,7 @@ struct behavior *b;
            m->subsegs.items);
   }
   printf("\n");
+  fflush(stdout);
 
   if (b->verbose) {
     quality_statistics(m, b);
@@ -15956,6 +15977,7 @@ char **argv;
   /*  allocate space for nbr of elements in the alt and hme matrix   */
   
   printf("  Loading altitudes from DEM file.\n");
+  fflush(stdout);
   alt = (float *) malloc(sizeof(float)*ndem*ndem); 
   hme = (float *) malloc(sizeof(float)*(ndem-2)*(ndem-2)); 
   
@@ -15968,6 +15990,7 @@ char **argv;
  }
   fclose(alt_file);
   printf("  Computing curvatures from altitudes.\n");
+  fflush(stdout);
   for (i=1 ; i<(ndem-1) ; i++)
     {
         for (j=1 ; j<(ndem-1) ; j++)
