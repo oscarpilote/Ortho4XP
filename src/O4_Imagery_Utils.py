@@ -194,11 +194,16 @@ def initialize_providers_dict():
                         valid_provider=False
                 elif key=='top_left_corner':
                     try:
-                        provider[key]=[numpy.array([float(x) for x in value.split()]) for _ in range(0,21)]
+                        provider[key]=[numpy.array([float(x) for x in value.split()]) for _ in range(40)]
                     except:
                         print("Error in reading top left corner for provider",provider_code)
                         valid_provider=False
-                    pass 
+                elif key=='scaledenominator':
+                    try:
+                        provider[key]=numpy.array([float(x) for x in value.split()])
+                    except:
+                        print("Error in reading scaledenominator for provider",provider_code)
+                        valid_provider=False
                 elif key == 'tilematrixset':
                     pass
                 elif key=='resolutions':
