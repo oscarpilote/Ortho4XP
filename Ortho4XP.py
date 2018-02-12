@@ -1,18 +1,18 @@
-#!/usr/bin/env python3
+#!env python3
 import sys
 import os
 Ortho4XP_dir='..' if getattr(sys,'frozen',False) else '.'
 sys.path.append(os.path.join(Ortho4XP_dir,'src'))
 
-import O4_File_Names as FNAMES
+from src import O4_File_Names as FNAMES
 sys.path.append(FNAMES.Provider_dir)
-import O4_Imagery_Utils as IMG
-import O4_Vector_Map as VMAP
-import O4_Mesh_Utils as MESH
-import O4_Mask_Utils as MASK
-import O4_Tile_Utils as TILE
-import O4_GUI_Utils as GUI
-import O4_Config_Utils as CFG  # CFG imported last because it can modify other modules variables
+from src import O4_Imagery_Utils as IMG
+from src import O4_Vector_Map as VMAP
+from src import O4_Mesh_Utils as MESH
+from src import O4_Mask_Utils as MASK
+from src import O4_Tile_Utils as TILE
+from src import O4_GUI_Utils as GUI
+from src import O4_Config_Utils as CFG  # CFG imported last because it can modify other modules variables
 
 
 cmd_line="USAGE: Ortho4XP_v130.py lat lon imagery zl (won't read a tile config)\n   OR:  Ortho4XP_v130.py lat lon (with existing tile config file)"
@@ -71,5 +71,4 @@ if __name__ == '__main__':
             print("Bon vol!")
         except:
             print("Crash!")
- 
-        
+
