@@ -1,0 +1,10 @@
+__pycache__
+.last_gui_params.txt
+Elevation_data/
+Geotiffs/
+Masks/
+OSM_data/
+Orthophotos/
+Previews/
+Tiles/
+tmp/
