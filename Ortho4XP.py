@@ -15,7 +15,7 @@ import O4_GUI_Utils as GUI
 import O4_Config_Utils as CFG  # CFG imported last because it can modify other modules variables
 
 
-cmd_line="USAGE: Ortho4XP_v130.py lat lon imagery zl (won't read a tile config)\n   OR:  Ortho4XP_v130.py lat lon (with existing tile config file)"
+cmd_line="USAGE: Ortho4XP.py lat lon imagery zl (won't read a tile config)\n   OR:  Ortho4XP.py lat lon (with existing tile config file)"
 
 if __name__ == '__main__':
     if not os.path.isdir(FNAMES.Utils_dir):
