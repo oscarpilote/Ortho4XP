@@ -28,6 +28,7 @@ def build_overlay(lat,lon):
     timer=time.time()
     UI.logprint("Step 4 for tile lat=",lat,", lon=",lon,": starting.")
     UI.vprint(0,"\nStep 4 : Extracting overlay for tile "+FNAMES.short_latlon(lat,lon)+" : \n--------\n")
+    UI.vprint(1,"-> Ignoring the following road types: "+ str(ovl_exclude_net)[1:-1])
     file_to_sniff=os.path.join(custom_overlay_src,"Earth nav data",FNAMES.long_latlon(lat,lon)+'.dsf')
     file_to_sniff_loc=os.path.join(FNAMES.Tmp_dir,FNAMES.short_latlon(lat,lon)+'.dsf')
     UI.vprint(1,"-> Making a copy of the original overlay DSF in tmp dir")
@@ -87,9 +88,6 @@ def build_overlay(lat,lon):
             else:
                 while line and ('END_SEGMENT' not in line):
                     line=f.readline()
-        elif 'BEGIN_PATCH' in line:
-            # nothing left interesting to sniff here !
-            break
         line=f.readline()
     f.close()
     g.close()
