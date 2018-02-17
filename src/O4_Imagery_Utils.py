@@ -936,11 +936,7 @@ def create_tile_preview(lat,lon,zoomlevel,provider_code):
             (xmin,ymax)=GEO.transform('4326','3857',lonmin,latmax)
             (xmax,ymin)=GEO.transform('4326','3857',lonmax,latmin)
             (success,big_image)=build_texture_from_bbox_and_size((xmin,ymax,xmax,ymin),'3857',(width,height),provider)
-        if success: 
-            big_image.save(filepreview)
-            return 1
-        else:
-            return 0
+        big_image.save(filepreview)
     return 1
 ###############################################################################################################################
 
