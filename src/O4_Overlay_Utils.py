@@ -87,9 +87,6 @@ def build_overlay(lat,lon):
             else:
                 while line and ('END_SEGMENT' not in line):
                     line=f.readline()
-        elif 'BEGIN_PATCH' in line:
-            # nothing left interesting to sniff here !
-            break
         line=f.readline()
     f.close()
     g.close()
