@@ -457,7 +457,7 @@ if __name__ == '__main__':
     if nargs==8:
         grid_size_or_bbox = eval(sys.argv[4])
     else:
-        grid_size= 0.02 if epsg_code=='4326' else 2000 
+        grid_size_or_bbox = 0.02 if epsg_code=='4326' else 2000 
     pixel_size=float(sys.argv[nargs-3])
     buffer_width=float(sys.argv[nargs-2])/pixel_size
     mask_width=int(int(sys.argv[nargs-1])/pixel_size)
