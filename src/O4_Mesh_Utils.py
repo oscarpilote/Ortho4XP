@@ -287,7 +287,7 @@ def build_mesh(tile):
     alt_file     = FNAMES.alt_file(tile)
     weight_file  = FNAMES.weight_file(tile)
     if not os.path.isfile(poly_file):
-        UI.exit_message_and_bottom_line("\nERROR: Could not find ",poly_file)
+        UI.exit_message_and_bottom_line("\nERROR: Could not find "+poly_file)
         return 0
     
     tile.ensure_elevation_data()
