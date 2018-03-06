@@ -174,7 +174,7 @@ class Tile():
                     if value and value[-1] in ('"',"'"): value=value[:-1]
                     exec("self."+var+"=cfg_vars['"+var+"'](value)")
                 except Exception as e:
-                    UI.vrpint(2,e)
+                    UI.lvprint(2,e)
                     pass
             f.close()
             return 1
