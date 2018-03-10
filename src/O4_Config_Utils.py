@@ -172,9 +172,13 @@ class Tile():
                     # compatibility with config files from version <= 1.20
                     if value and value[0] in ('"',"'"): value=value[1:]
                     if value and value[-1] in ('"',"'"): value=value[:-1]
-                    exec("self."+var+"=cfg_vars['"+var+"'](value)")
+                    if cfg_vars[var]['type'] in (bool,list):
+                        cmd="self."+var+"="+value
+                    else:
+                        cmd="self."+var+"=cfg_vars['"+var+"']['type'](value)"
+                    exec(cmd)
                 except Exception as e:
-                    UI.vrpint(2,e)
+                    UI.lvprint(2,e)
                     pass
             f.close()
             return 1
