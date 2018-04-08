@@ -28,11 +28,17 @@ def build_overlay(lat,lon):
     timer=time.time()
     UI.logprint("Step 4 for tile lat=",lat,", lon=",lon,": starting.")
     UI.vprint(0,"\nStep 4 : Extracting overlay for tile "+FNAMES.short_latlon(lat,lon)+" : \n--------\n")
-    UI.vprint(1,"-> Ignoring the following road types: "+ str(ovl_exclude_net)[1:-1])
     file_to_sniff=os.path.join(custom_overlay_src,"Earth nav data",FNAMES.long_latlon(lat,lon)+'.dsf')
+    if not os.path.exists(file_to_sniff):
+        UI.vprint(1,"   ERROR: file ",file_to_sniff,"absent. Recall that the overlay source directory needs to be set in the config window first.")
+        return 0
     file_to_sniff_loc=os.path.join(FNAMES.Tmp_dir,FNAMES.short_latlon(lat,lon)+'.dsf')
     UI.vprint(1,"-> Making a copy of the original overlay DSF in tmp dir")
-    shutil.copy(file_to_sniff,file_to_sniff_loc)
+    try:
+        shutil.copy(file_to_sniff,file_to_sniff_loc)
+    except:
+        UI.vprint(1,"   ERROR: could not copy it. Disk full, write permissions, erased tmp dir ?")
+        return 0
     f = open(file_to_sniff_loc,'rb')
     dsfid = f.read(2).decode('ascii')
     f.close()
@@ -50,7 +56,7 @@ def build_overlay(lat,lon):
         else:
             UI.vprint(1,'     '+line.decode("utf-8")[:-1])
     if fingers_crossed.returncode:
-        UI.exit_message_and_bottom_line("ERROR: DSFTool crashed.")
+        UI.exit_message_and_bottom_line("   ERROR: DSFTool crashed.")
         return 0
     UI.vprint(1,"-> Selecting overlays for copy/paste")
     f=open(os.path.join(FNAMES.Tmp_dir,'tmp_dsf.txt'),'r')
@@ -106,7 +112,7 @@ def build_overlay(lat,lon):
         try:
             os.makedirs(dest_dir)
         except:
-            UI.exit_message_and_bottom_line("ERROR: could not create destination directory "+str(dest_dir))
+            UI.exit_message_and_bottom_line("   ERROR: could not create destination directory "+str(dest_dir))
             return 0
     shutil.copy(os.path.join(FNAMES.Tmp_dir,'tmp_dsf_without_mesh.dsf'),os.path.join(dest_dir,FNAMES.short_latlon(lat,lon)+'.dsf'))
     os.remove(os.path.join(FNAMES.Tmp_dir,'tmp_dsf_without_mesh.dsf'))

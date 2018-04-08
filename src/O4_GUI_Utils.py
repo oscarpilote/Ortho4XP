@@ -202,6 +202,10 @@ class Ortho4XP_GUI(tk.Tk):
     
     def tile_change(self,*args):
         CFG.custom_dem=''
+        try: 
+            self.config_window.v_['custom_dem'].set('')
+        except:
+            pass
         CFG.zone_list=[]
 
     def update_cfg(self,*args):    
@@ -893,7 +897,7 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
                                 self.canvas.itemconfig(self.dico_tiles_done[(lat,lon)][0],stipple='gray50')
         elif self.grouped and os.path.isdir(os.path.join(self.working_dir,'Earth nav data')):
             for dir_name in os.listdir(os.path.join(self.working_dir,'Earth nav data')):
-                for file_name in os.path.join(self.working_dir,'Earth nav data',dir_name):
+                for file_name in os.listdir(os.path.join(self.working_dir,'Earth nav data',dir_name)):
                     try:
                         lat=int(file_name[0:3])   
                         lon=int(file_name[3:7])              
@@ -901,12 +905,34 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
                         continue
                     [x0,y0]=GEO.wgs84_to_pix(lat+1,lon,self.earthzl)
                     [x1,y1]=GEO.wgs84_to_pix(lat,lon+1,self.earthzl)
-                    self.dico_tiles_done[(lat,lon)]=(self.canvas.create_rectangle(x0,y0,x1,y1,fill='blue',stipple='gray12'),)
+                    color='blue'
+                    content=''
+                    try:
+                        tmpf=open(os.path.join(self.working_dir,'Ortho4XP_'+FNAMES.short_latlon(lat,lon)+'.cfg'),'r')
+                        found_config=True
+                    except:
+                        found_config=False
+                    if found_config:                        
+                        prov=zl=''
+                        for line in tmpf.readlines():
+                            if line[:15]=='default_website':
+                                prov=line.split('=')[1][:-1]
+                            elif line[:10]=='default_zl':
+                                zl=int(line.split('=')[1][:-1])
+                                break
+                        tmpf.close()
+                        if (prov and zl):
+                            color=dico_color[zl]
+                            content=prov+'\n'+str(zl)
+                            self.dico_tiles_done[(lat,lon)]=(\
+                                self.canvas.create_rectangle(x0,y0,x1,y1,fill=color,stipple='gray12'),\
+                                self.canvas.create_text((x0+x1)//2,(y0+y1)//2,justify=CENTER,text=content)\
+                                )
             link=os.path.join(CFG.custom_scenery_dir,'zOrtho4XP_'+os.path.basename(self.working_dir))
             if os.path.isdir(link):
                 if os.path.samefile(os.path.realpath(link),os.path.realpath(self.working_dir)):
-                    for tile in self.dico_tiles_done:
-                        self.canvas.itemconfig(self.dico_tiles_done[tile][0],stipple='gray50')
+                    for (lat0,lon0) in self.dico_tiles_done:
+                        self.canvas.itemconfig(self.dico_tiles_done[(lat0,lon0)][0],stipple='gray50')
         return
 
    
@@ -951,17 +977,21 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
             target=os.path.realpath(self.working_dir)
             if os.path.isdir(link) and os.path.samefile(os.path.realpath(link),os.path.realpath(self.working_dir)):
                 os.remove(link)
-                self.canvas.itemconfig(self.dico_tiles_done[(lat,lon)][0],stipple='gray12')
+                for (lat0,lon0) in self.dico_tiles_done:
+                    self.canvas.itemconfig(self.dico_tiles_done[(lat0,lon0)][0],stipple='gray12')
                 return
         # in case this was a broken link        
         try: os.remove(link)
         except: pass
         if ('dar' in sys.platform) or ('win' not in sys.platform): # Mac and Linux
             os.system("ln -s "+' "'+target+'" "'+link+'"')
-            
         else:
             os.system('MKLINK /J "'+link+'" "'+target+'"')
-        self.canvas.itemconfig(self.dico_tiles_done[(lat,lon)][0],stipple='gray50')
+        if not self.grouped:
+            self.canvas.itemconfig(self.dico_tiles_done[(lat,lon)][0],stipple='gray50')
+        else:
+            for (lat0,lon0) in self.dico_tiles_done:
+                self.canvas.itemconfig(self.dico_tiles_done[(lat0,lon0)][0],stipple='gray50')    
         return 
 
 
@@ -1012,10 +1042,14 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
         else:
            self.nx0=nx0
            self.ny0=ny0 
-           self.canvas.delete(self.canv_imgNW)
-           self.canvas.delete(self.canv_imgNE)
-           self.canvas.delete(self.canv_imgSW)
-           self.canvas.delete(self.canv_imgSE)
+           try: self.canvas.delete(self.canv_imgNW)
+           except:pass
+           try: self.canvas.delete(self.canv_imgNE)
+           except:pass
+           try: self.canvas.delete(self.canv_imgSW)
+           except:pass
+           try: self.canvas.delete(self.canv_imgSE)
+           except:pass
            fargs_rc=[nx0,ny0]
            self.rc_thread=threading.Thread(target=self.draw_canvas,args=fargs_rc)
            self.rc_thread.start()

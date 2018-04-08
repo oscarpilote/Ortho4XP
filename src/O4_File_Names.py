@@ -108,7 +108,12 @@ def viewfinderpanorama(lat, lon):
     hemisphere='N' if lat>=0 else 'S'
     greenwichside='E' if lon>=0 else 'W'
     file_name=hemisphere+'{:.0f}'.format(abs(lat)).zfill(2)+greenwichside+'{:.0f}'.format(abs(lon)).zfill(3)+'.hgt'
-    return os.path.join(Elevation_dir,file_name)
+    return os.path.join(Elevation_dir,round_latlon(lat,lon),file_name)
+##############################################################################
+
+##############################################################################
+def SRTM_1sec(lat, lon):
+    return viewfinderpanorama(lat,lon).replace('.hgt','_SRTM_1sec.hgt')
 ##############################################################################
 
 ##############################################################################

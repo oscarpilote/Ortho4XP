@@ -5,6 +5,7 @@ import time
 Ortho4XP_dir='..' if getattr(sys,'frozen',False) else '.'
 verbosity=1
 red_flag=False
+is_working=False
 cleaning_level=1
 gui=None
 log=True
@@ -39,19 +40,30 @@ def lvprint(min_verbosity,*args):
 ##############################################################################
 
 ##############################################################################
-def exit_message_and_bottom_line(message="Process interrupted."):
-    if message:
-        logprint(message)
-        print(message)
+def bug_report(*args):
+    logprint("An internal error occured. Please file a bug with lat/lon and cfg")
+    if args: logprint(*args)
+##############################################################################
+
+##############################################################################
+def exit_message_and_bottom_line(*args):
+    global is_working
+    if not args: args=("Process interrupted",)  
+    if args[0]:
+        logprint(*args)
+        print(*args)
     print('_____________________________________________________________'+\
             '____________________________________')
+    is_working=False
 ##############################################################################
 
 ##############################################################################
 def timings_and_bottom_line(tinit):
+    global is_working
     print('\nCompleted in '+nicer_timer(time.time()-tinit)+'.')
     print('_____________________________________________________________'+\
             '____________________________________')
+    is_working=False
 ##############################################################################
 
 ##############################################################################

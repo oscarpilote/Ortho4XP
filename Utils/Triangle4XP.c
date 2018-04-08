@@ -1198,8 +1198,9 @@ int minus1mod3[3] = {2, 0, 1};
   ((REAL *) (otri).tri)[m->elemattribindex + (attnum)] = value
 
 #define setelemattribute(otri, attnum, value)                                 \
-  ((REAL *) (otri).tri)[m->elemattribindex + (attnum)] = (REAL) (( (int) value) |(\
-    ((int) ((REAL *) (otri).tri)[m->elemattribindex + (attnum)])))
+  ((REAL *) (otri).tri)[m->elemattribindex + (attnum)] =                      \
+            (REAL) (((int) (value+0.1))  |                                    \
+            ((int) (((REAL *) (otri).tri)[m->elemattribindex + (attnum)]+0.1)))
 /* End of Modified for Triangle4XP */
 
 /* Check or set a triangle's maximum area bound.                             */
@@ -3897,7 +3898,7 @@ REAL   attribute;                             /* The triangle attribute      */
     return 0;
     }
   else {
-    if (((int) (attribute+0.5)) != 2) {
+    if (((int) (attribute+0.1)) != 2) {
       return 1;
       }
     else { 
@@ -10227,7 +10228,7 @@ struct behavior *b;
   for (j = 1; j < m->invertices; j++) {
     if ((sortarray[i][0] == sortarray[j][0])
         && (sortarray[i][1] == sortarray[j][1])) {
-      if (b->verbose>1) {
+      if (b->verbose>0) {
         printf(
 "WARNING:  A duplicate vertex at (%.12g, %.12g) appeared and was ignored.\n",
                sortarray[j][0], sortarray[j][1]);
@@ -12772,7 +12773,7 @@ char *polyfilename;
         endpoint1 = getvertex(m, b, end1);
         endpoint2 = getvertex(m, b, end2);
         if ((endpoint1[0] == endpoint2[0]) && (endpoint1[1] == endpoint2[1])) {
-          if (b->verbose>1) {
+          if (b->verbose>0) {
             printf("WARNING:  Endpoints of segment %d are coincident in %s.\n",
                    b->firstnumber + i, polyfilename);
           }
@@ -13170,7 +13171,7 @@ REAL area;
       /* We wish to traverse any segment whose corresponding bit (each      */
       /* bit corresponds to a regional attribute) is zero.                  */
       if ((neighbor.tri != m->dummytri) && !infected(neighbor)
-          && ((neighborsubseg.ss == m->dummysub)| !(mark(neighborsubseg) & (int)(attribute+0.5)))) {
+          && ((neighborsubseg.ss == m->dummysub)| !(mark(neighborsubseg) & (int)(attribute+0.1)))) {
       /* End of : Added for Triangle4XP                                     */
           /*printf("%i",(int)(attribute+0.5));
           fflush(stdout);*/
@@ -14672,7 +14673,6 @@ char **argv;
   if (!b->refine) {
 	  fprintf(outfile, "%ld  %d  %d  %d\n", outvertices, m->mesh_dim,m->nextras+3, 1 - b->nobound);
   } else {
-	  printf("nextras : %d ",m->nextras);
 	  fprintf(outfile, "%ld  %d  %d  %d\n", outvertices, m->mesh_dim,m->nextras, 1 - b->nobound);
   }
 

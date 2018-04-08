@@ -1,22 +1,28 @@
-from math import log, tan, pi, atan, exp, cos
+from math import log, tan, pi, atan, exp, cos, sin, sqrt, atan2
 import pyproj
 
-half_meridian = 6378137
-lat_to_m      = 111120
+earth_radius = 6378137
+lat_to_m      = pi*earth_radius/180
 m_to_lat      = 1/lat_to_m
 def lon_to_m(lat):
     return lat_to_m*cos(pi*lat/180)
 def m_to_lon(lat):
     return m_to_lat/cos(pi*lat/180) 
 
+def dist(A,B):
+    # A=(lona,lata), B=(lonb,latb)
+    # returns the great circle distance between A and B over the earth surface
+    a=sin((A[1]-B[1])*pi/360)**2+cos(A[1]*pi/180)*cos(B[1]*pi/180)*sin((A[0]-B[0])*pi/360)**2
+    return 2*earth_radius*atan2(sqrt(a),sqrt(1-a))
+
 epsg={}
 epsg['4326']=pyproj.Proj(init='epsg:4326')
 epsg['3857']=pyproj.Proj(init='epsg:3857')
-
+    
 
 ##############################################################################
 def webmercator_pixel_size(lat,zoomlevel):
-    return 2*pi*half_meridian*cos(pi*lat/180)/(2**(zoomlevel+8))
+    return 2*pi*earth_radius*cos(pi*lat/180)/(2**(zoomlevel+8))
 ##############################################################################
 
 ##############################################################################

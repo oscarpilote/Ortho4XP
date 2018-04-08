@@ -16,7 +16,7 @@ import O4_Mask_Utils as MASK
 import O4_UI_Utils as UI
 
 quad_init_level=3
-quad_capacity=60000
+quad_capacity=50000
 
 experimental_water_zl=12
 experimental_water_provider_code='SEA'
@@ -118,6 +118,7 @@ def zone_list_to_ortho_dico(tile):
                 (til_x_left,til_y_top)=GEO.wgs84_to_orthogrid(ymin+tile.lat,xmax+tile.lon,tile.cover_zl)
                 (ymin,xmax)=GEO.gtile_to_wgs84(til_x_left+16,til_y_top+16,tile.cover_zl)
                 ymin-=tile.lat; xmax-=tile.lon
+                xmin=max(0,xmin); xmax=min(1,xmax); ymin=max(0,ymin); ymax=max(1,ymax)
                 # mark to airport_array
                 colmin=round(xmin*4095)
                 colmax=round(xmax*4095)
@@ -248,7 +249,7 @@ def build_dsf(tile,download_queue):
         else:
             scale_z=13107 # 65535=13107*5
             inv_stp=5
-        scal_x=scal_y=2**(-level)*65536/65535    
+        scal_x=scal_y=2**(-level)    
         node_icoords[[5*idx_node+2 for idx_node in plist]]=numpy.round((altitudes-altmin)*inv_stp)
         pool_param[key_to_idx_pool[key]]=(scal_x,tile.lon+int(key[0],2)*scal_x,scal_y,tile.lat+int(key[1],2)*scal_y,scale_z,altmin,2,-1,2,-1,1,0,1,0,1,0,1,0)
     node_icoords[3::5]=numpy.round((1+tile.normal_map_strength*node_coords[3::5])/2*65535)
@@ -436,9 +437,10 @@ def build_dsf(tile,download_queue):
                     texture_file_name=FNAMES.dds_file_name_from_attributes(*texture_attributes)
                     # do we need to download a new texture ?       
                     if texture_attributes not in treated_textures:
-                        download_queue.put(texture_attributes)
-                    else:
-                        UI.vprint(1,"   Texture file "+texture_file_name+" already present.")
+                        if not os.path.isfile(os.path.join(tile.build_dir,'textures',texture_file_name)):
+                            download_queue.put(texture_attributes)
+                        else:
+                            UI.vprint(1,"   Texture file "+texture_file_name+" already present.")
                         treated_textures.add(texture_attributes)
                     terrain_file_name=create_terrain_file(tile,texture_file_name,*texture_attributes,tri_type,is_overlay)
                     bTERT+=bytes('terrain/'+terrain_file_name+'\0','ascii') 

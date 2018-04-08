@@ -16,7 +16,7 @@ overpass_servers={
         "RU":"http://overpass.osm.rambler.ru/cgi/interpreter"
         }
 overpass_server_choice="DE"
-max_osm_tentatives=10
+max_osm_tentatives=8
 
 ##############################################################################
 class OSM_layer():
@@ -37,7 +37,10 @@ class OSM_layer():
                      self.dicosmfirst,self.dicosmtags]       
         
 
-    def update_dicosm(self,osm_input,target_tags):
+    def update_dicosm(self,osm_input,input_tags=None,target_tags=None):
+        # input_tags (dict or None) are the input query tags (per osm type)
+        # target_tags (dict or None) are the the tags which should be kept (per osm type)
+        # It is expected that if not None the target_tags contains the input_tags
         initnodes=len(self.dicosmn)
         initways=len(self.dicosmfirst['w'])
         initrels=len(self.dicosmfirst['r'])
@@ -67,15 +70,15 @@ class OSM_layer():
                 osmid=items[1]
                 for j in range(0,len(items)):
                     if items[j]==' lat=':
-                        latp=items[j+1]
+                        latp=float(items[j+1])
                     elif items[j]==' lon=':
-                        lonp=items[j+1]
+                        lonp=float(items[j+1])
                 self.dicosmn[osmid]=(lonp,latp)
             elif '<way id=' in items[0]:
                 osmtype='w'
                 osmid=items[1]
                 self.dicosmw[osmid]=[]  
-                if target_tags==None: self.dicosmfirst['w'].append(osmid)
+                if not input_tags: self.dicosmfirst['w'].append(osmid)
             elif '<nd ref=' in items[0]:
                 self.dicosmw[osmid].append(items[1])
             elif '<relation id=' in items[0]:
@@ -84,7 +87,7 @@ class OSM_layer():
                 self.dicosmr[osmid]={'outer':[],'inner':[]}
                 self.dicosmrorig[osmid]={'outer':[],'inner':[]}
                 dico_rel_check={'inner':{},'outer':{}}
-                if target_tags==None: self.dicosmfirst['r'].append(osmid)
+                if not input_tags: self.dicosmfirst['r'].append(osmid)
             elif '<member type=' in items[0]:
                 role=items[5]
                 if items[1]!='way' or role not in ('outer','inner'):
@@ -108,15 +111,18 @@ class OSM_layer():
                     else:
                         dico_rel_check[role][endpt2]=[items[3]]
             elif ('<tag k=' in items[0]):
-                if target_tags and (not self.dicosmfirst[osmtype] or self.dicosmfirst[osmtype][-1]!=osmid) and (items[1],items[3]) in target_tags[osmtype]:
-                    self.dicosmfirst[osmtype].append(osmid)
-                if target_tags==None or (('all','') in target_tags[osmtype])\
+                # Do we need to catch that tag ?
+                if (not input_tags) or (('all','') in target_tags[osmtype])\
                                      or ((items[1],'') in target_tags[osmtype])\
                                      or ((items[1],items[3]) in target_tags[osmtype]):
                     if osmid not in self.dicosmtags[osmtype]: 
                         self.dicosmtags[osmtype][osmid]={items[1]:items[3]}
                     else:
-                        self.dicosmtags[osmtype][osmid][items[1]]=items[3]
+                        self.dicosmtags[osmtype][osmid][items[1]]=items[3]                     
+                    # If so, do we need to declare this osmid as a first catch, not one only brought with as a child    
+                    if input_tags and (((items[1],'') in input_tags[osmtype]) or ((items[1],items[3]) in input_tags[osmtype])) \
+                                  and (not self.dicosmfirst[osmtype] or self.dicosmfirst[osmtype][-1]!=osmid):
+                        self.dicosmfirst[osmtype].append(osmid)                         
             elif '</way' in items[0]:
                 if not self.dicosmw[osmid]: 
                     del(self.dicosmw[osmid]) 
@@ -193,8 +199,18 @@ class OSM_layer():
             UI.vprint(1,"    Could not open",filename,"for writing.")
             return 0
         fout.write('<?xml version="1.0" encoding="UTF-8"?>\n<osm version="0.6" generator="Overpass API postprocessed by Ortho4XP">\n')
-        for nodeid,(lonp,latp) in self.dicosmn.items():
-            fout.write('  <node id="'+nodeid+'" lat="'+latp+'" lon="'+lonp+'" version="1"/>\n')
+        if not len(self.dicosmfirst['n']):
+            for nodeid,(lonp,latp) in self.dicosmn.items():
+                fout.write('  <node id="'+nodeid+'" lat="'+'{:.7f}'.format(latp)+'" lon="'+'{:.7f}'.format(lonp)+'" version="1"/>\n')
+        else:
+            for nodeid,(lonp,latp) in self.dicosmn.items():
+                if nodeid not in self.dicosmtags['n']:
+                    fout.write('  <node id="'+nodeid+'" lat="'+'{:.7f}'.format(latp)+'" lon="'+'{:.7f}'.format(lonp)+'" version="1"/>\n')
+                else:
+                    fout.write('  <node id="'+nodeid+'" lat="'+'{:.7f}'.format(latp)+'" lon="'+'{:.7f}'.format(lonp)+'" version="1">\n')
+                    for tag in self.dicosmtags['n'][nodeid]:
+                        fout.write('    <tag k="'+tag+'" v="'+self.dicosmtags['n'][nodeid][tag]+'"/>\n')
+                    fout.write('  </node>\n')
         for wayid in self.dicosmfirst['w']+list(set(self.dicosmw).difference(set(self.dicosmfirst['w']))):
             fout.write('  <way id="'+wayid+'" version="1">\n')
             for nodeid in self.dicosmw[wayid]:
@@ -221,31 +237,33 @@ def OSM_queries_to_OSM_layer(queries,osm_layer,lat,lon,tags_of_interest=[],serve
     # this one is a bit complicated by a few checks of existing cached data which had different filenames
     # is versions prior to 1.30
     target_tags={'n':[],'w':[],'r':[]}
+    input_tags={'n':[],'w':[],'r':[]}
     for query in queries:
         for tag in [query] if isinstance(query,str) else query:
             items=tag.split('"')
             osm_type=items[0][0]
-            target_tags[osm_type].append((items[1],items[3]))
-    for tag in tags_of_interest:
-        if isinstance(tag,str):
-            target_tags['n'].append((tag,''))
-            target_tags['w'].append((tag,''))
-            target_tags['r'].append((tag,''))
-        else:
-            target_tags['n'].append(tag)
-            target_tags['w'].append(tag)
-            target_tags['r'].append(tag)
+            try: 
+                target_tags[osm_type].append((items[1],items[3]))
+                input_tags[osm_type].append((items[1],items[3]))
+            except: 
+                target_tags[osm_type].append((items[1],''))
+                input_tags[osm_type].append((items[1],''))
+            for tag in tags_of_interest:
+                if isinstance(tag,str):
+                    if (tag,'') not in target_tags[osm_type]: target_tags[osm_type].append((tag,''))
+                else:
+                    if tag not in target_tags[osm_type]:target_tags[osm_type].append(tag)
     cached_data_filename=FNAMES.osm_cached(lat, lon, cached_suffix)
     if cached_suffix and os.path.isfile(cached_data_filename):
         UI.vprint(1,"    * Recycling OSM data from",cached_data_filename)
-        return osm_layer.update_dicosm(cached_data_filename,target_tags)
+        return osm_layer.update_dicosm(cached_data_filename,input_tags,target_tags)
     for query in queries:
         # look first for cached data (old scheme)
         if isinstance(query,str):
             old_cached_data_filename=FNAMES.osm_old_cached(lat, lon, query)
             if os.path.isfile(old_cached_data_filename):
                 UI.vprint(1,"    * Recycling OSM data for",query)
-                osm_layer.update_dicosm(old_cached_data_filename,target_tags)
+                osm_layer.update_dicosm(old_cached_data_filename,input_tags,target_tags)
                 continue
         UI.vprint(1,"    * Downloading OSM data for",query)        
         response=get_overpass_data(query,(lat,lon,lat+1,lon+1),server_code)
@@ -254,7 +272,7 @@ def OSM_queries_to_OSM_layer(queries,osm_layer,lat,lon,tags_of_interest=[],serve
            UI.logprint("No valid answer for",query,"after",max_osm_tentatives,", skipping it.") 
            UI.vprint(1,"      No valid answer after",max_osm_tentatives,", skipping it.")
            return 0
-        osm_layer.update_dicosm(response,target_tags)
+        osm_layer.update_dicosm(response,input_tags,target_tags)
     if cached_suffix: 
         osm_layer.write_to_file(cached_data_filename)
     return 1
@@ -264,29 +282,32 @@ def OSM_queries_to_OSM_layer(queries,osm_layer,lat,lon,tags_of_interest=[],serve
 def OSM_query_to_OSM_layer(query,bbox,osm_layer,tags_of_interest=[],server_code=None,cached_file_name=''):
     # this one is simpler and does not depend on the notion of tile
     target_tags={'n':[],'w':[],'r':[]}
+    input_tags={'n':[],'w':[],'r':[]}
     for tag in [query] if isinstance(query,str) else query:
         items=tag.split('"')
+        print(items)
         osm_type=items[0][0]
-        target_tags[osm_type].append((items[1],items[3]))
-    for tag in tags_of_interest:
-        if isinstance(tag,str):
-            target_tags['n'].append((tag,''))
-            target_tags['w'].append((tag,''))
-            target_tags['r'].append((tag,''))
-        else:
-            target_tags['n'].append(tag)
-            target_tags['w'].append(tag)
-            target_tags['r'].append(tag)
+        try: 
+            target_tags[osm_type].append((items[1],items[3]))
+            input_tags[osm_type].append((items[1],items[3]))
+        except: 
+            target_tags[osm_type].append((items[1],''))
+            input_tags[osm_type].append((items[1],''))
+        for tag in tags_of_interest:
+            if isinstance(tag,str):
+                target_tags[osm_type].append((tag,''))
+            else:
+                target_tags[osm_type].append(tag)
     if cached_file_name and os.path.isfile(cached_file_name):
         UI.vprint(1,"    * Recycling OSM data from",cached_file_name)
-        osm_layer.update_dicosm(cached_file_name,target_tags)
+        osm_layer.update_dicosm(cached_file_name,input_tags,target_tags)
     else:
         response=get_overpass_data(query,bbox,server_code)
         if UI.red_flag: return 0
         if not response: 
             UI.lvprint(1,"      No valid answer for",query,"after",max_osm_tentatives,", skipping it.")
             return 0
-        osm_layer.update_dicosm(response,target_tags)
+        osm_layer.update_dicosm(response,input_tags,target_tags)
         if cached_file_name: osm_layer.write_to_file(cached_file_name)
     return 1
 ##############################################################################
@@ -311,20 +332,20 @@ def get_overpass_data(query,bbox,server_code=None):
             UI.vprint(3,"OSM response status :",r)
             if '200' in str(r):
                 if b"</osm>" not in r.content[-10:] and b"</OSM>" not in r.content[-10:]:
-                    UI.vprint(1,"        OSM server",true_server_code,"sent a corrupted answer (no closing </osm> tag in answer), new tentative in 2sec...")
+                    UI.vprint(1,"        OSM server",true_server_code,"sent a corrupted answer (no closing </osm> tag in answer), new tentative in",2**tentative,"sec...")
                 elif len(r.content)<=1000 and b"error" in r.content: 
-                    UI.vprint(1,"        OSM server",true_server_code,"sent us an error code for the data (data too big ?), new tentative in 2sec...")
+                    UI.vprint(1,"        OSM server",true_server_code,"sent us an error code for the data (data too big ?), new tentative in",2**tentative,"sec...")
                 else:
                     break
             else:
-                UI.vprint(1,"        OSM server",true_server_code,"rejected our query, new tentative in 2 sec...")
+                UI.vprint(1,"        OSM server",true_server_code,"rejected our query, new tentative in",2**tentative,"sec...")
         except:
-            UI.vprint(1,"        OSM server",true_server_code,"was too busy, new tentative in 2 sec...")
+            UI.vprint(1,"        OSM server",true_server_code,"was too busy, new tentative in",2**tentative,"sec...")
         if tentative>=max_osm_tentatives:
             return 0
         if UI.red_flag: return 0
+        time.sleep(2**tentative)
         tentative+=1           
-        time.sleep(2)
     return r.content
 ##############################################################################
 
@@ -342,7 +363,7 @@ def OSM_to_MultiLineString(osm_layer,lat,lon,tags_for_exclusion=set(),filter=Non
           and not set(osm_layer.dicosmtags['w'][wayid].keys()).isdisjoint(tags_for_exclusion):
             done+=1
             continue  
-        way=numpy.array([osm_layer.dicosmn[nodeid] for nodeid in osm_layer.dicosmw[wayid]],dtype=numpy.float)-numpy.array([[lon,lat]],dtype=numpy.float) 
+        way=numpy.round(numpy.array([osm_layer.dicosmn[nodeid] for nodeid in osm_layer.dicosmw[wayid]],dtype=numpy.float64)-numpy.array([[lon,lat]],dtype=numpy.float64),7) 
         if filter and not filter(way):
             try:
                 multiline_reject.append(geometry.LineString(way))
@@ -380,8 +401,7 @@ def OSM_to_MultiPolygon(osm_layer,lat,lon):
             UI.logprint("Non closed way starting at",osm_layer.dicosmn[osm_layer.dicosmw[wayid][0]],", skipped.")
             done+=1
             continue
-        way=numpy.array([osm_layer.dicosmn[nodeid] for nodeid in osm_layer.dicosmw[wayid]],dtype=numpy.float)
-        way=way-numpy.array([[lon,lat]],dtype=numpy.float) 
+        way=numpy.round(numpy.array([osm_layer.dicosmn[nodeid] for nodeid in osm_layer.dicosmw[wayid]],dtype=numpy.float64)-numpy.array([[lon,lat]],dtype=numpy.float64),7) 
         try:
             pol=geometry.Polygon(way)
             if not pol.area: continue
@@ -398,12 +418,12 @@ def OSM_to_MultiPolygon(osm_layer,lat,lon):
     for relid in osm_layer.dicosmfirst['r']:
         if done%step==0: UI.progress_bar(1,int(100*done/todo))
         try:
-            multiout=[geometry.Polygon(numpy.array([osm_layer.dicosmn[nodeid] \
-                                        for nodeid in nodelist],dtype=numpy.float)-numpy.array([lon,lat],dtype=numpy.float)) \
+            multiout=[geometry.Polygon(numpy.round(numpy.array([osm_layer.dicosmn[nodeid] \
+                                        for nodeid in nodelist],dtype=numpy.float64)-numpy.array([lon,lat],dtype=numpy.float64),7))\
                                         for nodelist in osm_layer.dicosmr[relid]['outer']]
             multiout=ops.cascaded_union([geom for geom in multiout if geom.is_valid])
-            multiin=[geometry.Polygon(numpy.array([osm_layer.dicosmn[nodeid] \
-                                        for nodeid in nodelist],dtype=numpy.float)-numpy.array([lon,lat],dtype=numpy.float)) \
+            multiin=[geometry.Polygon(numpy.round(numpy.array([osm_layer.dicosmn[nodeid]\
+                                        for nodeid in nodelist],dtype=numpy.float64)-numpy.array([lon,lat],dtype=numpy.float64),7))\
                                         for nodelist in osm_layer.dicosmr[relid]['inner']]
             multiin=ops.cascaded_union([geom for geom in multiin if geom.is_valid])
         except Exception as e:

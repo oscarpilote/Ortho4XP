@@ -1,4 +1,5 @@
 import os
+import time
 from math import ceil
 import tkinter as tk
 import tkinter.ttk as ttk
@@ -7,6 +8,7 @@ import O4_File_Names as FNAMES
 import O4_UI_Utils as UI
 import O4_DEM_Utils as DEM
 import O4_OSM_Utils as OSM
+import O4_Vector_Map as VMAP
 import O4_Imagery_Utils as IMG
 import O4_Tile_Utils as TILE
 import O4_Overlay_Utils as OVL
@@ -25,7 +27,7 @@ cfg_vars={
     'max_connect_retries':   {'module':'IMG','type':int,'default':5,'hint':'How much times do we try again after a failed connection for imagery request. Only used if check_tms_response is set to True.'},
     'max_baddata_retries':   {'module':'IMG','type':int,'default':5,'hint':'How much times do we try again after an internal server error for an imagery request. Only used if check_tms_response is set to True.'},
     'ovl_exclude_pol'    :   {'module':'OVL','type':list,'default':[0],'hint':'Indices of polygon types which one would like to left aside in the extraction of overlays. The list of these indices in front of their name can be obtained by running the "extract overlay" process with verbosity = 2 (skip facades that can be numerous) or 3. Index 0 corresponds to beaches in Global and HD sceneries.'},
-    'ovl_exclude_net'    :   {'module':'OVL','type':list,'default':[],'hint':'Indices of road types which one would like to left aside in the extraction of overlays. The list of these indices is can be in the roads.net file within X-Plane Resources, but some sceneries use their own corresponding net definition file. Powerlines have index 220 in XP11 roads.net default file.'},
+    'ovl_exclude_net'    :   {'module':'OVL','type':list,'default':[],'hint':'Indices of road types which one would like to left aside in the extraction of overlays. The list of these indices is can be in the roads.net file within X-Plane Resources, but some sceneries use their own corresponding net definition file. Powerlines have index 22001 in XP11 roads.net default file.'},
     'custom_scenery_dir':    {'type':str,'default':'','hint':'Your X-Plane Custom Scenery. Used only for "1-click" creation (or deletion) of symbolic links from Ortho4XP tiles to there.'},
     'custom_overlay_src':    {'module':'OVL','type':str,'default':'','hint':'The directory containing the sceneries with the overlays you would like to extract. You need to select the level of directory just _ABOVE_ Earth nav data.'},
     # Vector
@@ -43,7 +45,7 @@ cfg_vars={
     'coast_curv_ext':      {'type':float,'default':0.5,'hint':"Extent (in km) around the coastline where coast_curv_tol applies."},
     'hmin':                {'type':float,'default':0,'hint':"The mesh algorithm will not try to subdivide triangles whose shortest edge is already smaller than hmin (in meters). If hmin is smaller than half of the levation data step size, it will default to it anyhow (its default zero value thus means : as good as the DEM can do)."}, 
     'min_angle':           {'type':float,'default':10,'hint':"The mesh algorithm will try to not have mesh triangles with second smallest angle less than the value (in deg) of min_angle (prior to v1.3 it was the smallest, not second smallest) The goal behind this is to avoid potential artifacts when a triangle vertex is very close the the middle of its facing edge."},
-    'apt_smoothing_pix':   {'type':int,  'default':4,'hint':"How much gaussian blur is applied to the elevation raster for the look up of altitude over airports. Unit is the evelation raster pixel size."},
+    'apt_smoothing_pix':   {'type':int,  'default':8,'hint':"How much gaussian blur is applied to the elevation raster for the look up of altitude over airports. Unit is the evelation raster pixel size."},
     'sea_smoothing_mode':  {'type':str,  'default':'zero','values':['zero','mean','none'],'hint':"Zero means that all nodes of sea triangles are set to zero elevation. With mean, some kind of smoothing occurs (triangles are levelled one at a time to their mean elevation), None (a value mostly appropriate for DEM resolution of 10m and less), positive altitudes of sea nodes are kept intact, only negative ones are brought back to zero, this avoids to create unrealistic vertical cliffs if the coastline vector data was lower res."},
     'water_smoothing':     {'type':int,  'default':2,'hint':"Number of smoothing passes over all inland water triangles (sequentially set to their mean elevation)."},
     'iterate':             {'type':int,  'default':0,'hint':"Allows to refine a mesh using higher resolution elevation data of local scope only (requires Gdal), typically LIDAR data. Having an iterate number is handy to go backward one step when some choice of parameters needs to be revised."},     
@@ -146,10 +148,17 @@ class Tile():
                 UI.vprint(0,"OS error: Cannot create tile directory",self.build_dir," check file permissions.")
                 raise Exception
 
-    def ensure_elevation_data(self):
+    def load_dem_info(self):
+        self.dem=DEM.DEM(self.lat,self.lon,self.custom_dem,self.fill_nodata,info_only=True)
+        
+    def ensure_elevation_data(self):    
         if not self.dem: 
-            UI.vprint(1,"-> Loading elevation data")
-            self.dem=DEM.DEM(self.lat,self.lon,self.custom_dem,self.fill_nodata)
+            UI.vprint(1,"-> Building elevation matrix")
+            time.sleep(0.2)
+            self.dem=DEM.DEM(self.lat,self.lon,self.custom_dem,self.fill_nodata,info_only=False)
+            if not self.iterate:
+                self.dem.upsample_if_low_res()
+                #self.dem.smoothen_2(self.apt_smoothing_pix,VMAP.build_airport_raster(self,'airport_raster.png'))
         else:
             UI.vprint(1,"-> Recycling elevation data")
 
@@ -178,7 +187,7 @@ class Tile():
                         cmd="self."+var+"=cfg_vars['"+var+"']['type'](value)"
                     exec(cmd)
                 except Exception as e:
-                    UI.lvprint(2,e)
+                    UI.vprint(2,e)
                     pass
             f.close()
             return 1

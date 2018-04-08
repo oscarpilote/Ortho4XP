@@ -867,6 +867,7 @@ def build_combined_ortho(tile, latp,lonp,zoomlevel,provider_code,mask_zl,filenam
 
 ###############################################################################################################################
 def build_geotiffs(tile,texture_attributes_list):
+    UI.red_flag=False
     timer=time.time()
     done=0
     todo=len(texture_attributes_list)
@@ -916,6 +917,7 @@ def build_provider_texture(dest_dir,provider_code,zoomlevel):
 
 ###############################################################################################################################
 def create_tile_preview(lat,lon,zoomlevel,provider_code):
+    UI.red_flag=False
     if not os.path.exists(FNAMES.Preview_dir):
         os.makedirs(FNAMES.Preview_dir) 
     filepreview=FNAMES.preview(lat, lon, zoomlevel, provider_code)     
@@ -936,7 +938,13 @@ def create_tile_preview(lat,lon,zoomlevel,provider_code):
             (xmin,ymax)=GEO.transform('4326','3857',lonmin,latmax)
             (xmax,ymin)=GEO.transform('4326','3857',lonmax,latmin)
             (success,big_image)=build_texture_from_bbox_and_size((xmin,ymax,xmax,ymin),'3857',(width,height),provider)
-        big_image.save(filepreview)
+        if success: 
+            big_image.save(filepreview)
+            return 1
+        else:
+            try: big_image.save(filepreview)
+            except: pass
+            return 0
     return 1
 ###############################################################################################################################
 
@@ -1118,4 +1126,23 @@ def convert_texture(tile,til_x_left,til_y_top,zoomlevel,provider_code,type='dds'
     return 
 ###############################################################################################################################
 
-
+def geotag(input_file_name):
+    suffix=input_file_name.split('.')[-1]
+    out_file_name=input_file_name.replace(suffix,'tiff')
+    items=input_file_name.split('_')
+    til_y_top=int(items[0])
+    til_x_left=int(items[1])
+    zoomlevel=int(items[-1][-6:-4])
+    (latmax,lonmin)=GEO.gtile_to_wgs84(til_x_left,til_y_top,zoomlevel)
+    (latmin,lonmax)=GEO.gtile_to_wgs84(til_x_left+16,til_y_top+16,zoomlevel)
+    conv_cmd=[gdal_transl_cmd,'-of','Gtiff','-co','COMPRESS=JPEG','-a_ullr',str(lonmin),str(latmax),str(lonmax),str(latmin),'-a_srs','epsg:4326',input_file_name,out_file_name] 
+    tentative=0
+    while True:
+        if not subprocess.call(conv_cmd):
+            break
+        tentative+=1
+        if tentative==10:
+            print("ERROR: Could not convert texture",out_file_name,"(10 tries)")
+            break
+        print("WARNING: Could not convert texture",out_file_name)
+        time.sleep(1)
