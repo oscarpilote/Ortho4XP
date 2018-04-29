@@ -38,7 +38,7 @@ scaly=1
 ##############################################################################
 class Vector_Map():
     
-    dico_attributes = {'DUMMY':0,'WATER':1,'SEA':2,'RUNWAY':4,'INTERP_ALT':8,'TAXIWAY':64,'APRON':32,'HANGAR':16}
+    dico_attributes = {'DUMMY':0,'WATER':1,'SEA':2,'SEA_EQUIV':4,'RUNWAY':8,'INTERP_ALT':16,'HANGAR':32}
     def __init__(self):
         self.dico_nodes={}  # keys are tuples of 2 floats (in our case (lon-base_lon), lat-base_lat) and values are ints (ids)  
         self.dico_edges={}  # keys are tuples of 2 ints (end-points ids) and values are ints (ids). An egde id is needed for the index (bbox)
@@ -679,7 +679,38 @@ def point_to_segment_distance(way,A,B):
            numpy.minimum(1,projcoords(way,A,B)),0),(B-A))))**2*\
            numpy.array([scalx**2,1]),axis=1))*GEO.lat_to_m
 ##############################################################################
+##############################################################################
+def least_square_fit_altitude_along_way(way,steps,dem,weights=False):
+    linestring=affinity.affine_transform(geometry.LineString(way), [scalx,0,0,1,0,0])
+    tmp=dem.alt_vec(numpy.array(geometry.LineString([linestring.interpolate(x,normalized=True) for x in numpy.arange(steps+1)/steps])*numpy.array([1/scalx,1])))
+    if not weights:
+        return (linestring,numpy.polyfit(numpy.arange(steps+1)/steps,tmp,7))
+    else:
+        w=(numpy.maximum(numpy.arange(steps+1),steps-numpy.arange(steps+1))+steps//2)**2
+        return (linestring,numpy.polyfit(numpy.arange(steps+1)/steps,tmp,7,w=w))
 
+##############################################################################
+##############################################################################
+def weighted_alt(node,alt_idx,alt_dico,dem):
+    eps1=0.003
+    eps2=0.0003
+    alti=0
+    weights=0
+    (x,y)=(node[0]*scalx,node[1])
+    pt=geometry.Point((x,y))
+    for  idx in alt_idx.intersection((x-eps1,y-eps1,x+eps1,y+eps1)):
+        (linestring,leastsquarefit,width)=alt_dico[idx]
+        dist=pt.distance(linestring)*GEO.lat_to_m 
+        weight=numpy.exp(-dist/(2*width))
+        alti+=numpy.polyval(leastsquarefit,linestring.project(pt,normalized=True))*weight
+        weights+=weight
+    if x<eps2 or x>1-eps2 or y<eps2 or y>1-eps2:
+        alpha=min(x/eps2,(1-x)/eps2,y/eps2,(1-y)/eps2)
+        return alpha*alti/weights+(1-alpha)*dem.alt(node)
+    else:    
+        return alti/weights
+##############################################################################
+        
 
 ##############################################################################
 def convolve_periodic(way,kernel):

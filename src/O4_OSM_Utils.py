@@ -127,6 +127,7 @@ class OSM_layer():
                 if not self.dicosmw[osmid]: 
                     del(self.dicosmw[osmid]) 
                     if self.dicosmfirst['w'] and self.dicosmfirst['w'][-1]==osmid: del(self.dicosmfirst['w'][-1])
+                    if osmid in self.dicosmtags['w']: del(self.dicosmtags[osmtype][osmid])
             elif '</relation>' in items[0]:
                 bad_rel=False
                 for role,endpt in ((r,e) for r in ['outer','inner'] for e in dico_rel_check[r]):
@@ -139,6 +140,7 @@ class OSM_layer():
                     del(self.dicosmrorig[osmid])
                     del(dico_rel_check)
                     if self.dicosmfirst['r'] and self.dicosmfirst['r'][-1]==osmid: del(self.dicosmfirst['r'][-1])
+                    if osmid in self.dicosmtags['r']: del(self.dicosmtags['r'][osmid])
                     continue
                 for role in ['outer','inner']:
                     while dico_rel_check[role]:
@@ -168,16 +170,17 @@ class OSM_layer():
                         nodeids.append(endptinit)
                         self.dicosmr[osmid][role].append(nodeids)
                         del(dico_rel_check[role][endptinit])
-                if not self.dicosmr[osmid]['outer']: 
-                    del(self.dicosmr[osmid])
-                    del(self.dicosmrorig[osmid])
-                    if self.dicosmfirst['r'] and self.dicosmfirst['r'][-1]==osmid: del(self.dicosmfirst['r'][-1])
                 if target_tags==None:
                     for wayid in self.dicosmrorig[osmid]['outer']+self.dicosmrorig[osmid]['inner']:
                         try:
                             self.dicosmfirst['w'].remove(wayid)
                         except:
                            pass
+                if not self.dicosmr[osmid]['outer']: 
+                    del(self.dicosmr[osmid])
+                    del(self.dicosmrorig[osmid])
+                    if self.dicosmfirst['r'] and self.dicosmfirst['r'][-1]==osmid: del(self.dicosmfirst['r'][-1])
+                    if osmid in self.dicosmtags['r']: del(self.dicosmtags['r'][osmid])
                 del(dico_rel_check)
             elif '</osm>' in items[0]:
                 normal_exit=True
@@ -285,7 +288,6 @@ def OSM_query_to_OSM_layer(query,bbox,osm_layer,tags_of_interest=[],server_code=
     input_tags={'n':[],'w':[],'r':[]}
     for tag in [query] if isinstance(query,str) else query:
         items=tag.split('"')
-        print(items)
         osm_type=items[0][0]
         try: 
             target_tags[osm_type].append((items[1],items[3]))
@@ -390,8 +392,9 @@ def OSM_to_MultiLineString(osm_layer,lat,lon,tags_for_exclusion=set(),filter=Non
 ##############################################################################
 
 ##############################################################################
-def OSM_to_MultiPolygon(osm_layer,lat,lon):
+def OSM_to_MultiPolygon(osm_layer,lat,lon,filter=None):
     multilist=[]
+    excludelist=[]
     todo=len(osm_layer.dicosmfirst['w'])+len(osm_layer.dicosmfirst['r'])
     step=int(todo/100)+1
     done=0
@@ -413,7 +416,10 @@ def OSM_to_MultiPolygon(osm_layer,lat,lon):
             UI.vprint(2,e)
             done+=1
             continue
-        multilist.append(pol) 
+        if filter and filter(pol,wayid,osm_layer.dicosmtags['w']):
+            excludelist.append(pol)
+        else:
+            multilist.append(pol) 
         done+=1
     for relid in osm_layer.dicosmfirst['r']:
         if done%step==0: UI.progress_bar(1,int(100*done/todo))
@@ -431,6 +437,10 @@ def OSM_to_MultiPolygon(osm_layer,lat,lon):
             done+=1
             continue
         multipol = multiout.difference(multiin)
+        if filter and filter(multipol,relid,osm_layer.dicosmtags['r']):
+            targetlist=excludelist
+        else:
+            targetlist=multilist 
         for pol in multipol.geoms if ('Multi' in multipol.geom_type or 'Collection' in multipol.geom_type) else [multipol]:
             if not pol.area: 
                 done+=1
@@ -439,10 +449,14 @@ def OSM_to_MultiPolygon(osm_layer,lat,lon):
                 UI.logprint("Relation",relid,"contains an invalid polygon which was discarded") 
                 done+=1
                 continue
-            multilist.append(pol)  
+            targetlist.append(pol)  
         done+=1
-    ret_val=geometry.MultiPolygon(multilist)
-    UI.vprint(2,"    Total number of geometries:",len(ret_val.geoms))
+    if filter:
+        ret_val=(geometry.MultiPolygon(multilist),geometry.MultiPolygon(excludelist))
+        UI.vprint(2,"    Total number of geometries:",len(ret_val[0].geoms),len(ret_val[1].geoms))
+    else:
+        ret_val=geometry.MultiPolygon(multilist)
+        UI.vprint(2,"    Total number of geometries:",len(ret_val.geoms))
     UI.progress_bar(1,100)
     return ret_val
 ##############################################################################

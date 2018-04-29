@@ -1,4 +1,5 @@
 import os
+import pickle
 import shutil
 from math import floor, ceil
 import array
@@ -9,8 +10,6 @@ import struct
 import hashlib
 import O4_File_Names as FNAMES
 import O4_Geo_Utils as GEO
-import O4_OSM_Utils as OSM
-import O4_Vector_Utils as VECT
 import O4_Imagery_Utils as IMG
 import O4_Mask_Utils as MASK
 import O4_UI_Utils as UI
@@ -95,17 +94,15 @@ def zone_list_to_ortho_dico(tile):
         airport_array=numpy.zeros((4096,4096),dtype=numpy.bool)
         if tile.cover_airports_with_highres:
             UI.vprint(1,"-> Checking airport locations for upgraded zoomlevel.")
-            airport_layer=OSM.OSM_layer()
-            queries=[('rel["aeroway"="runway"]','rel["aeroway"="taxiway"]','rel["aeroway"="apron"]',
-              'way["aeroway"="runway"]','way["aeroway"="taxiway"]','way["aeroway"="apron"]')]
-            tags_of_interest=["all"]
-            if not OSM.OSM_queries_to_OSM_layer(queries,airport_layer,tile.lat,tile.lon,tags_of_interest,cached_suffix='airports'): 
-                return 0
-            runway_network=OSM.OSM_to_MultiLineString(airport_layer,tile.lat,tile.lon)
-            runway_area=VECT.improved_buffer(runway_network,0.0003,0.0001,0.00001)
-            runway_area=VECT.ensure_MultiPolygon(runway_area)
-            for polygon in runway_area.geoms:
-                (xmin,ymin,xmax,ymax)=polygon.bounds
+            try:
+                f=open(FNAMES.apt_file(tile),'rb')
+                dico_airports=pickle.load(f)
+                f.close()
+            except:
+                UI.vprint(1,"   WARNING: File",FNAMES.apt_file(tile),"is missing (erased after Step 1?), cannot check airport info for upgraded zoomlevel.")
+                dico_airports={}
+            for airport in dico_airports:
+                (xmin,ymin,xmax,ymax)=dico_airports[airport]['boundary'].bounds
                 # extension
                 xmin-=1000*tile.cover_extent*GEO.m_to_lon(tile.lat)
                 xmax+=1000*tile.cover_extent*GEO.m_to_lon(tile.lat)
@@ -115,19 +112,16 @@ def zone_list_to_ortho_dico(tile):
                 (til_x_left,til_y_top)=GEO.wgs84_to_orthogrid(ymax+tile.lat,xmin+tile.lon,tile.cover_zl)
                 (ymax,xmin)=GEO.gtile_to_wgs84(til_x_left,til_y_top,tile.cover_zl)
                 ymax-=tile.lat; xmin-=tile.lon
-                (til_x_left,til_y_top)=GEO.wgs84_to_orthogrid(ymin+tile.lat,xmax+tile.lon,tile.cover_zl)
-                (ymin,xmax)=GEO.gtile_to_wgs84(til_x_left+16,til_y_top+16,tile.cover_zl)
+                (til_x_left2,til_y_top2)=GEO.wgs84_to_orthogrid(ymin+tile.lat,xmax+tile.lon,tile.cover_zl)
+                (ymin,xmax)=GEO.gtile_to_wgs84(til_x_left2+16,til_y_top2+16,tile.cover_zl)
                 ymin-=tile.lat; xmax-=tile.lon
-                xmin=max(0,xmin); xmax=min(1,xmax); ymin=max(0,ymin); ymax=max(1,ymax)
+                xmin=max(0,xmin); xmax=min(1,xmax); ymin=max(0,ymin); ymax=min(1,ymax)
                 # mark to airport_array
                 colmin=round(xmin*4095)
                 colmax=round(xmax*4095)
                 rowmax=round((1-ymin)*4095)
                 rowmin=round((1-ymax)*4095)
                 airport_array[rowmin:rowmax+1,colmin:colmax+1]=1 
-            del(airport_layer)
-            del(runway_network) 
-            del(runway_area)
         dico_tmp={}
         dico_customzl={}
         i=1
@@ -198,10 +192,11 @@ def create_terrain_file(tile,texture_file_name,til_x_left,til_y_top,zoomlevel,pr
 def build_dsf(tile,download_queue):
     dico_customzl=zone_list_to_ortho_dico(tile)
     dsf_file_name=os.path.join(tile.build_dir,'Earth nav data',FNAMES.long_latlon(tile.lat,tile.lon)+'.dsf')
-    print("-> Computing the pool quadtree") 
+    UI.vprint(1,"-> Computing the pool quadtree") 
     pool_quadtree=QuadTree(quad_init_level,quad_capacity)
     f_mesh=open(FNAMES.mesh_file(tile.build_dir,tile.lat,tile.lon),"r")
-    for i in range(0,4):
+    mesh_version=float(f_mesh.readline().strip().split()[-1])
+    for i in range(3):
         f_mesh.readline()
     nbr_nodes=int(f_mesh.readline())
     node_coords=numpy.zeros(5*nbr_nodes,'float')
@@ -285,6 +280,7 @@ def build_dsf(tile,download_queue):
     
     # Next, we go through the Triangle section of the mesh file and build DSF 
     # mesh points (these take into accound texture as well), point pools, etc. 
+    has_water = 7 if mesh_version>=1.3 else 3
     
     for i in range(0,2): # skip 2 lines
         f_mesh.readline()
@@ -300,10 +296,8 @@ def build_dsf(tile,download_queue):
         bary_lon=(node_coords[5*n1]+node_coords[5*n2]+node_coords[5*n3])/3
         bary_lat=(node_coords[5*n1+1]+node_coords[5*n2+1]+node_coords[5*n3+1])/3
         texture_attributes=dico_customzl[GEO.wgs84_to_orthogrid(bary_lat,bary_lon,tile.mesh_zl)]
-        # Triangles whith type>2 are set for type=0, and type 3 (water+sea in OSM) are set to 2 (sea) 
-        tri_type = (tri_type & 2) or (tri_type & 1)
-        # If use_masks_for_inland, turn type=1 tris to type=2
-        if tri_type and tile.use_masks_for_inland: tri_type=2
+        # Triangles whith type>=8 are set for type=0, and type between 2 and 7 are set to 2 (mask) 
+        tri_type = (tri_type & has_water) and (2*((tri_type & has_water)>1 or tile.use_masks_for_inland) or 1)
         # The entries for the terrain and texture main dictionnaries
         terrain_attributes=(texture_attributes,tri_type)
         # Do we need to build new terrain file(s) ?       

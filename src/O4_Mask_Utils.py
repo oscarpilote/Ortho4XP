@@ -12,6 +12,8 @@ import O4_OSM_Utils as OSM
 import O4_Vector_Utils as VECT
 import O4_Mesh_Utils as MESH
 
+mask_altitude_above=1.5
+
 ##############################################################################
 def needs_mask(tile, til_x_left,til_y_top,zoomlevel,*args):
     if int(zoomlevel)<tile.mask_zl:
@@ -83,7 +85,9 @@ def build_masks(tile):
         except:
             UI.lvprint(1,"Mesh file ",mesh_file_name," could not be read. Skipped.")
             continue
-        for i in range(0,4):
+        mesh_version=float(f_mesh.readline().strip().split()[-1])
+        has_water = 7 if mesh_version>=1.3 else 3
+        for i in range(3):
             f_mesh.readline()
         nbr_pt_in=int(f_mesh.readline())
         pt_in=numpy.zeros(5*nbr_pt_in,'float')
@@ -106,8 +110,7 @@ def build_masks(tile):
                 if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
             (n1,n2,n3,tri_type)=[int(x)-1 for x in f_mesh.readline().split()[:4]]
             tri_type+=1
-            tri_type = (tri_type & 2) or (tri_type & 1)
-            if (not tri_type) or (tri_type==1 and not tile.use_masks_for_inland):
+            if (not tri_type) or (not (tri_type & has_water)) or ((tri_type & has_water)<2 and not tile.use_masks_for_inland):
                 continue
             (lon1,lat1)=pt_in[5*n1:5*n1+2]
             (lon2,lat2)=pt_in[5*n2:5*n2+2]
@@ -183,8 +186,7 @@ def build_masks(tile):
                     if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
                 (n1,n2,n3,tri_type)=[int(x)-1 for x in f_mesh.readline().split()[:4]]
                 tri_type+=1
-                tri_type = (tri_type & 2) or (tri_type & 1)
-                if not (tri_type==1):
+                if not (tri_type & has_water)==1:
                     continue
                 (lon1,lat1)=pt_in[5*n1:5*n1+2]
                 (lon2,lat2)=pt_in[5*n2:5*n2+2]
@@ -259,7 +261,7 @@ def build_masks(tile):
             (latmin,lonmax)= GEO.pix_to_wgs84(px0+6144,py0+6144,tile.mask_zl)
             (x03857,y03857)=GEO.transform('4326','3857',lonmin,latmax)
             (x13857,y13857)=GEO.transform('4326','3857',lonmax,latmin)
-            ((lonmin,lonmax,latmin,latmax),demarr4326)=tile.dem.super_level_set(1,(lonmin,lonmax,latmin,latmax))  
+            ((lonmin,lonmax,latmin,latmax),demarr4326)=tile.dem.super_level_set(mask_altitude_above,(lonmin,lonmax,latmin,latmax))  
             if demarr4326.any():
                 demim4326=Image.fromarray(demarr4326.astype(numpy.uint8)*255)
                 del(demarr4326)

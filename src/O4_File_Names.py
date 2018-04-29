@@ -76,6 +76,8 @@ def output_ele_file(tile):
     return os.path.join(tile.build_dir,'Data'+short_latlon(tile.lat,tile.lon)+'.'+str(tile.iterate+1)+'.ele')
 def alt_file(tile):
     return os.path.join(tile.build_dir,'Data'+short_latlon(tile.lat,tile.lon)+'.alt')
+def apt_file(tile):
+    return os.path.join(tile.build_dir,'Data'+short_latlon(tile.lat,tile.lon)+'.apt')
 def weight_file(tile):
     return os.path.join(tile.build_dir,'Data'+short_latlon(tile.lat,tile.lon)+'.weight')
 def mesh_file(build_dir,lat,lon):
@@ -93,9 +95,9 @@ def preview(lat, lon, zoomlevel, provider_code):
 
 ##############################################################################
 def custom_coastline(lat, lon):
-    return os.path.join(OSM_dir,long_latlon(lat,lon),short_latlon(lat,lon)+'_custom_coastline.osm')
+    return os.path.join(OSM_dir,long_latlon(lat,lon),short_latlon(lat,lon)+'_custom_coastline.osm.bz2')
 def custom_water(lat, lon):
-    return os.path.join(OSM_dir,long_latlon(lat,lon),short_latlon(lat,lon)+'_custom_water.osm')
+    return os.path.join(OSM_dir,long_latlon(lat,lon),short_latlon(lat,lon)+'_custom_water.osm.bz2')
 def osm_cached(lat, lon, cached_suffix):
     return os.path.join(OSM_dir,long_latlon(lat,lon),short_latlon(lat,lon)+'_'+cached_suffix+'.osm.bz2')
 def osm_old_cached(lat, lon, query):
@@ -104,16 +106,41 @@ def osm_old_cached(lat, lon, query):
                     subtags[0][0:-1]+'_'+subtags[1]+'_'+subtags[3]+'.osm')
 
 ##############################################################################
-def viewfinderpanorama(lat, lon):
+def base_file_name(lat, lon):
     hemisphere='N' if lat>=0 else 'S'
     greenwichside='E' if lon>=0 else 'W'
-    file_name=hemisphere+'{:.0f}'.format(abs(lat)).zfill(2)+greenwichside+'{:.0f}'.format(abs(lon)).zfill(3)+'.hgt'
+    file_name=hemisphere+'{:.0f}'.format(abs(lat)).zfill(2)+greenwichside+'{:.0f}'.format(abs(lon)).zfill(3)
     return os.path.join(Elevation_dir,round_latlon(lat,lon),file_name)
 ##############################################################################
 
 ##############################################################################
+def elevation_data(source,lat, lon):
+    if source=='View':
+        return base_file_name(lat,lon)+'.hgt'
+    elif source=='SRTM':
+        return base_file_name(lat,lon)+'_SRTMv3.hgt'
+    elif source=='ALOS':
+        return base_file_name(lat,lon)+'_ALOS3W30.tif'
+    elif source=='NED1/3':
+        return base_file_name(lat,lon)+'_NED13.img'
+    elif source=='NED1':
+        return os.path.join(Elevation_dir,long_latlon(lat,lon)+'_NED1','w001001.adf') 
+##############################################################################
+
+
+##############################################################################
+def generic_tif(lat, lon):
+    return base_file_name(lat,lon)+'.tif'
+##############################################################################
+
+##############################################################################
+def viewfinderpanorama(lat, lon):
+    return base_file_name(lat,lon)+'.hgt'
+##############################################################################
+
+##############################################################################
 def SRTM_1sec(lat, lon):
-    return viewfinderpanorama(lat,lon).replace('.hgt','_SRTM_1sec.hgt')
+    return base_file_name(lat,lon)+'_SRTM_1sec.hgt'
 ##############################################################################
 
 ##############################################################################

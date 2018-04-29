@@ -407,7 +407,7 @@ double pixx,pixy; /* real size of pixels of the altitude raster (= scalx*xrange/
 float *alt; /* altitude raster */
 float *weight; /* (geographic) weight for curv_tol here below, assumed to be 1000*1000 */
 float *hme; /* Hessian max eigenvalue - i.e. max principal curvature of the underlying terrain , possibly weighted */
-double curv_tol; /* tolerance to curvature - the main paramater for refinement decision based on hme */
+double curv_tol2; /* tolerance to curvature - the main paramater for refinement decision based on hme */
 double hmin2;
 double min_angle2;
 FILE *alt_file;
@@ -612,7 +612,10 @@ struct badsubseg {
 
 struct badtriang {
   triangle poortri;                       /* A skinny or too-large triangle. */
-  REAL key;                             /* cos^2 of smallest (apical) angle. */
+  /* Modified for Triangle4XP */
+  /*REAL key;                           /* cos^2 of smallest (apical) angle. */
+  int key;                   /* A priority depending on triunsuitable checks */
+  /* End of Modified for Triangle4XP */
   vertex triangorg, triangdest, triangapex;           /* Its three vertices. */
   struct badtriang *nexttriang;             /* Pointer to next bad triangle. */
 };
@@ -3531,7 +3534,7 @@ struct behavior *b;
                no_data=atof(argv[i]);
            }
            if (i == STARTINDEX+10) {
-               curv_tol=atof(argv[i]);
+               curv_tol2=pow(atof(argv[i]),2);
            }
            if (i == STARTINDEX+11) {
                min_angle2=pow(atof(argv[i]),2);
@@ -3822,43 +3825,44 @@ REAL   attribute;                             /* The triangle attribute      */
 /* Start of : Added for Triangle4XP */
 
 {
-  REAL dxoa, dxda, dxod;
-  REAL dyoa, dyda, dyod;
+  REAL dx, dy;
   REAL oalen2, dalen2, odlen2;
-  REAL maxedge2, minedge2, maxx, maxy, minx, miny, area2;
-  REAL maxcurv, maxalt, tmp;
+  REAL maxedge2, minedge2, area2;
+  REAL maxx, maxy, minx, miny;
+  REAL maxcurv, maxalt, tmp, ratio;
   int  imin, imax, jmin, jmax, i ,j;
+  int  retval;  
 
-  dxoa = triorg[0] - triapex[0];
-  dyoa = triorg[1] - triapex[1];
-  dxda = tridest[0] - triapex[0];
-  dyda = tridest[1] - triapex[1];
-  dxod = triorg[0] - tridest[0];
-  dyod = triorg[1] - tridest[1];
-  /* Find the squares of the lengths of the triangle's three edges. */
-  oalen2 = dxoa * dxoa * scalx2 + dyoa * dyoa * scaly2;
-  dalen2 = dxda * dxda * scalx2 + dyda * dyda * scaly2;
-  odlen2 = dxod * dxod * scalx2 + dyod * dyod * scaly2;
-  /* Find the square of the length of the longest edge. */
+  /* Find the squares of the lengths of the triangle's three edges */
+  /* and the triangle's area.                                      */
+  dx     = triorg[0] - triapex[0];
+  dy     = triorg[1] - triapex[1];
+  oalen2 = dx * dx * scalx2 + dy * dy * scaly2;
+  dx     = tridest[0] - triapex[0];
+  dy     = tridest[1] - triapex[1];
+  dalen2 = dx * dx * scalx2 + dy * dy * scaly2;
+  area2 = dy;  /* copy to minimize varialbe need */
+  tmp   = dx;  /* copy to minimize variable need */
+  dx = triorg[0] - tridest[0];
+  dy = triorg[1] - tridest[1];
+  odlen2 = dx * dx * scalx2 + dy * dy * scaly2;
+  area2 = 0.25 * pow((dx * area2 - dy * tmp),2) * scalx2 * scaly2 ;  
+  
+  
+  /* Find the square of the length of the longest and shortest edge. */
   maxedge2 = (dalen2 > oalen2) ? dalen2 : oalen2;
   maxedge2 = (odlen2 > maxedge2) ? odlen2 : maxedge2;
   minedge2 = (dalen2 > oalen2) ? oalen2 : dalen2;
   minedge2 = (odlen2 > minedge2) ? minedge2 : odlen2;
-  /* Find the area of the triangle. */
-  area2 = 0.25 * pow((dxod * dyda - dyod * dxda),2) * scalx2 * scaly2 ;
-
+  
   if (minedge2 < 0.25){
       return 0;
   }
   if (maxedge2 < hmin2){
       return 0;
   }
-
-  /* pow(2*(180/pi)),2) is approximated here by 13131 */ 
-  if ((maxedge2*minedge2*min_angle2>13131*area2)&&(maxedge2>9)){
-      return 1;
-  } 
   
+  /* Out of raster ? Exit !                                */
   maxx = (triorg[0] > triapex[0]) ? triorg[0] : triapex[0];
   maxx = (tridest[0] > maxx) ? tridest[0] : maxx;
   if (maxx<X0) return 0;
@@ -3872,6 +3876,20 @@ REAL   attribute;                             /* The triangle attribute      */
   miny = (tridest[1] < miny) ? tridest[1] : miny;
   if (miny>Y1) return 0;
   
+  /* A too small second smallest angle implies a risk of a sharp wall */
+  /* pow(2*(180/pi)),2) is approximated here by 13131                 */
+  /* Priority for later treatment goes like k if 1/tmp \simeq pow(2,k)*/ 
+  ratio = 13131*area2/(maxedge2*minedge2*min_angle2);  
+  if ((ratio<1.0)&&(maxedge2>9.0)){
+    retval=1;
+    ratio*=2;  
+    while ((ratio<1) && (retval<4095)){ 
+      ratio*=2;
+      retval+=1;
+      }      
+    return retval;
+    } 
+    
  
   jmin=floor((minx-X0)/xrange*(nxdem-1))-1;
   jmin = (jmin > 0) ? jmin : 0;
@@ -3892,14 +3910,23 @@ REAL   attribute;                             /* The triangle attribute      */
           maxcurv = (tmp > maxcurv) ? tmp : maxcurv;
       }
   }
-   
-  /*if  (maxedge2*pow(maxcurv,2) > curv_tol) {*/
-  if  (maxedge2*pow(maxcurv,2) < curv_tol) {
+  
+  ratio = (maxedge2*pow(maxcurv,2))/curv_tol2;  
+  if  (ratio <= 1) {
     return 0;
     }
   else {
+    /* Some bad raster have hard transitions into the sea or bathymetric data, */
+    /* we don't wish to refine there and therefore differentiate according to  */
+    /* the triangle attribute.                                                 */
     if (((int) (attribute+0.1)) != 2) {
-      return 1;
+      retval=1;
+      ratio/=2.0;
+      while ((ratio>1) && (retval<4095)){ 
+        ratio/=2;
+        retval+=1;
+        }   
+      return retval;
       }
     else { 
       maxalt=-1000;
@@ -3912,7 +3939,13 @@ REAL   attribute;                             /* The triangle attribute      */
             }
         }
       if (maxalt>0.5){
-        return 1;
+        retval=1;
+        ratio/=2.0;
+        while ((ratio>1) && (retval<4095)){ 
+          ratio/=2;
+          retval+=1;
+          }   
+        return retval;  
         } 
       else {    
         return 0;
@@ -7231,62 +7264,12 @@ struct behavior *b;
 struct badtriang *badtri;
 #endif /* not ANSI_DECLARATORS */
 
+/* Modified for Triangle4XP */
+
 {
-  REAL length, multiplier;
-  int exponent, expincrement;
   int queuenumber;
-  int posexponent;
   int i;
-
-  if (b->verbose > 2) {
-    printf("  Queueing bad triangle:\n");
-    printf("    (%.12g, %.12g) (%.12g, %.12g) (%.12g, %.12g)\n",
-           badtri->triangorg[0], badtri->triangorg[1],
-           badtri->triangdest[0], badtri->triangdest[1],
-           badtri->triangapex[0], badtri->triangapex[1]);
-  }
-
-  /* Determine the appropriate queue to put the bad triangle into.    */
-  /*   Recall that the key is the square of its shortest edge length. */
-  if (badtri->key >= 1.0) {
-    length = badtri->key;
-    posexponent = 1;
-  } else {
-    /* `badtri->key' is 2.0 to a negative exponent, so we'll record that */
-    /*   fact and use the reciprocal of `badtri->key', which is > 1.0.   */
-    /* Added for Triangle4XP */
-    if (badtri->key== 0.0) {
-        badtri->key=1;
-    }
-    /* End of Added for Triangle4XP */
-    length = 1.0 / badtri->key;
-    posexponent = 0;
-  }
-  /* `length' is approximately 2.0 to what exponent?  The following code */
-  /*   determines the answer in time logarithmic in the exponent.        */
-  exponent = 0;
-  while (length > 2.0) {
-    /* Find an approximation by repeated squaring of two. */
-    expincrement = 1;
-    multiplier = 0.5;
-    while (length * multiplier * multiplier > 1.0) {
-      expincrement *= 2;
-      multiplier *= multiplier;
-    }
-    /* Reduce the value of `length', then iterate if necessary. */
-    exponent += expincrement;
-    length *= multiplier;
-  }
-  /* `length' is approximately squareroot(2.0) to what exponent? */
-  exponent = 2.0 * exponent + (length > SQUAREROOTTWO);
-  /* `exponent' is now in the range 0...2047 for IEEE double precision.   */
-  /*   Choose a queue in the range 0...4095.  The shortest edges have the */
-  /*   highest priority (queue 4095).                                     */
-  if (posexponent) {
-    queuenumber = 2047 - exponent;
-  } else {
-    queuenumber = 2048 + exponent;
-  }
+  queuenumber = badtri->key;
 
   /* Are we inserting into an empty queue? */
   if (m->queuefront[queuenumber] == (struct badtriang *) NULL) {
@@ -7319,6 +7302,8 @@ struct badtriang *badtri;
   badtri->nexttriang = (struct badtriang *) NULL;
 }
 
+/* End of Modified for Triangle4XP */
+
 #endif /* not CDT_ONLY */
 
 /*****************************************************************************/
@@ -7330,17 +7315,19 @@ struct badtriang *badtri;
 /*                                                                           */
 /*****************************************************************************/
 
+/* Modified for Triangle4XP */
+
 #ifndef CDT_ONLY
 
 #ifdef ANSI_DECLARATORS
 void enqueuebadtri(struct mesh *m, struct behavior *b, struct otri *enqtri,
-                   REAL minedge2, vertex enqapex, vertex enqorg, vertex enqdest)
+                   int priority, vertex enqapex, vertex enqorg, vertex enqdest)
 #else /* not ANSI_DECLARATORS */
-void enqueuebadtri(m, b, enqtri, minedge2, enqapex, enqorg, enqdest)
+void enqueuebadtri(m, b, enqtri, priority, enqapex, enqorg, enqdest)
 struct mesh *m;
 struct behavior *b;
 struct otri *enqtri;
-REAL minedge2;
+int priority;
 vertex enqapex;
 vertex enqorg;
 vertex enqdest;
@@ -7352,12 +7339,15 @@ vertex enqdest;
   /* Allocate space for the bad triangle. */
   newbad = (struct badtriang *) poolalloc(&m->badtriangles);
   newbad->poortri = encode(*enqtri);
-  newbad->key = minedge2;
+  newbad->key = priority;
   newbad->triangapex = enqapex;
   newbad->triangorg = enqorg;
   newbad->triangdest = enqdest;
   enqueuebadtriang(m, b, newbad);
 }
+
+
+/* End of Modified for Triangle4XP */
 
 #endif /* not CDT_ONLY */
 
@@ -7547,45 +7537,17 @@ struct otri *testtri;
 {
   struct otri;
   vertex torg, tdest, tapex;
-  REAL dxod, dyod, dxda, dyda, dxao, dyao;
-  REAL dxod2, dyod2, dxda2, dyda2, dxao2, dyao2;
-  REAL apexlen, orglen, destlen, minedge2;
-
+  /* Modified for Triangle4XP */ 
+  int priority;
   org(*testtri, torg);
   dest(*testtri, tdest);
   apex(*testtri, tapex);
-  dxod = torg[0] - tdest[0];
-  dyod = torg[1] - tdest[1];
-  dxda = tdest[0] - tapex[0];
-  dyda = tdest[1] - tapex[1];
-  dxao = tapex[0] - torg[0];
-  dyao = tapex[1] - torg[1];
-  dxod2 = dxod * dxod;
-  dyod2 = dyod * dyod;
-  dxda2 = dxda * dxda;
-  dyda2 = dyda * dyda;
-  dxao2 = dxao * dxao;
-  dyao2 = dyao * dyao;
-  /* Find the lengths of the triangle's three edges. */
-  apexlen = dxod2 + dyod2;
-  orglen = dxda2 + dyda2;
-  destlen = dxao2 + dyao2;
-
-  if ((apexlen < orglen) && (apexlen < destlen)) {
-    /* The edge opposite the apex is shortest. */
-    minedge2 = apexlen;
-  } else if (orglen < destlen) {
-    /* The edge opposite the origin is shortest. */
-    minedge2 = orglen;
-  } else {
-    /* The edge opposite the destination is shortest. */
-    minedge2 = destlen;
-  }
 
     if (b->usertest) {
       /* Check whether the user thinks this triangle is too large. */
-      if (triunsuitable(torg, tdest, tapex, elemattribute(*testtri,0))) {
-        enqueuebadtri(m, b, testtri, minedge2, tapex, torg, tdest);
+      priority = triunsuitable(torg, tdest, tapex, elemattribute(*testtri,0));  
+      if (priority) {
+        enqueuebadtri(m, b, testtri, priority, tapex, torg, tdest);
         return;
       }
     }
@@ -16096,20 +16058,20 @@ char **argv;
         {
             offset=nxdem*i+j;
             if ((b.refine) && (alt[offset]==no_data || alt[offset-1]==no_data || alt[offset-nxdem]==no_data || alt[offset+nxdem]==no_data || alt[offset-nxdem-1]==no_data || alt[offset-nxdem+1]==no_data || alt[offset+nxdem+1]==no_data || alt[offset+nxdem-1]==no_data)) { 
-                hme[(nxdem-2)*(i-1)+(j-1)]=0;
-		continue;
-	    }
-	    aa=alt[offset+1]+alt[offset-1]-2*alt[offset];
+              hme[(nxdem-2)*(i-1)+(j-1)]=0;
+              continue;
+              }
+            aa=alt[offset+1]+alt[offset-1]-2*alt[offset];
             aa/=pow(pixx,2);
             bb=alt[offset-nxdem]+alt[offset+nxdem]-2*alt[offset];
             bb/=pow(pixy,2);
             cc=alt[offset+(nxdem+1)]+alt[offset-(nxdem+1)]-alt[offset+(nxdem-1)]-alt[offset-(nxdem-1)];
             cc/=(4.0*pixx*pixy);
             signe= ((aa+bb) > 0) ? 1.0 : -1.0;
-	    k=round((X0+j*xrange/(nxdem-1))*1000);
-	    l=round((1-(Y1-i*yrange/(nydem-1)))*1000); 
+            k=round((X0+j*xrange/(nxdem-1))*1000);
+            l=round((1-(Y1-i*yrange/(nydem-1)))*1000); 
             w = ((k>=0) && (k<1001) && (l>=0) && (l<1001)) ? weight[1001*l+k] : 1.0; 
-            hme[(nxdem-2)*(i-1)+(j-1)]=fabs(aa+bb+signe*sqrt(pow(aa-bb,2)+4*pow(cc,2)))/2.0*sqrt(w);
+            hme[(nxdem-2)*(i-1)+(j-1)]=fabs(aa+bb+signe*sqrt(pow(aa-bb,2)+4*pow(cc,2)))/2.0*w;
         }
     }
   free(weight);

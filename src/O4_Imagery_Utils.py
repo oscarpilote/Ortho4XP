@@ -809,7 +809,7 @@ def build_jpeg_ortho(tile, til_x_left,til_y_top,zoomlevel,provider_code,out_file
                 else:
                     UI.vprint(1,"   The orthophoto "+true_file_name+" (for combining in "+provider_code+") is already present.")
         if not data_found: 
-            UI.vprint(1,"     -> !!! Warning : No data found for building the combined texture",\
+            UI.lvprint(1,"     -> !!! Warning : No data found for building the combined texture",\
                     FNAMES.dds_file_name_from_attributes(*texture_attributes)," !!!")
             return 0
         if out_file_name:

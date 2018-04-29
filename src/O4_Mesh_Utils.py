@@ -1,15 +1,16 @@
 import time
 import sys
 import os
+import pickle
 import subprocess
 import numpy
 from math import sqrt, cos, pi
-#from PIL import Image
 import O4_UI_Utils as UI
 import O4_File_Names as FNAMES
 import O4_Geo_Utils as GEO
 import O4_Vector_Utils as VECT
 import O4_OSM_Utils as OSM
+import O4_Version
 
 if 'dar' in sys.platform:
     Triangle4XP_cmd = os.path.join(FNAMES.Utils_dir,"Triangle4XP_v130.app ")
@@ -30,27 +31,22 @@ def is_in_region(lat,lon,latmin,latmax,lonmin,lonmax):
 def build_curv_tol_weight_map(tile,weight_array):
     if tile.apt_curv_tol!=tile.curvature_tol and tile.apt_curv_tol>0:
         UI.vprint(1,"-> Modifying curv_tol weight map according to runway locations.")
-        airport_layer=OSM.OSM_layer()
-        queries=[('node["aeroway"]','way["aeroway"]','rel["aeroway"]')]
-        tags_of_interest=["all"]
-        if not OSM.OSM_queries_to_OSM_layer(queries,airport_layer,tile.lat,tile.lon,tags_of_interest,cached_suffix='airports'): 
-            return 0
-        runway_network=OSM.OSM_to_MultiLineString(airport_layer,tile.lat,tile.lon)
-        runway_area=VECT.improved_buffer(runway_network,30,10,1)
-        if not runway_area: return 0
-        runway_area=VECT.ensure_MultiPolygon(runway_area)
-        for polygon in runway_area.geoms if ('Multi' in runway_area.geom_type or 'Collection' in runway_area.geom_type) else [runway_area]:
-            (xmin,ymin,xmax,ymax)=polygon.bounds
+        try:
+            f=open(FNAMES.apt_file(tile),'rb')
+            dico_airports=pickle.load(f)
+            f.close()
+        except:
+            UI.vprint(1,"   WARNING: File",FNAMES.apt_file(tile),"is missing (erased after Step 1?), cannot check airport info for upgraded zoomlevel.")
+            dico_airports={}
+        for airport in dico_airports:
+            (xmin,ymin,xmax,ymax)=dico_airports[airport]['boundary'].bounds
             x_shift=1000*tile.apt_curv_ext*GEO.m_to_lon(tile.lat) 
             y_shift=1000*tile.apt_curv_ext*GEO.m_to_lat
-            colmin=round((xmin-x_shift)*1000)
-            colmax=round((xmax+x_shift)*1000)
-            rowmax=round(((1-ymin)+y_shift)*1000)
-            rowmin=round(((1-ymax)-y_shift)*1000)
+            colmin=max(round((xmin-x_shift)*1000),0)
+            colmax=min(round((xmax+x_shift)*1000),1000)
+            rowmax=min(round(((1-ymin)+y_shift)*1000),1000)
+            rowmin=max(round(((1-ymax)-y_shift)*1000),0)
             weight_array[rowmin:rowmax+1,colmin:colmax+1]=tile.curvature_tol/tile.apt_curv_tol 
-        del(airport_layer)
-        del(runway_network) 
-        del(runway_area)
     if tile.coast_curv_tol!=tile.curvature_tol:
         UI.vprint(1,"-> Modifying curv_tol weight map according to coastline location.")
         sea_layer=OSM.OSM_layer()
@@ -63,15 +59,15 @@ def build_curv_tol_weight_map(tile,weight_array):
             if lonp<tile.lon or lonp>tile.lon+1 or latp<tile.lat or latp>tile.lat+1: continue
             x_shift=1000*tile.coast_curv_ext*GEO.m_to_lon(tile.lat)
             y_shift=tile.coast_curv_ext/(111.12)
-            colmin=round((lonp-tile.lon-x_shift)*1000)
-            colmax=round((lonp-tile.lon+x_shift)*1000)
-            rowmax=round((tile.lat+1-latp+y_shift)*1000)
-            rowmin=round((tile.lat+1-latp-y_shift)*1000)
+            colmin=max(round((lonp-tile.lon-x_shift)*1000),0)
+            colmax=min(round((lonp-tile.lon+x_shift)*1000),1000)
+            rowmax=min(round((tile.lat+1-latp+y_shift)*1000),1000)
+            rowmin=max(round((tile.lat+1-latp-y_shift)*1000),0)
             weight_array[rowmin:rowmax+1,colmin:colmax+1]=numpy.maximum(weight_array[rowmin:rowmax+1,colmin:colmax+1],tile.curvature_tol/tile.coast_curv_tol) 
         del(sea_layer)
     # It could be of interest to write the weight file as a png for user editing    
-    from PIL import Image
-    Image.fromarray((weight_array!=1).astype(numpy.uint8)*255).save('weight.png')
+    #from PIL import Image
+    #Image.fromarray((weight_array!=1).astype(numpy.uint8)*255).save('weight.png')
     return
 ##############################################################################
 
@@ -87,17 +83,12 @@ def post_process_nodes_altitudes(tile):
         vertices[6*i:6*i+6]=[float(x) for x in f_node.readline().split()[1:7]]
     end_line_f_node=f_node.readline()
     f_node.close()
-    #UI.vprint(1,"-> Smoothing elevation file for airport levelling.")
-    #tile.dem.smoothen(tile.apt_smoothing_pix)
     UI.vprint(1,"-> Post processing of altitudes according to vector data")
     f_ele  = open(FNAMES.output_ele_file(tile),'r')
     nbr_tri= int(f_ele.readline().split()[0])
     water_tris=set()
     sea_tris=set()
     interp_alt_tris=set()
-    taxiway_tris=set()
-    apron_tris=set()
-    hangar_tris=set()
     runway_tris=set()
     for i in range(nbr_tri):
         line = f_ele.readline()
@@ -107,17 +98,11 @@ def post_process_nodes_altitudes(tile):
         attr+=1
         if attr & dico_attributes['RUNWAY']: 
             runway_tris.add((v1,v2,v3))
-        elif attr & dico_attributes['HANGAR']: 
-            hangar_tris.add((v1,v2,v3))
-        elif attr & dico_attributes['APRON']: 
-            apron_tris.add((v1,v2,v3))    
-        elif attr & dico_attributes['TAXIWAY']: 
-            taxiway_tris.add((v1,v2,v3))     
         elif attr & dico_attributes['INTERP_ALT']: 
             interp_alt_tris.add((v1,v2,v3))
         elif attr & dico_attributes['SEA']:
             sea_tris.add((v1,v2,v3))
-        elif attr & dico_attributes['WATER']:
+        elif attr & dico_attributes['WATER'] or attr & dico_attributes['SEA_EQUIV']:
             water_tris.add((v1,v2,v3))
     if tile.water_smoothing:
         UI.vprint(1,"   Smoothing inland water.")
@@ -143,7 +128,7 @@ def post_process_nodes_altitudes(tile):
                 vertices[6*v2+2]=max(vertices[6*v2+2],0)
                 vertices[6*v3+2]=max(vertices[6*v3+2],0)
     UI.vprint(1,"   Treatment of airports, roads and patches.")
-    for (v1,v2,v3) in (interp_alt_tris | hangar_tris | runway_tris):
+    for (v1,v2,v3) in (interp_alt_tris | runway_tris):
             vertices[6*v1+2]=vertices[6*v1+5]
             vertices[6*v2+2]=vertices[6*v2+5]
             vertices[6*v3+2]=vertices[6*v3+5]
@@ -164,7 +149,7 @@ def write_mesh_file(tile,vertices):
     nbr_vert=len(vertices)//6
     nbr_tri=int(f_ele.readline().split()[0])
     f=open(FNAMES.mesh_file(tile.build_dir,tile.lat,tile.lon),"w")
-    f.write("MeshVersionFormatted 1\n")
+    f.write("MeshVersionFormatted "+O4_Version.version+"\n")
     f.write("Dimension 3\n\n")
     f.write("Vertices\n")
     f.write(str(nbr_vert)+"\n")
@@ -292,29 +277,36 @@ def build_mesh(tile):
     UI.logprint("Step 2 for tile lat=",tile.lat,", lon=",tile.lon,": starting.")
     UI.vprint(0,"\nStep 2 : Building mesh tile "+FNAMES.short_latlon(tile.lat,tile.lon)+" : \n--------\n")
     UI.progress_bar(1,0)
-    timer=time.time()
-    tri_verbosity='Q' if UI.verbosity<=1 else 'V'
-    if tile.iterate==0:
-        Tri_option = '-pAuYB'+tri_verbosity
-    else:
-        Tri_option = '-pruYB'+tri_verbosity
     poly_file    = FNAMES.input_poly_file(tile)
+    node_file    = FNAMES.input_node_file(tile)
     alt_file     = FNAMES.alt_file(tile)
     weight_file  = FNAMES.weight_file(tile)
-    if not os.path.isfile(poly_file):
-        UI.exit_message_and_bottom_line("\nERROR: Could not find ",poly_file)
+    for file in (poly_file,node_file,alt_file):
+        if not os.path.isfile(file):
+            UI.exit_message_and_bottom_line("\nERROR: Could not find ",file)
+            return 0
+    tile.ensure_elevation_data(info_only=True)
+    if not  os.path.getsize(alt_file)==4*tile.dem.nxdem*tile.dem.nydem:
+        UI.exit_message_and_bottom_line("\nERROR: Cached raster elevation does not match the current custom DEM specs.\n       You must run Step 1 and Step 2 with the same elevation base.")
         return 0
+            
+    f=open(node_file,'r')
+    input_nodes=int(f.readline().split()[0])
+    f.close()
+    timer=time.time()
+    tri_verbosity = 'Q' if UI.verbosity<=1 else 'V'
+    output_poly   = 'P' if UI.cleaning_level else 'P'
+    do_refine     = 'r' if tile.iterate else 'A'
+    limit_tris    = 'S'+str(max(int(tile.limit_tris/1.9-input_nodes),0)) if tile.limit_tris else ''
+    Tri_option    = '-p'+do_refine+'uYB'+tri_verbosity+output_poly+limit_tris
     
-    tile.load_dem_info()
-    #if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
-    #tile.dem.write_to_file(alt_file)
     
     weight_array=numpy.ones((1001,1001),dtype=numpy.float32)
     build_curv_tol_weight_map(tile,weight_array)
     weight_array.tofile(weight_file)
     del(weight_array)
     
-    curv_tol_scaling=tile.dem.nxdem/(1000*(tile.dem.x1-tile.dem.x0))
+    curv_tol_scaling=sqrt(tile.dem.nxdem/(1000*(tile.dem.x1-tile.dem.x0))) 
     hmin_effective=max(tile.hmin,(tile.dem.y1-tile.dem.y0)*GEO.lat_to_m/tile.dem.nydem/2)
     mesh_cmd=[Triangle4XP_cmd.strip(),
               Tri_option.strip(),
@@ -350,12 +342,26 @@ def build_mesh(tile):
     if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
     
     vertices=post_process_nodes_altitudes(tile)
-    tile.dem=None  # post_processing has introduced smoothing, we trash the dem data
 
     if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
     
     write_mesh_file(tile,vertices)
     #
+    if UI.cleaning_level:
+        try: os.remove(FNAMES.weight_file(tile))
+        except: pass
+        try: os.remove(FNAMES.output_node_file(tile))
+        except: pass
+        try: os.remove(FNAMES.output_ele_file(tile))
+        except: pass
+    if UI.cleaning_level>2:
+        try: os.remove(FNAMES.alt_file(tile))
+        except: pass
+        try: os.remove(FNAMES.input_node_file(tile))
+        except: pass
+        try: os.remove(FNAMES.input_poly_file(tile))
+        except: pass
+    
     UI.timings_and_bottom_line(timer)
     UI.logprint("Step 2 for tile lat=",tile.lat,", lon=",tile.lon,": normal exit.")
     return 1

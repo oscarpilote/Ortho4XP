@@ -1,5 +1,4 @@
 import os
-import time
 from math import ceil
 import tkinter as tk
 import tkinter.ttk as ttk
@@ -17,7 +16,7 @@ import O4_Overlay_Utils as OVL
 cfg_vars={
     # App
     'verbosity':             {'module':'UI','type':int,'default':1,'values':[0,1,2,3],'hint':'Verbosity determines the amount of information about the whole process which is printed on screen.  Critical errors, if any, are reported in all states as well as in the Log. Values above 1 are probably only useful for for debug purposes.'},  
-    'cleaning_level':        {'module':'UI','type':int,'default':1,'values':[0,1,2,3],'hint':'Determines which temporary files are removed. These are all files that are never looked at by X-Plane.'}, 
+    'cleaning_level':        {'module':'UI','type':int,'default':1,'values':[0,1,2,3],'hint':'Determines which temporary files are removed. Level 3 erases everything except the config and what is needed for X-Plane; Level 2 erases everything except what is needed to redo the current step only; Level 1 allows you to redo any prior step; Level 0 keeps every single file.'}, 
     'overpass_server_choice':{'module':'OSM','type':str,'default':'random','values':['random']+sorted(OSM.overpass_servers.keys()),'hint':'The (country) of the Overpass OSM server used to grab vector data. It can be modified on the fly (as all _Application_ variables) in case of problem with a particular server.'},
     'skip_downloads':        {'module':'TILE','type':bool,'default':False,'hint':'Will only build the DSF and TER files but not the textures (neither download nor convert). This could be useful in cases where imagery cannot be shared.'},
     'skip_converts':         {'module':'TILE','type':bool,'default':False,'hint':'Imagery will be downloaded but not converted from jpg to dds. Some user prefer to postprocess imagery with third party softwares prior to the dds conversion. In that case Step 3 needs to be run a second time after the retouch work.'}, 
@@ -35,6 +34,7 @@ cfg_vars={
     'road_banking_limit':  {'type':float,'default':0.5,'hint':"How much sloped does a roads need to be to be in order to be included in the mesh levelling process. The value is in meters, measuring the height difference between a point in the center of a road node and its closest point on the side of the road."}, 
     'max_levelled_segs':   {'type':int,'default':100000,'hint':"This limits the total number of roads segments included for mesh levelling, in order to keep triangle count under control in case of abundant OSM data."},
     'min_area':            {'type':float,'default':0.001,'hint':"Minimum area (in km^2) a water patch needs to be in order to be included in the mesh as such. Contiguous water patches are merged before area computation."}, 
+    'max_area':            {'type':float,'default':200,'hint':"Any water patch larger than this quantity (in km^2) will be masked like the sea."},
     'clean_bad_geometries':{'type':bool,'default':True,'hint':"When set, all OSM geometries are checked for self-intersection and merged between themselves in case of overlapping, allowing (hopefully!) to go around most OSM errors. This is computationally expensive, especially in places where OSM road/water data is detailed, and this is the reason for this switch, but if you are not in a hurry it is probably wise leaving it always activated."},
     'mesh_zl':             {'type':int,'default':19,'values':[16,17,18,19,20],'hint':"The mesh will be preprocessed to accept later any combination of imageries up to and including a zoomlevel equal to mesh_zl. Lower value could save a few tens of thousands triangles, but put a limitation on the maximum allowed imagery zoomlevel."},
     # Mesh
@@ -43,12 +43,13 @@ cfg_vars={
     'apt_curv_ext':        {'type':float,'default':0.5,'hint':"Extent (in km) around the airports where apt_curv_tol applies."},
     'coast_curv_tol':      {'type':float,'default':1,'hint':"If smaller, it supersedes curvature_tol along the coastline."},
     'coast_curv_ext':      {'type':float,'default':0.5,'hint':"Extent (in km) around the coastline where coast_curv_tol applies."},
+    'limit_tris'    :      {'type':int,  'default':0,'hint':"If non zero, upper bound on the number of final triangles in the mesh."},
     'hmin':                {'type':float,'default':0,'hint':"The mesh algorithm will not try to subdivide triangles whose shortest edge is already smaller than hmin (in meters). If hmin is smaller than half of the levation data step size, it will default to it anyhow (its default zero value thus means : as good as the DEM can do)."}, 
     'min_angle':           {'type':float,'default':10,'hint':"The mesh algorithm will try to not have mesh triangles with second smallest angle less than the value (in deg) of min_angle (prior to v1.3 it was the smallest, not second smallest) The goal behind this is to avoid potential artifacts when a triangle vertex is very close the the middle of its facing edge."},
     'apt_smoothing_pix':   {'type':int,  'default':8,'hint':"How much gaussian blur is applied to the elevation raster for the look up of altitude over airports. Unit is the evelation raster pixel size."},
     'sea_smoothing_mode':  {'type':str,  'default':'zero','values':['zero','mean','none'],'hint':"Zero means that all nodes of sea triangles are set to zero elevation. With mean, some kind of smoothing occurs (triangles are levelled one at a time to their mean elevation), None (a value mostly appropriate for DEM resolution of 10m and less), positive altitudes of sea nodes are kept intact, only negative ones are brought back to zero, this avoids to create unrealistic vertical cliffs if the coastline vector data was lower res."},
-    'water_smoothing':     {'type':int,  'default':2,'hint':"Number of smoothing passes over all inland water triangles (sequentially set to their mean elevation)."},
-    'iterate':             {'type':int,  'default':0,'hint':"Allows to refine a mesh using higher resolution elevation data of local scope only (requires Gdal), typically LIDAR data. Having an iterate number is handy to go backward one step when some choice of parameters needs to be revised."},     
+    'water_smoothing':     {'type':int,  'default':10,'hint':"Number of smoothing passes over all inland water triangles (sequentially set to their mean elevation)."},
+    'iterate':             {'type':int,  'default':0,'hint':"Allows to refine a mesh using higher resolution elevation data of local scope only (requires Gdal), typically LIDAR data. Having an iterate number is handy to go backward one step when some choice of parameters needs to be revised. REQUIRES cleaning_level=0."},     
     # Masks
     'mask_zl':             {'type':int,'default':15,'hint':'The zoomlevel at which the (sea) water masks are built. Masks are used for alpha channel, and this channel usually requires less resolution than the RGB ones, the reason for this (VRAM saving) parameter. If the coastline and elevation data are very detailed, it might be interesting to lieft this parameter up so that the masks can reproduce this complexity.'},
     'masks_width':         {'type':list,'default':100,'hint':'Maximum extent of the masks perpendicularly to the coastline (rough definition). NOTE: The value is now in meters, it used to be in ZL14 pixel size in earlier verions, the scale is roughly one to ten between both.'},
@@ -82,8 +83,8 @@ list_app_vars=['verbosity','cleaning_level','overpass_server_choice',
 gui_app_vars_short=list_app_vars[:-2]
 gui_app_vars_long=list_app_vars[-2:]
 
-list_vector_vars=['road_level','road_banking_limit','max_levelled_segs','min_area','clean_bad_geometries','mesh_zl']
-list_mesh_vars=['curvature_tol','apt_curv_tol','apt_curv_ext','coast_curv_tol','coast_curv_ext','hmin','min_angle','apt_smoothing_pix','sea_smoothing_mode','water_smoothing','iterate']
+list_vector_vars=['road_level','road_banking_limit','max_levelled_segs','min_area','max_area','clean_bad_geometries','mesh_zl']
+list_mesh_vars=['curvature_tol','apt_curv_tol','apt_curv_ext','coast_curv_tol','coast_curv_ext','limit_tris','hmin','min_angle','apt_smoothing_pix','sea_smoothing_mode','water_smoothing','iterate']
 list_mask_vars=['mask_zl','masks_width','masking_mode','use_masks_for_inland','masks_use_DEM_too','masks_custom_extent']
 list_dsf_vars=['cover_airports_with_highres','cover_extent','cover_zl','ratio_water','overlay_lod','sea_texture_blur','add_low_res_sea_ovl','experimental_water','normal_map_strength','terrain_casts_shadows','use_decal_on_terrain']
 list_other_vars=['custom_dem','fill_nodata']
@@ -148,19 +149,8 @@ class Tile():
                 UI.vprint(0,"OS error: Cannot create tile directory",self.build_dir," check file permissions.")
                 raise Exception
 
-    def load_dem_info(self):
-        self.dem=DEM.DEM(self.lat,self.lon,self.custom_dem,self.fill_nodata,info_only=True)
-        
-    def ensure_elevation_data(self):    
-        if not self.dem: 
-            UI.vprint(1,"-> Building elevation matrix")
-            time.sleep(0.2)
-            self.dem=DEM.DEM(self.lat,self.lon,self.custom_dem,self.fill_nodata,info_only=False)
-            if not self.iterate:
-                self.dem.upsample_if_low_res()
-                #self.dem.smoothen_2(self.apt_smoothing_pix,VMAP.build_airport_raster(self,'airport_raster.png'))
-        else:
-            UI.vprint(1,"-> Recycling elevation data")
+    def ensure_elevation_data(self,info_only=False):    
+        self.dem=DEM.DEM(self.lat,self.lon,self.custom_dem,self.fill_nodata,info_only)
 
     def read_from_config(self,config_file=None):
         if not config_file: 
@@ -276,7 +266,9 @@ class Ortho4XP_Config(tk.Toplevel):
         self.frame_dem.grid(row=row,column=0,columnspan=6,sticky=N+S+W+E)
         item='custom_dem'
         ttk.Button(self.frame_dem,text=item,takefocus=False,command=lambda item=item: self.popup(item,cfg_vars[item]['hint'])).grid(row=0,column=0,padx=2,pady=2,sticky=E+W)
-        self.entry_[item]=tk.Entry(self.frame_dem,textvariable=self.v_[item],bg='white',fg='blue',width=80) 
+        #self.entry_[item]=tk.Entry(self.frame_dem,textvariable=self.v_[item],bg='white',fg='blue',width=80) 
+        values=DEM.available_sources[1::2] 
+        self.entry_[item]=ttk.Combobox(self.frame_dem,values=values,textvariable=self.v_[item],width=80,style='O4.TCombobox')
         self.entry_[item].grid(row=0,column=1,padx=(2,0),pady=8,sticky=N+S+W+E)
         ttk.Button(self.frame_dem,image=self.folder_icon,command=self.choose_dem,style='Flat.TButton').grid(row=0,column=2, padx=2, pady=0,sticky=W)
         item='fill_nodata'
@@ -341,7 +333,7 @@ class Ortho4XP_Config(tk.Toplevel):
             self.v_[var].set(str(eval(target)))
 
     def choose_dem(self):
-        tmp=filedialog.askopenfilename(parent=self,title='Choose DEM file',filetypes=[('DEM files',('.tif','.hgt','.raw')),('all files','.*')])
+        tmp=filedialog.askopenfilename(parent=self,title='Choose DEM file',filetypes=[('DEM files',('.tif','.hgt','.raw','.img')),('all files','.*')])
         if tmp: self.v_['custom_dem'].set(str(tmp))
 
     def choose_dir(self,item):
@@ -446,7 +438,6 @@ class Ortho4XP_Config(tk.Toplevel):
 
     def popup(self,header,input_text):
         self.popupwindow = tk.Toplevel()
-        #self.popupwindow.option_add("*Font", "Monospace 10")
         self.popupwindow.wm_title("Hint!")
         ttk.Label(self.popupwindow, text=header+" :",anchor=W,font="TkBoldFont").pack(side="top", fill="x", padx=5,pady=3)
         ttk.Label(self.popupwindow, text=input_text,wraplength=600,anchor=W).pack(side="top", fill="x", padx=5,pady=0)
