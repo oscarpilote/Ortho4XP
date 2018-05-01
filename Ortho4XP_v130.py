@@ -31,9 +31,9 @@ if __name__ == '__main__':
             except: 
                 print("Could not create required directory",directory,". Exit.")
                 sys.exit()
-    IMG.initialize_providers_dict()
     IMG.initialize_extents_dict()
     IMG.initialize_color_filters_dict()
+    IMG.initialize_providers_dict()
     IMG.initialize_combined_providers_dict()
     if len(sys.argv)==1: # switch to the graphical interface
         Ortho4XP = GUI.Ortho4XP_GUI()

@@ -285,17 +285,21 @@ def build_mesh(tile):
         if not os.path.isfile(file):
             UI.exit_message_and_bottom_line("\nERROR: Could not find ",file)
             return 0
-    tile.ensure_elevation_data(info_only=True)
-    if not  os.path.getsize(alt_file)==4*tile.dem.nxdem*tile.dem.nydem:
-        UI.exit_message_and_bottom_line("\nERROR: Cached raster elevation does not match the current custom DEM specs.\n       You must run Step 1 and Step 2 with the same elevation base.")
-        return 0
+    if not tile.iterate:
+        tile.ensure_elevation_data(info_only=True)
+        if not  os.path.getsize(alt_file)==4*tile.dem.nxdem*tile.dem.nydem:
+            UI.exit_message_and_bottom_line("\nERROR: Cached raster elevation does not match the current custom DEM specs.\n       You must run Step 1 and Step 2 with the same elevation base.")
+            return 0
+    else:
+        tile.ensure_elevation_data()
+        tile.dem.write_to_file(FNAMES.alt_file(tile))
             
     f=open(node_file,'r')
     input_nodes=int(f.readline().split()[0])
     f.close()
     timer=time.time()
     tri_verbosity = 'Q' if UI.verbosity<=1 else 'V'
-    output_poly   = 'P' if UI.cleaning_level else 'P'
+    output_poly   = 'P' if UI.cleaning_level else ''
     do_refine     = 'r' if tile.iterate else 'A'
     limit_tris    = 'S'+str(max(int(tile.limit_tris/1.9-input_nodes),0)) if tile.limit_tris else ''
     Tri_option    = '-p'+do_refine+'uYB'+tri_verbosity+output_poly+limit_tris

@@ -39,6 +39,8 @@ def needs_mask(tile, til_x_left,til_y_top,zoomlevel,*args):
 
 ##############################################################################
 def build_masks(tile):
+    if UI.is_working: return 0
+    UI.is_working=1
     ##########################################
     def transition_profile(ratio,ttype):
         if ttype=='spline':

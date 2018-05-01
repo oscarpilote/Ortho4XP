@@ -135,7 +135,6 @@ def build_all(tile):
 ##############################################################################
 def build_tile_list(tile,list_lat_lon,do_osm,do_mesh,do_mask,do_dsf,do_ovl,do_ptc):
     if UI.is_working: return 0
-    UI.is_working=1
     timer=time.time()
     UI.lvprint(0,"Batch build launched for a number of",len(list_lat_lon),"tiles.")
     k=0
@@ -158,7 +157,6 @@ def build_tile_list(tile,list_lat_lon,do_osm,do_mesh,do_mask,do_dsf,do_ovl,do_pt
         if do_ovl: OVL.build_overlay(lat,lon)
         if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
     UI.lvprint(0,"Batch process completed in",UI.nicer_timer(time.time()-timer))
-    UI.is_working=0
     return 1
 ##############################################################################
 

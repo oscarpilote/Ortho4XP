@@ -385,7 +385,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         self.zmap_choice.set(self.parent.default_website.get())
 
         self.zlpol=tk.IntVar()
-        self.zlpol.set(max(min(int(self.parent.default_zl.get())+1,19),15))
+        self.zlpol.set(max(min(int(self.parent.default_zl.get())+1,19),12))
         self.gb = tk.StringVar()
         self.gb.set('0Gb')
     

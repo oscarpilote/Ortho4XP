@@ -236,7 +236,7 @@ def build_dsf(tile,download_queue):
             scale_z=771   # 65535=771*85
             inv_stp=85
         elif altmax-altmin < 1284:
-            scale_z=1285  # 66535=1285*51
+            scale_z=1285  # 65535=1285*51
             inv_stp=51
         elif altmax-altmin < 4368:
             scale_z=4369  # 65535=4369*15

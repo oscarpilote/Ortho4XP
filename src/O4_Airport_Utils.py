@@ -112,7 +112,12 @@ def sort_and_reconstruct_runways(tile,airport_layer,dico_airports):
         for wayid in dico_airports[airport]['runway']:
             if airport_layer.dicosmw[wayid][0]==airport_layer.dicosmw[wayid][-1]:
                 runway_pol=geometry.Polygon(numpy.round(numpy.array([airport_layer.dicosmn[nodeid] for nodeid in airport_layer.dicosmw[wayid]])-numpy.array([tile.lon,tile.lat]),7))
-                if runway_pol.is_valid: 
+                if runway_pol.is_valid:
+                    runway_pol_rect=VECT.min_bounding_rectangle(runway_pol) 
+                    discrep=runway_pol_rect.hausdorff_distance(runway_pol)
+                    if discrep>0.0008:
+                        UI.lvprint(2,"Bad runway (geometry too far from a rectangle) close to",airport,"at",dico_airports[airport]['repr_node'])
+                        continue    
                     rectangle=numpy.array(VECT.min_bounding_rectangle(runway_pol).exterior.coords)
                     if VECT.length_in_meters(rectangle[0:2])<VECT.length_in_meters(rectangle[1:3]):
                         runway_start=(rectangle[0]+rectangle[1])/2
@@ -307,6 +312,7 @@ def smooth_raster_over_airports(tile,dico_airports,preserve_boundary=True):
         colmax=min(ceil((xmax-x0)/xstep)+pix,tile.dem.nxdem-1)
         rowmin=max(floor((y1-ymax)/ystep)-pix,0)
         rowmax=min(ceil((y1-ymin)/ystep)+pix,tile.dem.nydem-1)
+        if colmin==colmax or rowmin==rowmax: continue
         X0=x0+colmin*xstep
         Y1=y1-rowmin*ystep
         airport_im=Image.new('L',(upscale*(colmax-colmin+1),upscale*(rowmax-rowmin+1)))

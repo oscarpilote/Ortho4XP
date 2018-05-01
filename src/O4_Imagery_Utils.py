@@ -220,7 +220,9 @@ def initialize_providers_dict():
                 elif key=='extent':
                     pass
                 elif key=='color_filters':
-                    pass
+                    if value not in color_filters_dict:
+                        print("Error in reading color_filter for provider",provider_code,". Assuming none.")
+                        provider[key]='none'
                 elif key=='imagery_dir':
                    pass
             if 'request_type' in provider and provider['request_type']=='wmts':
@@ -291,7 +293,7 @@ def initialize_combined_providers_dict():
                     print("Unknown color filter in combined provider",provider_code,":",color_code)
                     continue
                 if priority not in ['low','medium','high','mask']:
-                    print("Unknown priority in combined provider",provider_code,":",priority)
+                    print("Unknown priority in combined provider",provider_code,":",priority,)
                     continue
                 comb_list.append({'layer_code':layer_code,'extent_code':extent_code,'color_code':color_code,'priority':priority})
             f.close()
@@ -519,7 +521,7 @@ def http_request_to_image(width,height,url,request_headers,http_session):
 ###############################################################################################################################
 def get_wms_image(bbox,width,height,provider,http_session):
     if has_URL and provider['code'] in URL.custom_url_list:
-        url=URL.custom_url_request(bbox,width,height,provider)
+        url=URL.custom_wms_request(bbox,width,height,provider)
     else:
         (minx,maxy,maxx,miny)=bbox
         if provider['wms_version'].split('.')[1]=="3":
@@ -547,8 +549,10 @@ def get_wms_image(bbox,width,height,provider,http_session):
 def get_wmts_image(tilematrix,til_x,til_y,provider,http_session):
   til_x_orig,til_y_orig=til_x,til_y
   down_sample=0
-  while True:   
-    if provider['request_type']=='tms': # TMS
+  while True:
+    if has_URL and provider['code'] in URL.custom_url_list:
+        url=URL.custom_tms_request(tilematrix,til_x,til_y,provider)     
+    elif provider['request_type']=='tms': # TMS
         url=provider['url_template'].replace('{zoom}',str(tilematrix))
         url=url.replace('{x}',str(til_x)) 
         url=url.replace('{y}',str(til_y))
@@ -591,10 +595,13 @@ def get_wmts_image(tilematrix,til_x,til_y,provider,http_session):
         y1=y0+height//(2**down_sample)
         return (success,data.crop((x0,y0,x1,y1)).resize((width,height),Image.BICUBIC)) 
     elif '[404]' in data:
+        if ('grid_type' not in provider) or (provider['grid_type']!='webmercator'):
+            return (0,Image.new('RGB',(width,height),'white'))
         til_x=til_x//2
         til_y=til_y//2
         tilematrix-=1
         down_sample+=1 
+        print("downsample",down_sample)
         if down_sample>=6:
             return (0,Image.new('RGB',(width,height),'white'))
     else:
@@ -990,27 +997,30 @@ def gdalwarp_alternative(s_bbox,s_epsg,s_im,t_bbox,t_epsg,t_size):
 
 ###############################################################################################################################
 def color_transform(im,color_code):
-    for color_filter in color_filters_dict[color_code]:
-        if color_filter[0]=='brightness-contrast': #both range from -127 to 127, http://gimp.sourcearchive.com/documentation/2.6.1/gimpbrightnesscontrastconfig_8c-source.html
-            (brightness,contrast)=color_filter[1:3]
-            if brightness>=0:  
-                im=im.point(lambda i: 128+tan(pi/4*(1+contrast/128))*(brightness+(255-brightness)/255*i-128))
-            else:
-                im=im.point(lambda i: 128+tan(pi/4*(1+contrast/128))*((255+brightness)/255*i-128))
-        elif color_filter[0]=='saturation':  
-            saturation=color_filter[1]   
-            im=ImageEnhance.Color(im).enhance(1+saturation/100)
-        elif color_filter[0]=='sharpness':
-            im=ImageEnhance.Sharpness(im).enhance(color_filter[1])
-        elif color_filter[0]=='blur':
-            im=im.filter(ImageFilter.GaussianBlur(color_filter[1]))
-        elif color_filter[0]=='levels': # levels range between 0 and 255, gamma is neutral at 1 / https://pippin.gimp.org/image-processing/chap_point.html
-            bands=im.split()
-            for j in [0,1,2]:
-               in_min,gamma,in_max,out_min,out_max=color_filter[5*j+1:5*j+6]
-               bands[j].paste(bands[j].point(lambda i: out_min+(out_max-out_min)*((max(in_min,min(i,in_max))-in_min)/(in_max-in_min))**(1/gamma)))
-            im=Image.merge(im.mode,bands)
-    return im
+    try:
+        for color_filter in color_filters_dict[color_code]:
+            if color_filter[0]=='brightness-contrast': #both range from -127 to 127, http://gimp.sourcearchive.com/documentation/2.6.1/gimpbrightnesscontrastconfig_8c-source.html
+                (brightness,contrast)=color_filter[1:3]
+                if brightness>=0:  
+                    im=im.point(lambda i: 128+tan(pi/4*(1+contrast/128))*(brightness+(255-brightness)/255*i-128))
+                else:
+                    im=im.point(lambda i: 128+tan(pi/4*(1+contrast/128))*((255+brightness)/255*i-128))
+            elif color_filter[0]=='saturation':  
+                saturation=color_filter[1]   
+                im=ImageEnhance.Color(im).enhance(1+saturation/100)
+            elif color_filter[0]=='sharpness':
+                im=ImageEnhance.Sharpness(im).enhance(color_filter[1])
+            elif color_filter[0]=='blur':
+                im=im.filter(ImageFilter.GaussianBlur(color_filter[1]))
+            elif color_filter[0]=='levels': # levels range between 0 and 255, gamma is neutral at 1 / https://pippin.gimp.org/image-processing/chap_point.html
+                bands=im.split()
+                for j in [0,1,2]:
+                    in_min,gamma,in_max,out_min,out_max=color_filter[5*j+1:5*j+6]
+                    bands[j].paste(bands[j].point(lambda i: out_min+(out_max-out_min)*((max(in_min,min(i,in_max))-in_min)/(in_max-in_min))**(1/gamma)))
+                im=Image.merge(im.mode,bands)
+        return im
+    except:
+        return im
 ###############################################################################################################################
 
 ###############################################################################################################################

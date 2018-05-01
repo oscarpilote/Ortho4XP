@@ -240,7 +240,7 @@ def read_elevation_from_file(file_name,lat,lon,info_only=False,base_if_error=360
             (nxdem,nydem)=(ds.RasterXSize,ds.RasterYSize) 
             nodata=rs.GetNoDataValue()
             if nodata is None: 
-                UI.vprint(1,"   WARNING: raster DEM does not advertise its no_data value, assuming -32768.")
+                UI.vprint(1,"    WARNING: raster DEM does not advertise its no_data value, assuming -32768.")
                 nodata=-32768
             else: # elevations being stored as float32, we push the nodata to that framework too
                 nodata=numpy.float32(nodata)
@@ -419,17 +419,17 @@ def http_request(url,source):
             if ('[20' in status_code):
                 return r
             elif ('[40' in status_code or '[30' in status_code):
-                UI.vprint(2,"Server said 'Not Found'")
+                UI.vprint(2,"    Server said 'Not Found'")
                 return 0
             elif ('[5' in status_code):      
-                UI.vprint(2,"Server said 'Internal Error'.",status_code)
+                UI.vprint(2,"    Server said 'Internal Error'.",status_code)
             else:
                 UI.vprint(2,status_code)
         except Exception as e:
             UI.vprint(2,e)
         tentative+=1
         if tentative==6: return 0
-        UI.vprint(1,"     ",source,"server may be down or busy, new tentative in",2**tentative,"sec...")
+        UI.vprint(1,"    ",source,"server may be down or busy, new tentative in",2**tentative,"sec...")
         time.sleep(2**tentative)
 ##############################################################################
 
@@ -438,9 +438,9 @@ def fill_nodata_values_with_nearest_neighbor(alt_dem,nodata):
         step=0
         while (alt_dem==nodata).any():
             if not step:
-                UI.vprint(2,"   INFO: Elevation file contains voids, trying to fill them recursively by nearest neighbour.")       
+                UI.vprint(2,"    INFO: Elevation file contains voids, trying to fill them recursively by nearest neighbour.")       
             else:
-                UI.vprint(2,step)
+                UI.vprint(2,"    ",step)
             alt10=numpy.roll(alt_dem,1,axis=0)
             alt10[0]=alt_dem[0]
             alt20=numpy.roll(alt_dem,-1,axis=0)
@@ -454,11 +454,11 @@ def fill_nodata_values_with_nearest_neighbor(alt_dem,nodata):
             atemp=numpy.maximum(atemp,alt02)
             alt_dem[alt_dem==nodata]=atemp[alt_dem==nodata]
             step+=1
-            if step>10:
-                UI.vprint(1,"   WARNING: The raster contain holes that seem to big to be filled... I'm filling the remainder with zero.")
+            if step>20:
+                UI.vprint(1,"    WARNING: The raster contain holes that seem to big to be filled... I'm filling the remainder with zero.")
                 alt_dem[alt_dem==nodata]=0
                 break
-        if step: UI.vprint(2,"   Done.") 
+        if step: UI.vprint(2,"    Done.") 
 ##############################################################################
 
 ##############################################################################

@@ -25,19 +25,21 @@ else:
 
 ##############################################################################
 def build_overlay(lat,lon):
+    if UI.is_working: return 0
+    UI.is_working=1
     timer=time.time()
     UI.logprint("Step 4 for tile lat=",lat,", lon=",lon,": starting.")
     UI.vprint(0,"\nStep 4 : Extracting overlay for tile "+FNAMES.short_latlon(lat,lon)+" : \n--------\n")
     file_to_sniff=os.path.join(custom_overlay_src,"Earth nav data",FNAMES.long_latlon(lat,lon)+'.dsf')
     if not os.path.exists(file_to_sniff):
-        UI.vprint(1,"   ERROR: file ",file_to_sniff,"absent. Recall that the overlay source directory needs to be set in the config window first.")
+        UI.exit_message_and_bottom_line("   ERROR: file ",file_to_sniff,"absent. Recall that the overlay source directory needs to be set in the config window first.")
         return 0
     file_to_sniff_loc=os.path.join(FNAMES.Tmp_dir,FNAMES.short_latlon(lat,lon)+'.dsf')
     UI.vprint(1,"-> Making a copy of the original overlay DSF in tmp dir")
     try:
         shutil.copy(file_to_sniff,file_to_sniff_loc)
     except:
-        UI.vprint(1,"   ERROR: could not copy it. Disk full, write permissions, erased tmp dir ?")
+        UI.exit_message_and_bottom_line("   ERROR: could not copy it. Disk full, write permissions, erased tmp dir ?")
         return 0
     f = open(file_to_sniff_loc,'rb')
     dsfid = f.read(2).decode('ascii')
