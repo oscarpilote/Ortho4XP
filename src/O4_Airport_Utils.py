@@ -58,7 +58,11 @@ def discover_airport_names(airport_layer,dico_airports):
             dico_airports[key]['repr_node']=repr_node
             try:
                 dico_airports[key]['boundary']=geometry.Polygon(numpy.array([airport_layer.dicosmn[nodeid] for nodeid in airport_layer.dicosmw[osmid]])) if osmtype=='w'\
-                                           else ops.cascaded_union([geom for geom in [geometry.Polygon(numpy.array([airport_layer.dicosmn[nodeid] for nodeid in nodelist])) for nodelist in airport_layer.dicosmr[osmid]['outer']]]) if osmtype=='r' else None
+                                           else ops.cascaded_union([geom for geom in [geometry.Polygon(numpy.array([airport_layer.dicosmn[nodeid] for nodeid in nodelist])) for nodelist in airport_layer.dicosmr[osmid]['outer']]]) if osmtype=='r'\
+                                           else None
+                if not dico_airports[key]['boundary'].is_valid: 
+                    UI.lvprint(2,"Airport ",dico_airports[key],"OSM boundary is an invalid polygon, boundary set to None.")
+                    dico_airports[key]['boundary']=None
             except:
                 UI.lvprint(2,"WARNING:  A presumably erroneous tag marked aerodrome was found and skipped close to the point",repr_node,".\n          You might wish to check and correct it online in OSM.")  
                 dico_airports.pop(key,None)

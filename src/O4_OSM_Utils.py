@@ -324,7 +324,7 @@ def get_overpass_data(query,bbox,server_code=None):
            true_server_code = random.choice(list(overpass_servers.keys())) if overpass_server_choice=='random' else overpass_server_choice
         base_url=overpass_servers[true_server_code]
         if isinstance(query,str):
-            overpass_query=query+str(bbox)
+            overpass_query=query+str(bbox)+";"
         else: # query is a tuple 
             overpass_query=''.join([x+str(bbox)+";" for x in query])
         url=base_url+"?data=("+overpass_query+");(._;>>;);out meta;"
