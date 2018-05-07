@@ -367,6 +367,7 @@ def ensure_elevation(source,lat,lon):
         usgs_name='USGS_NED_13_n'+str(lat + 1)+'w'+str(-lon).zfill(3)+'_IMG'
         r=http_request(url_base+usgs_name+'.zip',source)
         if not r:
+            UI.vprint(2,"    Trying alternative naming scheme.")
             usgs_name="imgn"+str(lat + 1)+"w"+str(-lon).zfill(3)+"_13"
             r=http_request(url_base+'n'+str(lat + 1).zfill(2)+'w'+str(-lon).zfill(3)+'.zip',source)
             if not r:
@@ -388,6 +389,7 @@ def ensure_elevation(source,lat,lon):
         usgs_base='n'+str(lat + 1)+'w'+str(-lon).zfill(3)
         r=http_request(url_base+'USGS_NED_1_'+usgs_base+'_ArcGrid.zip',source)
         if not r:
+            UI.vprint(2,"    Trying alternative naming scheme.")
             r=http_request(url_base+usgs_base+'.zip',source)
             if not r:
                 return 0
