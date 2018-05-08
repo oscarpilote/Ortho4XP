@@ -199,7 +199,7 @@ def remove_unwanted_textures(tile):
             except:pass
 ##############################################################################
 
-def smart_zone_list(list_lat_lon, screen_res, fov, fpa, provider, max_zl, min_zl):
+def smart_zone_list(list_lat_lon, screen_res, fov, fpa, provider, max_zl, min_zl, greediness=1, greediness_threshold=0.70):
     tiles_to_build = [XPlaneTile(lat, lon) for (lat, lon) in list_lat_lon]
     airport_collection = AirportDataSource().airports_in(tiles_to_build, include_surrounding_tiles=True)
 
@@ -208,7 +208,13 @@ def smart_zone_list(list_lat_lon, screen_res, fov, fpa, provider, max_zl, min_zl
         tile_poly = shapely.prepared.prep(tile.polygon())
         tile_zones = []
         for zl in range(max_zl, min_zl - 1, -1):
-            for polygon in airport_collection.polygons(zl, screen_res, fov, fpa):
+            for polygon in airport_collection.polygons(zl,
+                                                       max_zl,
+                                                       screen_res,
+                                                       fov,
+                                                       fpa,
+                                                       greediness,
+                                                       greediness_threshold):
                 if not tile_poly.disjoint(polygon):
                     coords = []
                     for (x, y) in polygon.exterior.coords:
@@ -218,5 +224,5 @@ def smart_zone_list(list_lat_lon, screen_res, fov, fpa, provider, max_zl, min_zl
     return all_zones
 
 
-def smart_zone_list_1(tile_lat_lon, screen_res, fov, fpa, provider, max_zl, min_zl):
-    return smart_zone_list([tile_lat_lon], screen_res, fov, fpa, provider, max_zl, min_zl)[0]
+def smart_zone_list_1(tile_lat_lon, screen_res, fov, fpa, provider, max_zl, min_zl, greediness=1, greediness_threshold=0.70):
+    return smart_zone_list([tile_lat_lon], screen_res, fov, fpa, provider, max_zl, min_zl, greediness, greediness_threshold)[0]

@@ -1,4 +1,5 @@
 import bisect
+import functools
 import glob
 import json
 import math
@@ -13,6 +14,14 @@ import shapely.prepared
 import O4_File_Names as FNAMES
 import O4_Config_Utils as CFG
 import O4_Geo_Utils as GEO
+
+########################################################################################################################
+#
+# Hard-coded parameters
+#
+########################################################################################################################
+
+__ZL_OPTIM_LIMIT__ = 12  # At which ZL do we stop replacing lower zl tiles with higher ones ?
 
 
 class O4AirportDataSourceException(Exception):
@@ -62,15 +71,19 @@ def zl_optimal_ground_dist(zl, screen_res, fov, fpa):
 
 def zl_to_mpx(zl):
     """
-    >>> list(map(zl_to_mpx, range(10, 20)))
-    [102.4, 51.2, 25.6, 12.8, 6.4, 3.2, 1.6, 0.8, 0.4, 0.2]
+    >>> list(map(zl_to_mpx, range(10, 22)))
+    [102.4, 51.2, 25.6, 12.8, 6.4, 3.2, 1.6, 0.8, 0.4, 0.2, 0.1, 0.05]
     """
-    return 0.2 * (2 ** (19 - zl))
+    return 0.1 * (2 ** (20 - zl))
 
 
 def mpx_to_zl(mpx):
     """
-    >>> tuple(map(mpx_to_zl, (0.1, 0.2, 0.3)))
+    >>> tuple(map(mpx_to_zl, (0.04, 0.05, 0.06)))
+    (21, 21, 20)
+    >>> tuple(map(mpx_to_zl, (0.09, 0.10, 0.11)))
+    (20, 20, 19)
+    >>> tuple(map(mpx_to_zl, (0.19, 0.20, 0.21)))
     (19, 19, 18)
     >>> tuple(map(mpx_to_zl, (0.3, 0.4, 0.5)))
     (18, 18, 17)
@@ -91,8 +104,8 @@ def mpx_to_zl(mpx):
     >>> tuple(map(mpx_to_zl, (102.3, 102.4, 102.5)))
     (10, 10, 10)
     """
-    zoom_levels = list(range(19, 9, -1))
-    max_mpx_for_zl = list(map(zl_to_mpx, range(19, 10, -1)))
+    zoom_levels = list(range(21, 9, -1))
+    max_mpx_for_zl = list(map(zl_to_mpx, range(21, 10, -1)))
     return zoom_levels[bisect.bisect_left(max_mpx_for_zl, mpx)]
 
 
@@ -101,6 +114,12 @@ def height_to_visible_ground_dist(height, fov):
     At the given height and fov, how much actual ground distance can we see ?
     => ground_distance = 2 * height * tan(fov / 2)
 
+    >>> '{:.15f}'.format(height_to_visible_ground_dist(166, math.radians(60)))
+    '191.680289370955734'
+    >>> '{:.15f}'.format(height_to_visible_ground_dist(332, math.radians(60)))
+    '383.360578741911468'
+    >>> '{:.15f}'.format(height_to_visible_ground_dist(665, math.radians(60)))
+    '767.875858022202237'
     >>> '{:.15f}'.format(height_to_visible_ground_dist(1330, math.radians(60)))
     '1535.751716044404475'
     >>> '{:.15f}'.format(height_to_visible_ground_dist(2660, math.radians(60)))
@@ -134,6 +153,12 @@ def height_to_mpx(height, fov, screen_res):
     At the given height/fov/screen_res, how many meters does each pixel represent ?
     => meters_per_pixel = 2 * height * tan(fov / 2) / screen_res
 
+    >>> '{:.15f}'.format(height_to_mpx(166, math.radians(60), 3840))
+    '0.049916742023686'
+    >>> '{:.15f}'.format(height_to_mpx(332, math.radians(60), 3840))
+    '0.099833484047373'
+    >>> '{:.15f}'.format(height_to_mpx(665, math.radians(60), 3840))
+    '0.199967671359949'
     >>> '{:.15f}'.format(height_to_mpx(1330, math.radians(60), 3840))
     '0.399935342719897'
     >>> '{:.15f}'.format(height_to_mpx(2660, math.radians(60), 3840))
@@ -159,6 +184,10 @@ def mpx_to_height(mpx, fov, screen_res):
     At which height will we get the desired meters/pixel, with the given fov/screen_res ?
     => height = (meters_per_pixel * screen_res) / (2 * tan(fov / 2))
 
+    >>> '{:.15f}'.format(mpx_to_height(0.05, math.radians(60), 3840))
+    '166.276877526612225'
+    >>> '{:.15f}'.format(mpx_to_height(0.1, math.radians(60), 3840))
+    '332.553755053224450'
     >>> '{:.15f}'.format(mpx_to_height(0.2, math.radians(60), 3840))
     '665.107510106448899'
     >>> '{:.15f}'.format(mpx_to_height(0.4, math.radians(60), 3840))
@@ -248,10 +277,37 @@ class GTile:
     - O4_Geo_Utils.py
     - https://developers.google.com/maps/documentation/javascript/coordinates"""
 
+    __INSTANCES_CACHE__ = {}
+    __INSTANCES_CACHE_HITS__ = 0
+    __INSTANCES_CACHE_MISSES__ = 0
+
     @classmethod
-    def from_lat_lon(cls, lat, lon, zl):
-        (x, y) = GEO.wgs84_to_orthogrid(lat, lon, zl)
-        return GTile(x, y, zl)
+    def cache_info(cls):
+        def lru_cache_summary(info):
+            return 'reuse: {:.02f}%, size: {:.02f}% ({}/{})'.format(
+                (info.hits / info.misses) if info.misses else 0,
+                info.currsize / info.maxsize,
+                info.currsize,
+                info.maxsize)
+
+        infos = {'instances': 'reuse: {:.02f}%'.format(cls.__INSTANCES_CACHE_HITS__ /
+                                                       cls.__INSTANCES_CACHE_MISSES__),
+                 'lower_zl_tile': lru_cache_summary(cls.lower_zl_tile.cache_info()),
+                 'higher_zl_subtiles': lru_cache_summary(cls.higher_zl_subtiles.cache_info()),
+                 'zl_siblings': lru_cache_summary(cls.zl_siblings.cache_info()),
+                 'surrounding_tiles': lru_cache_summary(cls.surrounding_tiles.cache_info()),
+                 'polygon': lru_cache_summary(cls.polygon.cache_info())
+                 }
+        return infos
+
+    def __new__(cls, x, y, zl, *args, **kwargs):
+        try:
+            inst = cls.__INSTANCES_CACHE__[(x, y, zl)]
+            cls.__INSTANCES_CACHE_HITS__ += 1
+        except KeyError:
+            cls.__INSTANCES_CACHE__[(x, y, zl)] = inst = super(GTile, cls).__new__(cls, *args, **kwargs)
+            cls.__INSTANCES_CACHE_MISSES__ += 1
+        return inst
 
     def __init__(self, x, y, zl):
         self.x = x
@@ -270,6 +326,7 @@ class GTile:
     def __repr__(self):
         return '<GTile ({}, {})@ZL{}>'.format(self.x, self.y, self.zl)
 
+    @functools.lru_cache(maxsize=2 ** 13)
     def lower_zl_tile(self, target_zl=None):
         if target_zl and target_zl >= self.zl:
             return self
@@ -278,31 +335,37 @@ class GTile:
                       (((self.y // 16) // 2) * 16),
                       self.zl - 1)
         if target_zl and target_zl < self.zl - 1:
+            # TODO: optim: should come up with some math instead
             return lower.lower_zl_tile(target_zl=target_zl)
         else:
             return lower
 
+    @functools.lru_cache(maxsize=2 ** 12)
     def higher_zl_subtiles(self, target_zl=None):
         if target_zl and target_zl <= self.zl:
             return [self]
 
-        zl_diff = (target_zl - self.zl) if target_zl else 1
-        return {GTile(x, y, target_zl or (self.zl + 1))
+        zl = target_zl or (self.zl + 1)
+        zl_diff = zl - self.zl
+        return (GTile(x, y, zl)
                 for x in range(self.x * 2 ** zl_diff, (self.x + 16) * 2 ** zl_diff, 16)
-                for y in range(self.y * 2 ** zl_diff, (self.y + 16) * 2 ** zl_diff, 16)}
+                for y in range(self.y * 2 ** zl_diff, (self.y + 16) * 2 ** zl_diff, 16))
 
-    def zl_siblings(self, include_self=False):
-        return self.lower_zl_tile().higher_zl_subtiles() - (set() if include_self else {self})
+    @functools.lru_cache(maxsize=2 ** 13)
+    def zl_siblings(self):
+        return self.lower_zl_tile().higher_zl_subtiles()
 
+    @functools.lru_cache()
     def surrounding_tiles(self, include_self=False):
-        return [tile
+        return (tile
                 for x_offset in [-16, 0, 16]
                 for y_offset in [-16, 0, 16]
-                for tile in [GTile(self.x + x_offset,
+                for tile in (GTile(self.x + x_offset,
                                    self.y + y_offset,
-                                   self.zl)]
-                if tile != self or include_self]
+                                   self.zl))
+                if tile != self or include_self)
 
+    @functools.lru_cache(maxsize=2 ** 14)
     def polygon(self):
         (lat_max, lon_min) = GEO.gtile_to_wgs84(self.x, self.y, self.zl)
         (lat_min, lon_max) = GEO.gtile_to_wgs84(self.x + 16, self.y + 16, self.zl)
@@ -351,16 +414,12 @@ class Runway:
             'end_2_lon': self.end_2_lon
         }
 
-    def relevant_xptiles(self, include_surrounding_tiles=False):
+    def relevant_xp_tiles(self, include_surrounding_tiles=False):
         """Return the tiles where this runway is located (could be several ones)."""
         return [tile
                 for end_tile in {XPlaneTile(self.end_1_lat, self.end_1_lon),
                                  XPlaneTile(self.end_2_lat, self.end_2_lon)}
                 for tile in [end_tile] + (end_tile.surrounding_tiles() if include_surrounding_tiles else [])]
-
-    def is_relevant_for(self, xptile, include_surrounding_tiles=False):
-        """Is this runway part of the given tile ?"""
-        return xptile in self.relevant_xptiles(include_surrounding_tiles)
 
     def _runway_center(self):
         geod = pyproj.Geod(ellps='WGS84')
@@ -371,7 +430,7 @@ class Runway:
                                                     lons2=self.end_2_lon,
                                                     lats2=self.end_2_lat)
 
-        # Then find the center of the runway, cache it and return it
+        # Then find the center of the runway and return it
         (lon, lat, _) = geod.fwd(lons=self.end_1_lon,
                                  lats=self.end_1_lat,
                                  az=azimut_1_2,
@@ -395,17 +454,21 @@ class Runway:
                                                     lons2=self.end_2_lon,
                                                     lats2=self.end_2_lat)
 
+        # Deduce the polygon dimensions
+        polygon_length = optimal_ground_dist + length
+        polygon_width = (optimal_ground_dist + self.width) / 1.61803398875
+
         # Compute the two points near end_1
         (lon, lat, _) = geod.fwd(lons=self._runway_center().x,
                                  lats=self._runway_center().y,
                                  az=azimut_2_1,
-                                 dist=(length + optimal_ground_dist) / 2)
+                                 dist=polygon_length / 2)
         ((lon_1, lon_2), (lat_1, lat_2), _) = geod.fwd(lons=(lon, lon),
                                                        lats=(lat, lat),
                                                        az=(azimut_2_1 - 90.0,
                                                            azimut_2_1 + 90.0),
-                                                       dist=(self.width / 2 + optimal_ground_dist / 4,
-                                                             self.width / 2 + optimal_ground_dist / 4))
+                                                       dist=(polygon_width / 2,
+                                                             polygon_width / 2))
         coords.append((lon_1, lat_1))
         coords.append((lon_2, lat_2))
 
@@ -414,8 +477,7 @@ class Runway:
                                                        lats=(lat_1, lat_2),
                                                        az=(azimut_1_2,
                                                            azimut_1_2),
-                                                       dist=(length + optimal_ground_dist,
-                                                             length + optimal_ground_dist))
+                                                       dist=(polygon_length, polygon_length))
         coords.append((lon_2, lat_2))
         coords.append((lon_1, lat_1))
 
@@ -429,10 +491,11 @@ class Runway:
         (lon_min, lat_min, lon_max, lat_max) = prepared_polygon.context.envelope.bounds
         x_min, y_min = GEO.wgs84_to_orthogrid(lat_max, lon_min, zl)
         x_max, y_max = GEO.wgs84_to_orthogrid(lat_min, lon_max, zl)
-        return filter(lambda gtile: prepared_polygon.intersects(gtile.polygon()),
-                      [GTile(x, y, zl)
+
+        return filter(lambda tile: prepared_polygon.intersects(tile.polygon()),
+                      (GTile(x, y, zl)
                        for x in range(x_min, x_max + 16, 16)
-                       for y in range(y_min, y_max + 16, 16)])
+                       for y in range(y_min, y_max + 16, 16)))
 
 
 class Airport:
@@ -480,12 +543,6 @@ class Airport:
     # Airport Interface
     #
 
-    def relevant_tiles(self, include_surrounding_tiles=False):
-        """Return the tiles where this airport is located (could be several ones)."""
-        return {tile
-                for rw in self.runways.values()
-                for tile in rw.relevant_xptiles(include_surrounding_tiles)}
-
     def to_json(self):
         return {
             'type': self.type,
@@ -496,9 +553,12 @@ class Airport:
         }
 
     def gtiles(self, zl, screen_res, fov, fpa):
-        return set(tile
-                   for rw in self.runways.values()
-                   for tile in rw.gtiles(zl, screen_res, fov, fpa))
+        tiles = set()
+        for rw in self.runways.values():
+            for tile in rw.gtiles(zl, screen_res, fov, fpa):
+                if tile not in tiles:
+                    tiles.add(tile)
+                    yield tile
 
 
 class AirportCollection:
@@ -537,7 +597,6 @@ class AirportCollection:
                 self.airports[a.icao] = a
         else:
             raise O4AirportDataSourceException("Incompatible element type")
-        self._cache_gtiles = {}
 
     #
     # Partial Dict interface
@@ -562,55 +621,85 @@ class AirportCollection:
         return self.airports.setdefault(key, default)
 
     #
-    # Airport Interface
+    # gtiles utilities
     #
 
-    def to_json(self):
-        return {icao: arpt.to_json() for (icao, arpt) in self.airports.items()}
+    @staticmethod
+    def _sub_zl_margin(zl, sub_zl_polygon, margin_width):
+        """Take a margin, 1 ZLn tile wide, around each ZLn+1 polygon. Return the corresponding ZLn tiles."""
+        margin_tiles = set()
+        for zl_n1_polygon in sub_zl_polygon:
+            # Build the margin polygon :
+            # - exterior: parallel to ZLn+1 exterior, at margin_width distance
+            # - interior: ZLn+1 exterior
+            zl_n_margin = zl_n1_polygon.exterior.buffer(distance=margin_width,
+                                                        cap_style=shapely.geometry.CAP_STYLE.square,
+                                                        join_style=shapely.geometry.JOIN_STYLE.mitre)
 
-    def gtiles(self, zl, screen_res, fov, fpa):
-        if (zl, screen_res, fov, fpa) in self._cache_gtiles:
-            return self._cache_gtiles[(zl, screen_res, fov, fpa)]
+            # Prepare the margin polygon for multiple querying
+            margin_polygon = shapely.prepared.prep(zl_n_margin.difference(zl_n1_polygon))
 
-        def sub_zl_margin():
-            if zl == 19:
-                return {}
-            else:
-                return set(tile
-                           for step_1 in self.gtiles(zl + 1, screen_res, fov, fpa)
-                           for step_2 in step_1.higher_zl_subtiles(target_zl=19)
-                           for step_3 in step_2.surrounding_tiles(include_self=True)
-                           for tile in step_3.lower_zl_tile(target_zl=zl).higher_zl_subtiles(target_zl=19))
+            # Find all the ZLn gtiles covering the ZLn+1 polygon + margin
+            (lon_min, lat_min, lon_max, lat_max) = margin_polygon.context.envelope.bounds
+            x_min, y_min = GEO.wgs84_to_orthogrid(lat_max, lon_min, zl)
+            x_max, y_max = GEO.wgs84_to_orthogrid(lat_min, lon_max, zl)
 
-        def airport_tiles():
-            return set([tile
-                        for airport in self.airports.values()
-                        for subtile in airport.gtiles(zl, screen_res, fov, fpa)
-                        for tile in subtile.higher_zl_subtiles(target_zl=19)])
+            # Only keep the ZLn tiles intersecting the margin polygon
+            for tile in (GTile(x, y, zl)
+                         for x in range(x_min, x_max + 16, 16)
+                         for y in range(y_min, y_max + 16, 16)):
+                if margin_polygon.intersects(tile.polygon()):
+                    if tile not in margin_tiles:
+                        margin_tiles.add(tile)
+                        yield tile
 
-        # First try to fill in the blanks, by minimizing the lower-zl tiles being more than 70% covered by higher-zl
-        current_tiles = airport_tiles().union(sub_zl_margin())
-        previous_tiles = set(current_tiles)
-        for threshold_len in [0.70 * 2 ** (2 * (19 - i)) for i in range(18, 15, -1)]:
-            previous_tiles = set(tile.lower_zl_tile() for tile in previous_tiles)
-            for tile in previous_tiles:
-                tmp_highest_zl = tile.higher_zl_subtiles(target_zl=19)
-                if len(tmp_highest_zl.intersection(current_tiles)) >= threshold_len:
-                    current_tiles.update(tmp_highest_zl)
+    @staticmethod
+    def _optimized_tiles(tiles, greediness, greediness_threshold):
+        zl_n = tiles[0].zl  # we assume tiles to all be at the same zoom level, ZLn
 
-        # Repeat the process until a full iteration went without changing anything (meaning: until we're done)
+        # Group the input tiles by their lower ZL tile (in a dict of {ZLn-1: [ZLn]})
+        zl_n_tiles = dict()
+        for tile in set(tiles):
+            zl_n_tiles.setdefault(tile.lower_zl_tile(), []).append(tile)
+
+        # For each ZL from ZLn-1 up to ZLmin, check if it's already 70% covered by ZLn tiles
+        # Note that if ZLn <= ZLmin, then this loop will be skipped
+        zl_optim_limit = max(__ZL_OPTIM_LIMIT__, (zl_n - greediness))
+        for threshold_len in [greediness_threshold * 2 ** (2 * (zl_n - i))
+                              for i in range(zl_n - 1, zl_optim_limit - 1, -1)]:
+            for zl_optim_tile in zl_n_tiles.keys():
+                if len(zl_n_tiles[zl_optim_tile]) >= threshold_len:
+                    # If so, add the remaining ZLn tiles
+                    zl_n_tiles[zl_optim_tile] = zl_optim_tile.higher_zl_subtiles(target_zl=zl_n)
+
+            # Prepare a new dict for the next iteration, reuse the existing tiles
+            zl_n_tiles_new = dict()
+            for (zl_optim_tile, zl_n_group) in zl_n_tiles.items():
+                zl_n_tiles_new.setdefault(zl_optim_tile.lower_zl_tile(), []).extend(zl_n_group)
+            zl_n_tiles = zl_n_tiles_new
+
+        return (tile
+                for tile_group in zl_n_tiles.values()
+                for tile in tile_group)
+
+    @staticmethod
+    def _compacted_tiles(tiles):
+        """Compact the tiles into as few instances as possible, by replacing a group of ZLn tiles with their common
+        ZLn-1 tile, if all the ZLn tiles of the group are present."""
+        current_tiles = set(tiles)
         previous_tiles = set()
+        # Repeat the process until a full iteration went without changing anything (meaning: until we're done)
         while current_tiles != previous_tiles:
             previous_tiles = current_tiles
             current_tiles = set()
             rejected_tiles = set()
             # Iterate through each tile, to see if something can be optimized
-            for tile in sorted(previous_tiles):
+            for tile in previous_tiles:
                 if tile in rejected_tiles:
                     # A sibling detected that this one is superseded by its lower_zl tile : ignore it
                     pass
                 else:
-                    siblings = tile.zl_siblings(include_self=True)
+                    siblings = set(tile.zl_siblings())
                     if len(siblings.intersection(previous_tiles)) == 4:
                         # They're already all in : replace them with their common lower zl tile
                         current_tiles.add(tile.lower_zl_tile())
@@ -618,17 +707,65 @@ class AirportCollection:
                     else:
                         # Nothing wrong with this one : add it as-is
                         current_tiles.add(tile)
+        return current_tiles
 
-        return sorted(current_tiles)
+    #
+    # Airport Interface
+    #
 
-    def polygons(self, zl, screen_res, fov, fpa):
+    def to_json(self):
+        return {icao: arpt.to_json() for (icao, arpt) in self.airports.items()}
+
+    def gtiles(self, zl, max_zl, screen_res, fov, fpa, greediness, greediness_threshold):
+        def _margin_width():
+            """Decide on a margin width, arbitrarily based on the width of a ZLn+1 tile"""
+            random_rw = list(list(self.values())[0].values())[0]
+            (lat_1, lon_1) = (random_rw.end_1_lat, random_rw.end_1_lon)
+            (x, y) = GEO.wgs84_to_orthogrid(lat_1, lon_1, zl + 1)
+            (lat_2, lon_2) = GEO.gtile_to_wgs84(x + 16, y, zl + 1)
+            return shapely.geometry.Point(lon_1, lat_1).distance(shapely.geometry.Point(lon_2, lat_2))
+
+        # First compute the tiles for the current zl
+        tiles = [tile
+                 for airport in self.airports.values()
+                 for tile in airport.gtiles(zl, screen_res, fov, fpa)]
+
+        # Also take a margin around each of the ZLn+1 polygons, and return the corresponding ZLn tiles
+        if zl < max_zl:
+            tiles.extend(self._sub_zl_margin(zl,
+                                             self.polygons(zl + 1,
+                                                           max_zl,
+                                                           screen_res,
+                                                           fov,
+                                                           fpa,
+                                                           greediness,
+                                                           greediness_threshold),
+                                             _margin_width()))
+
+        # Optimize texture usage, but "eating" up any lower zl being "greediness_threshold"-percent covered by this zl
+        # Will look up to 'greediness' lower levels
+        tiles = self._optimized_tiles(tiles, greediness, greediness_threshold)
+
+        # Finally, compact and return the tiles
+        return self._compacted_tiles(tiles)
+
+    @functools.lru_cache(maxsize=2 ** 4)
+    def polygons(self, zl, max_zl, screen_res, fov, fpa, greediness, greediness_threshold):
         """Return a Shapely polygon for the given combination of zl, screen_res, fov and fpa (see
         the docstring of zl_optimal_ground_dist() for a detailed explanation, with self-tests.
 
         Calls the polygons() method on each of its airports, and tries to merge the resulting polygons
         into as few new polygons as possible.
         """
-        polys = shapely.ops.unary_union([gtile.polygon() for gtile in self.gtiles(zl, screen_res, fov, fpa)])
+        polys = shapely.ops.unary_union([gtile.polygon()
+                                         for gtile in self.gtiles(zl,
+                                                                  max_zl,
+                                                                  screen_res,
+                                                                  fov,
+                                                                  fpa,
+                                                                  greediness,
+                                                                  greediness_threshold)])
+
         if isinstance(polys, shapely.geometry.MultiPolygon):
             return list(polys)
         elif isinstance(polys, shapely.geometry.Polygon):
@@ -772,7 +909,7 @@ class XPlaneAptDatParser:
                             # If so :
                             # - ensure the airport is in the corresponding AirportCollection
                             # - add the runway to the airport
-                            for rw_tile in runway.relevant_xptiles(include_surrounding_tiles=False):
+                            for rw_tile in runway.relevant_xp_tiles(include_surrounding_tiles=False):
                                 if rw_tile in tile_airports:
                                     # If old airport information was already there, it will be overwritten here :
                                     # this is intentional (same behavior as X-Plane).

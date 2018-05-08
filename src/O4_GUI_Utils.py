@@ -1,9 +1,10 @@
+import datetime
 import os
 import sys
 import shutil
-from math import floor, cos, pi, radians
+import time
+from math import floor, cos, pi
 import queue
-from shapely import geometry
 import threading
 import tkinter as tk
 from   tkinter import RIDGE,N,S,E,W,NW,ALL,END,LEFT,RIGHT,CENTER,HORIZONTAL,filedialog
@@ -537,13 +538,37 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
                 bdpoints+=[int(x),int(y)]
         self.boundary=self.canvas.create_polygon(bdpoints,\
                            outline='black',fill='', width=2)
-        for zone in TILE.smart_zone_list_1(tile_lat_lon=(self.lat, self.lon),
-                                           screen_res=2560,
-                                           fov=60,
-                                           fpa=5,
-                                           provider='BI',
-                                           max_zl=19,
-                                           min_zl=15):
+
+        ################################################################################################################
+        # XXX: tmp profiler
+        #
+        _tmp_enable_profiler = False
+
+        def _tmp_smart_zones_list():
+            return TILE.smart_zone_list_1(tile_lat_lon=(self.lat, self.lon),
+                                          screen_res=2560,
+                                          fov=60,
+                                          fpa=5,
+                                          provider='BI',
+                                          max_zl=19,
+                                          min_zl=12,
+                                          greediness=1,
+                                          greediness_threshold=0.70)
+        wall_time = time.clock()
+
+        if _tmp_enable_profiler:
+            import cProfile
+            prof = cProfile.Profile()
+            smart_zones = prof.runcall(_tmp_smart_zones_list)
+            prof.dump_stats(os.path.join(FNAMES.Ortho4XP_dir, 'smart_zone_list.prof'))
+        else:
+            smart_zones = _tmp_smart_zones_list()
+
+        wall_time_delta = datetime.timedelta(seconds=(time.clock() - wall_time))
+        UI.lvprint(0, "Smart zone list computed in {}s".format(wall_time_delta))
+        ################################################################################################################
+
+        for zone in smart_zones:
             self.coords=zone[0][0:-2]
             self.zlpol.set(zone[1])
             self.zmap_combo.set(zone[2])
