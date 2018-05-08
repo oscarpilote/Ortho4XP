@@ -4,6 +4,7 @@ import sys
 import shutil
 import time
 from math import floor, cos, pi
+import numpy
 import queue
 import threading
 import tkinter as tk
@@ -25,11 +26,92 @@ import O4_Config_Utils as CFG
 # Set OsX=True if you prefer the OsX way of drawing existing tiles but are on Linux or Windows.
 OsX='dar' in sys.platform
 
-############################################################################################
-class Ortho4XP_GUI(tk.Tk):
+class ZoomLevels:
+    """Container class for Zoom Level constants, colors and utilities :
+
+    Zoom level ranges :
+    - ZOOM_LEVELS.levels        : return all the safe zoom levels (excluding the overkill zl 20 and 21)
+    - ZOOM_LEVELS.osm_levels    : return zoom levels for the OSM layer of the Custom Zones window
+    - ZOOM_LEVELS.custom_levels : return zoom levels available for the Custom Zones
+
+    Zoom level colors :
+    - ZOOM_LEVELS.color_of            : a dict of {zl: (red, green, blue)}
+    - ZOOM_LEVELS.tkinter_fg_color_of : a dict of {zl: '#rrggbb'}
+    - ZOOM_LEVELS.tkinter_color_of    : a dict of {zl: '#rrggbb'}
+
+    Utilities :
+    - ZOOM_LEVELS.normalized(zl) : ensure __ZL_MIN__ <= zl <= __ZL_MAX__
+    """
 
     # Constants
-    zl_list         = ['12','13','14','15','16','17','18']
+    __ZL_MIN__ = 12
+    __ZL_LOW__ = 15
+    __ZL_HIGH__ = 18
+    __ZL_MAX__ = 19
+    __ZL_OVERKILL__ = 21
+
+    # Common zoom level ranges
+    all = list(range(__ZL_MIN__, __ZL_MAX__ + 1))
+    osm_levels = [11, 12, 13]
+    custom_levels = list(range(__ZL_LOW__, __ZL_MAX__ + 1))
+
+    def __new__(cls, *args, **kwargs):
+        """Dynamically build a gradient of fg/bg colors for each Zoom Level."""
+        cls.color_of = {zl: color
+                        for (zl, color) in cls._heat_map(cold_zls=range(cls.__ZL_MIN__, cls.__ZL_LOW__),
+                                                         temperate_zls=range(cls.__ZL_LOW__, cls.__ZL_HIGH__),
+                                                         warm_zls=range(cls.__ZL_HIGH__, cls.__ZL_MAX__ + 1),
+                                                         blazing_zls=range(cls.__ZL_MAX__ + 1, cls.__ZL_OVERKILL__ + 1))}
+
+        cls.tkinter_fg_color_of = {zl: ('#000000' if cls.__ZL_MIN__ <= zl <= cls.__ZL_MAX__ else '#FFFFFF')
+                                   for zl in range(cls.__ZL_MIN__, cls.__ZL_OVERKILL__ + 1)}
+
+        cls.tkinter_color_of = {zl: '#{0[0]:02X}{0[1]:02X}{0[2]:02X}'.format(cls.color_of[zl])
+                                for zl in range(cls.__ZL_MIN__, cls.__ZL_OVERKILL__ + 1)}
+
+        return super(ZoomLevels, cls).__new__(cls, *args, **kwargs)
+
+    @classmethod
+    def normalized(cls, zl):
+        """Ensure the provided ZL is between __ZL_MIN__ and __ZL_MAX."""
+        return max(min(int(zl) + 1,
+                       cls.__ZL_MAX__),
+                   cls.__ZL_MIN__)
+
+    @staticmethod
+    def _heat_map(cold_zls, temperate_zls, warm_zls, blazing_zls):
+        """Return a gradient of colors for the provided groups of zoom levels"""
+        cold_range = ((0x00, 0xFF, 0xFF),  # cyan
+                      (0x66, 0xCD, 0xAA))  # medium aquamarine
+        temperate_range = ((0x66, 0xCD, 0xAA),  # medium aquamarine
+                           (0x00, 0x80, 0x00))  # green
+        warm_range = ((0xFF, 0xA5, 0x00),  # orange
+                      (0xFF, 0x00, 0x00))  # red
+        blazing_range = ((0x80, 0x00, 0x00),  # dark red
+                         (0x00, 0x00, 0x00))  # black
+
+        cold = zip(*(numpy.linspace(x[0], x[1], len(cold_zls), dtype=int)
+                     for x in zip(*cold_range)))
+
+        temperate = zip(*(numpy.linspace(x[0], x[1], len(temperate_zls), dtype=int)
+                          for x in zip(*temperate_range)))
+
+        warm = zip(*(numpy.linspace(x[0], x[1], len(warm_zls), dtype=int)
+                   for x in zip(*warm_range)))
+
+        blazing = zip(*(numpy.linspace(x[0], x[1], len(blazing_zls), dtype=int)
+                      for x in zip(*blazing_range)))
+
+        hm = list(zip(list(cold_zls) + list(temperate_zls) + list(warm_zls) + list(blazing_zls),
+                      list(cold) + list(temperate) + list(warm) + list(blazing)))
+        return hm
+
+
+ZOOM_LEVELS = ZoomLevels()
+
+
+############################################################################################
+class Ortho4XP_GUI(tk.Tk):
 
     def __init__(self):
         tk.Tk.__init__(self)
@@ -104,7 +186,7 @@ class Ortho4XP_GUI(tk.Tk):
         self.default_zl = tk.StringVar()
         self.default_zl.trace("w", self.update_cfg)
         tk.Label(self.frame_tile,anchor=W,text='Zoomlevel:',bg="light green").grid(row=0,column=6, padx=5, pady=5,sticky=E+W)
-        self.zl_combo=ttk.Combobox(self.frame_tile,values=self.zl_list,textvariable=self.default_zl,state='readonly',width=3,style='O4.TCombobox')
+        self.zl_combo=ttk.Combobox(self.frame_tile, values=ZOOM_LEVELS.all, textvariable=self.default_zl, state='readonly', width=3, style='O4.TCombobox')
         self.zl_combo.grid(row=0,column=7, padx=5, pady=5,sticky=W)
 
         # Second row (Base Folder)
@@ -375,9 +457,6 @@ class Ortho4XP_GUI(tk.Tk):
 
 ##############################################################################
 class Ortho4XP_Custom_ZL(tk.Toplevel):
-
-    dico_color= {15:'cyan',16:'green',17:'yellow',18:'orange',19:'red'}
-    zl_list   = ['10','11','12','13']
     points=[]
     coords=[]
     polygon_list=[]
@@ -407,7 +486,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         self.map_choice      = tk.StringVar()
         self.map_choice.set('OSM')
         self.zl_choice=tk.StringVar()
-        self.zl_choice.set('11')
+        self.zl_choice.set(str(ZOOM_LEVELS.osm_levels[0]))
         self.progress_preview = tk.IntVar()
         self.progress_preview.set(0)
         self.zmap_choice      = tk.StringVar()
@@ -415,7 +494,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
 
         self.zlpol=tk.IntVar()
         try: # default_zl might still be empty 
-            self.zlpol.set(max(min(int(self.parent.default_zl.get())+1,19),15))
+            self.zlpol.set(ZOOM_LEVELS.normalized(self.parent.default_zl.get()))  # FIXME: re-apply ignored upstream change : min_zl changed from 12 to 15
         except:
             self.zlpol.set(17)
         self.gb = tk.StringVar()
@@ -439,7 +518,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         self.map_combo.grid(row=row,column=0,padx=5,pady=3,sticky=E); row+=1
         
         tk.Label(self.frame_left,anchor=W,text="Zoomlevel : ",bg="light green").grid(row=row,column=0,padx=5,pady=3,sticky=W)
-        self.zl_combo = ttk.Combobox(self.frame_left,textvariable=self.zl_choice,values=self.zl_list,width=3,state='readonly',style='O4.TCombobox')
+        self.zl_combo = ttk.Combobox(self.frame_left, textvariable=self.zl_choice, values=ZOOM_LEVELS.osm_levels, width=3, state='readonly', style='O4.TCombobox')
         self.zl_combo.grid(row=2,column=0,padx=5,pady=3,sticky=E); row+=1
         
         ttk.Button(self.frame_left, text='Preview',command=lambda: self.preview_tile(lat,lon)).grid(row=row,padx=5,column=0,sticky=N+S+E+W); row+=1
@@ -452,12 +531,20 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         self.frame_zlbtn  =  tk.Frame(self.frame_left, border=0,bg='light green')
         for i in range(5): self.frame_zlbtn.columnconfigure(i,weight=1)
         self.frame_zlbtn.grid(row=row,column=0,columnspan=1,sticky=N+S+W+E); row+=1
-        for zl in range(15,20):
-            col=zl-15
-            tk.Radiobutton(self.frame_zlbtn,bd=4,bg=self.dico_color[zl],\
-                    activebackground=self.dico_color[zl],selectcolor=self.dico_color[zl],\
-                    height=2,indicatoron=0,text='ZL'+str(zl),variable=self.zlpol,value=zl,\
-                    command=self.redraw_poly).grid(row=0,column=col,padx=0,pady=0,sticky=N+S+E+W) 
+        for zl in ZOOM_LEVELS.custom_levels:
+            col = zl - ZOOM_LEVELS.custom_levels[0]
+            tk.Radiobutton(self.frame_zlbtn,
+                           bd=4,
+                           fg=ZOOM_LEVELS.tkinter_fg_color_of[zl],
+                           bg=ZOOM_LEVELS.tkinter_color_of[zl],
+                           activebackground=ZOOM_LEVELS.tkinter_color_of[zl],
+                           selectcolor=ZOOM_LEVELS.tkinter_color_of[zl],
+                           height=2,
+                           indicatoron=0,
+                           text='ZL' + str(zl),
+                           variable=self.zlpol,
+                           value=zl,
+                           command=self.redraw_poly).grid(row=0, column=col, padx=0, pady=0, sticky=N + S + E + W)
             
         tk.Label(self.frame_left,anchor=W,text="Approx. Add. Size : ",bg="light green").grid(row=row,column=0,padx=5,pady=10,sticky=W)
         tk.Entry(self.frame_left,width=7,justify=RIGHT,bg="white",fg="blue",textvariable=self.gb).grid(row=row,column=0,padx=5,pady=10,sticky=E); row+=1
@@ -597,7 +684,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         except:
             pass
         try:
-            color=self.dico_color[self.zlpol.get()]
+            color = ZOOM_LEVELS.tkinter_color_of[self.zlpol.get()]
             if len(self.points)>=4:
                 self.poly_curr=self.canvas.create_polygon(self.points,\
                            outline=color,fill='', width=2)
@@ -908,7 +995,6 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
         threading.Thread(target=self.preview_existing_tiles).start()
     
     def preview_existing_tiles(self):
-        dico_color={11:'blue',12:'blue',13:'blue',14:'blue',15:'cyan',16:'green',17:'yellow',18:'orange',19:'red'}
         if self.dico_tiles_done:
             for tile in self.dico_tiles_done:
                 for objid in self.dico_tiles_done[tile][:2]:
@@ -949,7 +1035,7 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
                             tmpf.close()
                             if not prov: prov='?'
                             if zl:
-                                color=dico_color[zl]
+                                color=ZOOM_LEVELS.tkinter_color_of[zl]
                             else:
                                 zl='?'
                             content=prov+'\n'+str(zl)
@@ -995,13 +1081,13 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
                         tmpf.close()
                         if not prov: prov='?'
                         if zl:
-                            color=dico_color[zl]
+                            color=color=ZOOM_LEVELS.tkinter_color_of[zl]
                         else:
                             zl='?'
                         content=prov+'\n'+str(zl)
                     else:
                         content='?'
-                    self.dico_tiles_done[(lat,lon)]=(\
+                            self.dico_tiles_done[(lat,lon)]=(\
                                 self.canvas.create_rectangle(x0,y0,x1,y1,fill=color,stipple='gray12'),\
                                 self.canvas.create_text((x0+x1)//2,(y0+y1)//2,justify=CENTER,text=content)\
                                 dir_name\
