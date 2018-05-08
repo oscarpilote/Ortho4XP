@@ -1,8 +1,9 @@
 import os
 import sys
 import shutil
-from math import floor, cos, pi
+from math import floor, cos, pi, radians
 import queue
+from shapely import geometry
 import threading
 import tkinter as tk
 from   tkinter import RIDGE,N,S,E,W,NW,ALL,END,LEFT,RIGHT,CENTER,HORIZONTAL,filedialog
@@ -386,12 +387,14 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         self.lat=lat
         self.lon=lon 
         self.map_list= sorted([provider_code for provider_code in set(IMG.providers_dict) if IMG.providers_dict[provider_code]['in_GUI']]+sorted(set(IMG.combined_providers_dict)))
+        
         self.map_list=[provider_code for provider_code in self.map_list if provider_code!='SEA']
         self.reduced_map_list=[provider_code for provider_code in self.map_list if provider_code!='OSM']
         self.points=[]
         self.coords=[]
         self.polygon_list=[]
         self.polyobj_list=[]
+        
         
         tk.Toplevel.__init__(self)
         self.title('Preview / Custom zoomlevels')
@@ -534,7 +537,13 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
                 bdpoints+=[int(x),int(y)]
         self.boundary=self.canvas.create_polygon(bdpoints,\
                            outline='black',fill='', width=2)
-        for zone in CFG.zone_list:
+        for zone in TILE.smart_zone_list_1(tile_lat_lon=(self.lat, self.lon),
+                                           screen_res=2560,
+                                           fov=60,
+                                           fpa=5,
+                                           provider='BI',
+                                           max_zl=19,
+                                           min_zl=15):
             self.coords=zone[0][0:-2]
             self.zlpol.set(zone[1])
             self.zmap_combo.set(zone[2])
@@ -922,11 +931,11 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
                         else:
                             content='?'
                         self.dico_tiles_done[(lat,lon)]=(\
-                                self.canvas.create_rectangle(x0,y0,x1,y1,fill=color,stipple='gray12') if not OsX else self.canvas.create_rectangle(x0,y0,x1,y1,outline='black'),\
-                                self.canvas.create_text((x0+x1)//2,(y0+y1)//2,justify=CENTER,text=content,fill='black',font=('Helvetica','12','normal')),\
+                                self.canvas.create_rectangle(x0,y0,x1,y1,fill=color,stipple='gray12'),\
+                                self.canvas.create_text((x0+x1)//2,(y0+y1)//2,justify=CENTER,text=content)\
                                 dir_name\
                                 )
-                        link=os.path.join(CFG.custom_scenery_dir,'zOrtho4XP_'+FNAMES.short_latlon(lat,lon))
+                        link=os.path.join(CFG.xplane_install_dir,'Custom Scenery','zOrtho4XP_'+FNAMES.short_latlon(lat,lon))
                         if os.path.isdir(link):
                             if os.path.samefile(os.path.realpath(link),os.path.realpath(os.path.join(self.working_dir,dir_name))):
                                 if not OsX:
@@ -968,11 +977,12 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
                     else:
                         content='?'
                     self.dico_tiles_done[(lat,lon)]=(\
-                                self.canvas.create_rectangle(x0,y0,x1,y1,fill=color,stipple='gray12') if not OsX else self.canvas.create_rectangle(x0,y0,x1,y1,outline='black'),\
-                                self.canvas.create_text((x0+x1)//2,(y0+y1)//2,justify=CENTER,text=content,fill='black',font=('Helvetica','12','normal')),\
+                                self.canvas.create_rectangle(x0,y0,x1,y1,fill=color,stipple='gray12'),\
+                                self.canvas.create_text((x0+x1)//2,(y0+y1)//2,justify=CENTER,text=content)\
                                 dir_name\
                                 )
-            link=os.path.join(CFG.custom_scenery_dir,'zOrtho4XP_'+os.path.basename(self.working_dir))
+
+            link=os.path.join(CFG.xplane_install_dir,'Custom Scenery','zOrtho4XP_'+os.path.basename(self.working_dir))
             if os.path.isdir(link):
                 if os.path.samefile(os.path.realpath(link),os.path.realpath(self.working_dir)):
                     for (lat0,lon0) in self.dico_tiles_done:
@@ -1039,7 +1049,7 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
         if (lat,lon) not in self.dico_tiles_done:
             return
         if not self.grouped:
-            link=os.path.join(CFG.custom_scenery_dir,'zOrtho4XP_'+FNAMES.short_latlon(lat,lon))
+            link=os.path.join(CFG.xplane_install_dir,'Custom Scenery','zOrtho4XP_'+FNAMES.short_latlon(lat,lon))
             #target=os.path.realpath(os.path.join(self.working_dir,'zOrtho4XP_'+FNAMES.short_latlon(lat,lon)))
             target=os.path.realpath(os.path.join(self.working_dir,self.dico_tiles_done[(lat,lon)][-1]))
             if os.path.isdir(link) and os.path.samefile(os.path.realpath(link),target):
@@ -1050,7 +1060,7 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
                     self.canvas.itemconfig(self.dico_tiles_done[(lat,lon)][1],font=('Helvetica','12','normal'))
                 return 
         elif self.grouped: 
-            link=os.path.join(CFG.custom_scenery_dir,'zOrtho4XP_'+os.path.basename(self.working_dir))
+            link=os.path.join(CFG.xplane_install_dir,'Custom Scenery','zOrtho4XP_'+os.path.basename(self.working_dir))
             target=os.path.realpath(self.working_dir)
             if os.path.isdir(link) and os.path.samefile(os.path.realpath(link),os.path.realpath(self.working_dir)):
                 os.remove(link)

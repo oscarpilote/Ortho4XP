@@ -11,6 +11,7 @@ Provider_dir  =  os.path.join(Ortho4XP_dir, 'Providers')
 Extent_dir    =  os.path.join(Ortho4XP_dir, 'Extents')
 Filter_dir    =  os.path.join(Ortho4XP_dir, 'Filters')
 OSM_dir       =  os.path.join(Ortho4XP_dir, 'OSM_data')
+Airport_dir   =  os.path.join(Ortho4XP_dir, 'Airport_data')
 Mask_dir      =  os.path.join(Ortho4XP_dir, 'Masks')
 Imagery_dir   =  os.path.join(Ortho4XP_dir, 'Orthophotos')
 Elevation_dir =  os.path.join(Ortho4XP_dir, 'Elevation_data')
@@ -89,15 +90,15 @@ def weight_file(tile):
     return os.path.join(tile.build_dir,'Data'+short_latlon(tile.lat,tile.lon)+'.weight')
 def mesh_file(build_dir,lat,lon):
     return os.path.join(build_dir,'Data'+short_latlon(lat,lon)+'.mesh')
-def obj_file(til_x_left,til_y_top,zoomlevel,provider_code):    
+def obj_file(til_x_left,til_y_top,zoomlevel,provider_code):
     return os.path.join(Geotiff_dir,str(til_y_top)+"_"+str(til_x_left)+"_"+provider_code+str(zoomlevel)+'.obj')
-def mtl_file(til_x_left,til_y_top,zoomlevel,provider_code):    
-    return os.path.join(Geotiff_dir,str(til_y_top)+"_"+str(til_x_left)+"_"+provider_code+str(zoomlevel)+'.mtl') 
+def mtl_file(til_x_left,til_y_top,zoomlevel,provider_code):
+    return os.path.join(Geotiff_dir,str(til_y_top)+"_"+str(til_x_left)+"_"+provider_code+str(zoomlevel)+'.mtl')
 ##############################################################################
 
 ##############################################################################
 def preview(lat, lon, zoomlevel, provider_code):
-    return os.path.join(Preview_dir,short_latlon(lat,lon)+"_"+provider_code+str(zoomlevel)+".jpg")  
+    return os.path.join(Preview_dir,short_latlon(lat,lon)+"_"+provider_code+str(zoomlevel)+".jpg")
 ##############################################################################
 
 ##############################################################################
@@ -154,7 +155,7 @@ def SRTM_1sec(lat, lon):
 def legacy_mask(m_til_x_left,m_til_y_top):
     return str(m_til_y_top)+'_'+str(m_til_x_left)+'.png'
 def mask_file(til_x_left,til_y_top,zoomlevel,provider_code):
-    return str(til_y_top)+"_"+str(til_x_left)+"_ZL"+str(zoomlevel)+".png"   
+    return str(til_y_top)+"_"+str(til_x_left)+"_ZL"+str(zoomlevel)+".png"
 ##############################################################################
 
 ##############################################################################
@@ -163,12 +164,12 @@ def jpeg_file_name_from_attributes(til_x_left,til_y_top,zoomlevel,provider_code)
         file_name=g2xpl_16_prefix+str(zoomlevel)+'_'+str(til_x_left)+'_'+\
                 str(2**zoomlevel-16-til_y_top)+g2xpl_16_suffix+".jpg"
     else:
-        file_name=str(til_y_top)+"_"+str(til_x_left)+"_"+provider_code+str(zoomlevel)+".jpg"   
+        file_name=str(til_y_top)+"_"+str(til_x_left)+"_"+provider_code+str(zoomlevel)+".jpg"
     return file_name
 ##############################################################################
-    
+
 ##############################################################################
-def jpeg_file_dir_from_attributes(lat, lon, zoomlevel,provider): 
+def jpeg_file_dir_from_attributes(lat, lon, zoomlevel,provider):
     if not provider:
         file_dir='.'
     elif provider['imagery_dir']=='normal':
@@ -188,7 +189,7 @@ def dds_file_name_from_attributes(til_x_left,til_y_top,zoomlevel,provider_code,f
         file_name=g2xpl_16_prefix+str(zoomlevel)+'_'+str(til_x_left)+'_'+\
                 str(2**zoomlevel-16-til_y_top)+g2xpl_16_suffix+"."+file_ext
     else:
-        file_name=str(til_y_top)+"_"+str(til_x_left)+"_"+provider_code+str(zoomlevel)+"."+file_ext   
+        file_name=str(til_y_top)+"_"+str(til_x_left)+"_"+provider_code+str(zoomlevel)+"."+file_ext
     return file_name
 ##############################################################################
 
@@ -196,3 +197,7 @@ def dds_file_name_from_attributes(til_x_left,til_y_top,zoomlevel,provider_code,f
 def geotiff_file_name_from_attributes(til_x_left,til_y_top,zoomlevel,provider_code):
     return str(til_y_top)+"_"+str(til_x_left)+"_"+provider_code+str(zoomlevel)+'-WGS84.tif'
 ##############################################################################
+
+def cached_arpt_data(lat, lon):
+    return os.path.join(Airport_dir, round_latlon(lat, lon), short_latlon(lat, lon) + '.json')
+

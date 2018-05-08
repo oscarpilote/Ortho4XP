@@ -1,3 +1,4 @@
+import math
 import os
 import time
 import shutil
@@ -12,6 +13,9 @@ import O4_Mask_Utils as MASK
 import O4_DSF_Utils as DSF
 import O4_Overlay_Utils as OVL
 from O4_Parallel_Utils import parallel_launch, parallel_join
+from O4_AirportDataSource import AirportDataSource, XPlaneTile
+import shapely.geometry
+import shapely.prepared
 
 max_convert_slots=4 
 skip_downloads=False
@@ -194,3 +198,25 @@ def remove_unwanted_textures(tile):
             try: os.remove(os.path.join(tile.build_dir,'textures',f))
             except:pass
 ##############################################################################
+
+def smart_zone_list(list_lat_lon, screen_res, fov, fpa, provider, max_zl, min_zl):
+    tiles_to_build = [XPlaneTile(lat, lon) for (lat, lon) in list_lat_lon]
+    airport_collection = AirportDataSource().airports_in(tiles_to_build, include_surrounding_tiles=True)
+
+    all_zones = []
+    for tile in tiles_to_build:
+        tile_poly = shapely.prepared.prep(tile.polygon())
+        tile_zones = []
+        for zl in range(max_zl, min_zl - 1, -1):
+            for polygon in airport_collection.polygons(zl, screen_res, fov, fpa):
+                if not tile_poly.disjoint(polygon):
+                    coords = []
+                    for (x, y) in polygon.exterior.coords:
+                        coords.extend([y, x])
+                    tile_zones.append([coords, zl, provider])
+        all_zones.append(tile_zones)
+    return all_zones
+
+
+def smart_zone_list_1(tile_lat_lon, screen_res, fov, fpa, provider, max_zl, min_zl):
+    return smart_zone_list([tile_lat_lon], screen_res, fov, fpa, provider, max_zl, min_zl)[0]

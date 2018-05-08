@@ -23,7 +23,7 @@ if __name__ == '__main__':
         sys.exit()
     for directory in (FNAMES.Preview_dir, FNAMES.Provider_dir, FNAMES.Extent_dir, FNAMES.Filter_dir, FNAMES.OSM_dir,
                       FNAMES.Mask_dir,FNAMES.Imagery_dir,FNAMES.Elevation_dir,FNAMES.Geotiff_dir,FNAMES.Patch_dir,
-                      FNAMES.Tile_dir,FNAMES.Tmp_dir):
+                      FNAMES.Tile_dir,FNAMES.Tmp_dir,FNAMES.Airport_dir):
         if not os.path.isdir(directory):
             try:
                 os.makedirs(directory)
@@ -71,5 +71,4 @@ if __name__ == '__main__':
             print("Bon vol!")
         except:
             print("Crash!")
-
-
+ 
