@@ -149,9 +149,6 @@ class Tile():
                 UI.vprint(0,"OS error: Cannot create tile directory",self.build_dir," check file permissions.")
                 raise Exception
 
-    def ensure_elevation_data(self,info_only=False):    
-        self.dem=DEM.DEM(self.lat,self.lon,self.custom_dem,self.fill_nodata,info_only)
-
     def read_from_config(self,config_file=None):
         if not config_file: 
             config_file=os.path.join(self.build_dir,"Ortho4XP_"+FNAMES.short_latlon(self.lat,self.lon)+".cfg")
@@ -270,7 +267,9 @@ class Ortho4XP_Config(tk.Toplevel):
         values=DEM.available_sources[1::2] 
         self.entry_[item]=ttk.Combobox(self.frame_dem,values=values,textvariable=self.v_[item],width=80,style='O4.TCombobox')
         self.entry_[item].grid(row=0,column=1,padx=(2,0),pady=8,sticky=N+S+W+E)
-        ttk.Button(self.frame_dem,image=self.folder_icon,command=self.choose_dem,style='Flat.TButton').grid(row=0,column=2, padx=2, pady=0,sticky=W)
+        dem_button=ttk.Button(self.frame_dem,image=self.folder_icon,command=self.choose_dem,style='Flat.TButton')
+        dem_button.grid(row=0,column=2, padx=2, pady=0,sticky=W)
+        dem_button.bind("<Shift-ButtonPress-1>", self.add_dem)
         item='fill_nodata'
         ttk.Button(self.frame_cfg,text=item,takefocus=False,command=lambda item=item: self.popup(item,cfg_vars[item]['hint'])).grid(row=row,column=6,padx=2,pady=2,sticky=E+W)
         values=[True,False] 
@@ -335,11 +334,18 @@ class Ortho4XP_Config(tk.Toplevel):
     def choose_dem(self):
         tmp=filedialog.askopenfilename(parent=self,title='Choose DEM file',filetypes=[('DEM files',('.tif','.hgt','.raw','.img')),('all files','.*')])
         if tmp: self.v_['custom_dem'].set(str(tmp))
-
+    
+    def add_dem(self,event):
+        tmp=filedialog.askopenfilename(parent=self,title='Choose DEM file',filetypes=[('DEM files',('.tif','.hgt','.raw','.img')),('all files','.*')])
+        if tmp: 
+            if not  self.v_['custom_dem'].get():
+                self.v_['custom_dem'].set(str(tmp))
+            else:
+                self.v_['custom_dem'].set(self.v_['custom_dem'].get()+";"+str(tmp))
+            
     def choose_dir(self,item):
         tmp=filedialog.askdirectory(parent=self)
         if tmp: self.v_[item].set(str(tmp))
-
     
     def load_tile_cfg(self):
         try: (lat,lon)=self.parent.get_lat_lon()

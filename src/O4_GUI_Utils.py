@@ -385,7 +385,10 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         self.zmap_choice.set(self.parent.default_website.get())
 
         self.zlpol=tk.IntVar()
-        self.zlpol.set(max(min(int(self.parent.default_zl.get())+1,19),12))
+        try: # default_zl might still be empty 
+            self.zlpol.set(max(min(int(self.parent.default_zl.get())+1,19),12))
+        except:
+            self.zlpol.set(17)
         self.gb = tk.StringVar()
         self.gb.set('0Gb')
     
@@ -809,8 +812,13 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
         self.canvas.bind("<Shift-ButtonPress-1>",self.add_tile)
         self.canvas.bind("<Control-ButtonPress-1>",self.toggle_to_custom)
         self.canvas.focus_set()
-        self.draw_canvas(self.nx0,self.ny0) 
-        
+        self.draw_canvas(self.nx0,self.ny0)
+        self.active_lat=int(self.parent.lat.get())
+        self.active_lon=int(self.parent.lon.get())
+        self.latlon.set(FNAMES.short_latlon(self.active_lat,self.active_lon))        
+        [x0,y0]=GEO.wgs84_to_pix(self.active_lat+1,self.active_lon,self.earthzl)
+        [x1,y1]=GEO.wgs84_to_pix(self.active_lat,self.active_lon+1,self.earthzl)
+        self.active_tile=self.canvas.create_rectangle(x0,y0,x1,y1,fill='',outline='yellow',width=3)
         self.threaded_preview()
         return
         

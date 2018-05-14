@@ -4,6 +4,7 @@ from math import pi, sin, cos, sqrt, atan, exp
 import numpy
 from shapely import geometry, ops
 #from PIL import Image, ImageDraw, ImageFilter
+import O4_DEM_Utils as DEM
 import O4_UI_Utils as UI
 import O4_OSM_Utils as OSM
 import O4_Vector_Utils as VECT
@@ -78,7 +79,8 @@ def build_poly_file(tile):
     xgrid.add(0); xgrid.add(1); ygrid.add(0); ygrid.add(1)
     xgrid=list(sorted(xgrid))
     ygrid=list(sorted(ygrid))
-    ortho_network=geometry.MultiLineString([geometry.LineString([(x,0.0),(x,1.0)]) for x in xgrid]+[geometry.LineString([(0.0,y),(1.0,y)]) for y in ygrid])
+    eps=2**-5
+    ortho_network=geometry.MultiLineString([geometry.LineString([(x,0.0-eps),(x,1.0+eps)]) for x in xgrid]+[geometry.LineString([(0.0-eps,y),(1.0+eps,y)]) for y in ygrid])
     vector_map.encode_MultiLineString(ortho_network,tile.dem.alt_vec,'DUMMY',check=True,skip_cut=True)
 
     if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
@@ -87,10 +89,10 @@ def build_poly_file(tile):
     UI.vprint(0,"-> Inserting additional boundary edges for gluing")
     segs=2048
     gluing_network=geometry.MultiLineString([\
-        geometry.LineString([(x,0.0) for x in numpy.arange(0,segs+1)/segs]),\
-        geometry.LineString([(x,1.0) for x in numpy.arange(0,segs+1)/segs]),\
-        geometry.LineString([(0.0,y) for y in numpy.arange(0,segs+1)/segs]),\
-        geometry.LineString([(1.0,y) for y in numpy.arange(0,segs+1)/segs])])
+        geometry.LineString([(x,0) for x in numpy.arange(0,segs+1)/segs]),\
+        geometry.LineString([(x,1) for x in numpy.arange(0,segs+1)/segs]),\
+        geometry.LineString([(0,y) for y in numpy.arange(0,segs+1)/segs]),\
+        geometry.LineString([(1,y) for y in numpy.arange(0,segs+1)/segs])])
     vector_map.encode_MultiLineString(gluing_network,tile.dem.alt_vec,'DUMMY',check=True,skip_cut=True)
     
     if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
@@ -100,6 +102,7 @@ def build_poly_file(tile):
             vector_map.seeds['SEA']=[numpy.array([1000,1000])]
         else:
             vector_map.seeds['SEA']=[numpy.array([0.5,0.5])]
+    vector_map.snap_to_grid(15)        
     vector_map.write_node_file(node_file)
     vector_map.write_poly_file(poly_file)
 
@@ -129,7 +132,7 @@ def include_airports(vector_map,tile):
     APT.update_airport_boundaries(tile,dico_airports)
     APT.list_airports_and_runways(dico_airports)
     UI.vprint(1,"   Loading elevation data and smoothing it over airports.")
-    tile.ensure_elevation_data()
+    tile.dem=DEM.DEM(tile.lat,tile.lon,tile.custom_dem,tile.fill_nodata or "to zero",info_only=False)
     APT.smooth_raster_over_airports(tile,dico_airports)
     (patches_area,patches_list)=include_patches(vector_map,tile)
     runway_and_taxiway_area=APT.encode_runways_and_taxiways(tile,airport_layer,dico_airports,vector_map,patches_list)
@@ -248,7 +251,7 @@ def include_water(vector_map,tile):
                 UI.vprint(1,"      * ",dicosmtags[osmid]['name'],"will be masked like the sea due to its large area of",area,"km^2.")
                 return True
         else:
-            UI.vprint(1,"      * ","Some unknown large water patch will be masked due to its large area of",area,"km^2.")
+            UI.vprint(1,"      * ","Some large OSM water patch close to lat=",'{:.2f}'.format(pol.exterior.coords[0][1]+tile.lon),"lon=",'{:.2f}'.format(pol.exterior.coords[0][0]+tile.lat),"will be masked due to its large area of",area,"km^2.")
             return True
     UI.vprint(0,"-> Dealing with inland water")
     water_layer=OSM.OSM_layer()
@@ -278,7 +281,7 @@ def include_water(vector_map,tile):
         UI.vprint(1,"      Encoding it.")
         vector_map.encode_MultiPolygon(dico_water,tile.dem.alt_vec,'WATER',area_limit=tile.min_area/10000,simplify=water_simplification,check=True)
     if not sea_equiv_area.is_empty: 
-        UI.vprint(1,"      Separate treatment large pieces requiring masks.")
+        UI.vprint(1,"      Separate treatment for larger pieces requiring masks.")
         try:
             (idx_water,dico_water)=VECT.MultiPolygon_to_Indexed_Polygons(sea_equiv_area,merge_overlappings=tile.clean_bad_geometries)
         except:
@@ -343,7 +346,8 @@ def include_patches(vector_map,tile):
         patches_area=geometry.Polygon()
         # reorganize them so that untagged dummy ways are treated last (due to altitude being first done kept for all)
         #waylist=list(set(dw).intersection(df['w']).intersection(dt['w']))+list(set(dw).intersection(df['w']).difference(dt['w']))
-        waylist=list(set(df['w']).intersection(dt['w']))+list(set(df['w']).difference(dt['w']))
+        #HACK
+        waylist=tuple(df['w'].intersection(dt['w']))+tuple(df['w'].difference(dt['w']))
         for wayid in waylist:
             way=numpy.array([dn[nodeid] for nodeid in dw[wayid]],dtype=numpy.float)
             way=way-numpy.array([[tile.lon,tile.lat]]) 
@@ -354,14 +358,14 @@ def include_patches(vector_map,tile):
                 if 'cst_alt_abs' in wtags:
                     alti_way=numpy.ones((len(way),1))*float(wtags['cst_alt_abs'])
                 elif 'cst_alt_rel' in wtags:
-                    alti_way=numpy.mean(tile.dem.alt_vec(way))+float(wtags['cst_alt_rel'])
+                    alti_way=numpy.ones((len(way),1))*(numpy.mean(tile.dem.alt_vec(way))+float(wtags['cst_alt_rel']))
                 elif 'var_alt_rel' in wtags:
                     alti_way=alti_way_orig+float(wtags['var_alt_rel'])
                 elif 'altitude' in wtags:    # deprecated : for backward compatibility only
                     try:
                         alti_way=numpy.ones((len(way),1))*float(wtags['altitude'])
                     except:
-                        alti_way=numpy.mean(tile.dem.alt_vec(way))    
+                        alti_way=numpy.ones((len(way),1))*numpy.mean(tile.dem.alt_vec(way))    
                 elif 'altitude_high' in wtags:
                     cplx_way=True
                     if len(way)!=5 or (way[0]!=way[-1]).all():

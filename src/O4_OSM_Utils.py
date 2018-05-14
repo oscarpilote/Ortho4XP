@@ -31,7 +31,9 @@ class OSM_layer():
         # ids of objects directly queried, not of child or 
         # parent objects pulled indirectly by queries. Since
         # osm ids are only unique per object type we need one for each:
-        self.dicosmfirst={'n':[],'w':[],'r':[]}  
+        #HACK
+        #self.dicosmfirst={'n':[],'w':[],'r':[]}  
+        self.dicosmfirst={'n':set(),'w':set(),'r':set()}  
         self.dicosmtags={'n':{},'w':{},'r':{}}
         self.dicosm=[self.dicosmn,self.dicosmw,self.dicosmr,self.dicosmrorig,
                      self.dicosmfirst,self.dicosmtags]       
@@ -78,7 +80,9 @@ class OSM_layer():
                 osmtype='w'
                 osmid=items[1]
                 self.dicosmw[osmid]=[]  
-                if not input_tags: self.dicosmfirst['w'].append(osmid)
+                #HACK
+                #if not input_tags: self.dicosmfirst['w'].append(osmid)
+                if not input_tags: self.dicosmfirst['w'].add(osmid)
             elif '<nd ref=' in items[0]:
                 self.dicosmw[osmid].append(items[1])
             elif '<relation id=' in items[0]:
@@ -87,7 +91,9 @@ class OSM_layer():
                 self.dicosmr[osmid]={'outer':[],'inner':[]}
                 self.dicosmrorig[osmid]={'outer':[],'inner':[]}
                 dico_rel_check={'inner':{},'outer':{}}
-                if not input_tags: self.dicosmfirst['r'].append(osmid)
+                #HACK
+                #if not input_tags: self.dicosmfirst['r'].append(osmid)
+                if not input_tags: self.dicosmfirst['r'].add(osmid)
             elif '<member type=' in items[0]:
                 role=items[5]
                 if items[1]!='way' or role not in ('outer','inner'):
@@ -120,13 +126,19 @@ class OSM_layer():
                     else:
                         self.dicosmtags[osmtype][osmid][items[1]]=items[3]                     
                     # If so, do we need to declare this osmid as a first catch, not one only brought with as a child    
-                    if input_tags and (((items[1],'') in input_tags[osmtype]) or ((items[1],items[3]) in input_tags[osmtype])) \
-                                  and (not self.dicosmfirst[osmtype] or self.dicosmfirst[osmtype][-1]!=osmid):
-                        self.dicosmfirst[osmtype].append(osmid)                         
+                    #HACK
+                    #if input_tags and (((items[1],'') in input_tags[osmtype]) or ((items[1],items[3]) in input_tags[osmtype])) \
+                    #              and (not self.dicosmfirst[osmtype] or self.dicosmfirst[osmtype][-1]!=osmid):
+                    #    self.dicosmfirst[osmtype].append(osmid)       
+                    if input_tags and (((items[1],'') in input_tags[osmtype]) or ((items[1],items[3]) in input_tags[osmtype])):
+                        self.dicosmfirst[osmtype].add(osmid)                         
             elif '</way' in items[0]:
                 if not self.dicosmw[osmid]: 
                     del(self.dicosmw[osmid]) 
-                    if self.dicosmfirst['w'] and self.dicosmfirst['w'][-1]==osmid: del(self.dicosmfirst['w'][-1])
+                    #HACK
+                    #if self.dicosmfirst['w'] and self.dicosmfirst['w'][-1]==osmid: del(self.dicosmfirst['w'][-1])
+                    #if osmid in self.dicosmtags['w']: del(self.dicosmtags[osmtype][osmid])
+                    if osmid in self.dicosmfirst['w']: self.dicosmfirst['w'].remove(osmid)
                     if osmid in self.dicosmtags['w']: del(self.dicosmtags[osmtype][osmid])
             elif '</relation>' in items[0]:
                 bad_rel=False
@@ -139,7 +151,9 @@ class OSM_layer():
                     del(self.dicosmr[osmid])
                     del(self.dicosmrorig[osmid])
                     del(dico_rel_check)
-                    if self.dicosmfirst['r'] and self.dicosmfirst['r'][-1]==osmid: del(self.dicosmfirst['r'][-1])
+                    #HACK
+                    #if self.dicosmfirst['r'] and self.dicosmfirst['r'][-1]==osmid: del(self.dicosmfirst['r'][-1])
+                    if osmid in self.dicosmfirst['r']: self.dicosmfirst['r'].remove(osmid)
                     if osmid in self.dicosmtags['r']: del(self.dicosmtags['r'][osmid])
                     continue
                 for role in ['outer','inner']:
@@ -179,7 +193,9 @@ class OSM_layer():
                 if not self.dicosmr[osmid]['outer']: 
                     del(self.dicosmr[osmid])
                     del(self.dicosmrorig[osmid])
-                    if self.dicosmfirst['r'] and self.dicosmfirst['r'][-1]==osmid: del(self.dicosmfirst['r'][-1])
+                    #HACK
+                    #if self.dicosmfirst['r'] and self.dicosmfirst['r'][-1]==osmid: del(self.dicosmfirst['r'][-1])
+                    if osmid in self.dicosmfirst['r']: self.dicosmfirst['r'].remove(osmid)
                     if osmid in self.dicosmtags['r']: del(self.dicosmtags['r'][osmid])
                 del(dico_rel_check)
             elif '</osm>' in items[0]:
@@ -214,14 +230,18 @@ class OSM_layer():
                     for tag in self.dicosmtags['n'][nodeid]:
                         fout.write('    <tag k="'+tag+'" v="'+self.dicosmtags['n'][nodeid][tag]+'"/>\n')
                     fout.write('  </node>\n')
-        for wayid in self.dicosmfirst['w']+list(set(self.dicosmw).difference(set(self.dicosmfirst['w']))):
+        #HACK
+        #for wayid in self.dicosmfirst['w']+list(set(self.dicosmw).difference(set(self.dicosmfirst['w']))):
+        for wayid in tuple(self.dicosmfirst['w'])+tuple(set(self.dicosmw).difference(self.dicosmfirst['w'])):
             fout.write('  <way id="'+wayid+'" version="1">\n')
             for nodeid in self.dicosmw[wayid]:
                 fout.write('    <nd ref="'+nodeid+'"/>\n')
             for tag in self.dicosmtags['w'][wayid] if wayid in self.dicosmtags['w'] else []:
                 fout.write('    <tag k="'+tag+'" v="'+self.dicosmtags['w'][wayid][tag]+'"/>\n')
             fout.write('  </way>\n')
-        for relid in self.dicosmfirst['r']+list(set(self.dicosmrorig).difference(set(self.dicosmfirst['r']))):
+        #HACK
+        #for relid in self.dicosmfirst['r']+list(set(self.dicosmrorig).difference(set(self.dicosmfirst['r']))):
+        for relid in tuple(self.dicosmfirst['r'])+tuple(set(self.dicosmrorig).difference(self.dicosmfirst['r'])):
             fout.write('  <relation id="'+relid+'" version="1">\n')
             for wayid in self.dicosmrorig[relid]['outer']:
                 fout.write('    <member type="way" ref="'+wayid+'" role="outer"/>\n')

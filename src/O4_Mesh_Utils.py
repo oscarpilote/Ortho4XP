@@ -5,6 +5,7 @@ import pickle
 import subprocess
 import numpy
 from math import sqrt, cos, pi
+import O4_DEM_Utils as DEM
 import O4_UI_Utils as UI
 import O4_File_Names as FNAMES
 import O4_Geo_Utils as GEO
@@ -286,17 +287,32 @@ def build_mesh(tile):
             UI.exit_message_and_bottom_line("\nERROR: Could not find ",file)
             return 0
     if not tile.iterate:
-        tile.ensure_elevation_data(info_only=True)
-        if not  os.path.getsize(alt_file)==4*tile.dem.nxdem*tile.dem.nydem:
-            UI.exit_message_and_bottom_line("\nERROR: Cached raster elevation does not match the current custom DEM specs.\n       You must run Step 1 and Step 2 with the same elevation base.")
+        try:
+            fill_nodata = tile.fill_nodata or "to zero"
+            source= ((";" in tile.custom_dem) and tile.custom_dem.split(";")[0]) or tile.custom_dem
+            tile.dem=DEM.DEM(tile.lat,tile.lon,source,fill_nodata,info_only=True)
+            if not  os.path.getsize(alt_file)==4*tile.dem.nxdem*tile.dem.nydem:
+                UI.exit_message_and_bottom_line("\nERROR: Cached raster elevation does not match the current custom DEM specs.\n       You must run Step 1 and Step 2 with the same elevation base.")
+                return 0
+        except:
+            UI.exit_message_and_bottom_line("\nERROR: Could not determine the appropriate source. Please check your custom_dem entry.")
             return 0
     else:
-        tile.ensure_elevation_data()
-        tile.dem.write_to_file(FNAMES.alt_file(tile))
-            
-    f=open(node_file,'r')
-    input_nodes=int(f.readline().split()[0])
-    f.close()
+        try:
+            source= ((";" in tile.custom_dem) and tile.custom_dem.split(";")[tile.iterate]) or tile.custom_dem
+            tile.dem=DEM.DEM(tile.lat,tile.lon,source,fill_nodata=False,info_only=False)
+            tile.dem.write_to_file(FNAMES.alt_file(tile))
+        except:
+            UI.exit_message_and_bottom_line("\nERROR: Could not determine the appropriate source. Please check your custom_dem entry.")
+            return 0
+    try:
+        f=open(node_file,'r')
+        input_nodes=int(f.readline().split()[0])
+        f.close()
+    except:
+        UI.exit_message_and_bottom_line("\nERROR: In reading ",node_file)
+        return 0
+        
     timer=time.time()
     tri_verbosity = 'Q' if UI.verbosity<=1 else 'V'
     output_poly   = 'P' if UI.cleaning_level else ''
@@ -326,6 +342,8 @@ def build_mesh(tile):
               '{:.9g}'.format(tile.curvature_tol*curv_tol_scaling),
               '{:.9g}'.format(tile.min_angle),str(hmin_effective),alt_file,weight_file,poly_file]
     
+    del(tile.dem) # for machines with not much RAM, we do not need it anymore
+    tile.dem=None
     UI.vprint(1,"-> Start of the mesh algorithm Triangle4XP.")
     UI.vprint(2,'   Mesh command:',' '.join(mesh_cmd))
     fingers_crossed=subprocess.Popen(mesh_cmd,stdout=subprocess.PIPE,bufsize=0)
@@ -335,6 +353,7 @@ def build_mesh(tile):
             break
         else:
             print(line.decode("utf-8")[:-1])
+    time.sleep(0.3)
     fingers_crossed.poll()        
     if fingers_crossed.returncode:
         UI.exit_message_and_bottom_line("\nERROR: Triangle4XP crashed !\n\n"+\

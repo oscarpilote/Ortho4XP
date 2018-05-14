@@ -56,6 +56,11 @@ def discover_airport_names(airport_layer,dico_airports):
             dico_airports[key]['apron']=[]
             dico_airports[key]['hangar']=[]
             dico_airports[key]['repr_node']=repr_node
+            if 'smoothing_pix' in airport_layer.dicosmtags[osmtype][osmid]:
+                try:
+                    dico_airports[key]['smoothing_pix']=int(airport_layer.dicosmtags[osmtype][osmid]['smoothing_pix'])
+                except:
+                    pass
             try:
                 dico_airports[key]['boundary']=geometry.Polygon(numpy.array([airport_layer.dicosmn[nodeid] for nodeid in airport_layer.dicosmw[osmid]])) if osmtype=='w'\
                                            else ops.cascaded_union([geom for geom in [geometry.Polygon(numpy.array([airport_layer.dicosmn[nodeid] for nodeid in nodelist])) for nodelist in airport_layer.dicosmr[osmid]['outer']]]) if osmtype=='r'\
@@ -116,7 +121,7 @@ def sort_and_reconstruct_runways(tile,airport_layer,dico_airports):
         for wayid in dico_airports[airport]['runway']:
             if airport_layer.dicosmw[wayid][0]==airport_layer.dicosmw[wayid][-1]:
                 runway_pol=geometry.Polygon(numpy.round(numpy.array([airport_layer.dicosmn[nodeid] for nodeid in airport_layer.dicosmw[wayid]])-numpy.array([tile.lon,tile.lat]),7))
-                if runway_pol.is_valid:
+                if not runway_pol.is_empty and runway_pol.is_valid:
                     runway_pol_rect=VECT.min_bounding_rectangle(runway_pol) 
                     discrep=runway_pol_rect.hausdorff_distance(runway_pol)
                     if discrep>0.0008:
@@ -294,15 +299,21 @@ def list_airports_and_runways(dico_airports):
 
 ####################################################################################################
 def smooth_raster_over_airports(tile,dico_airports,preserve_boundary=True):
-    pix=tile.apt_smoothing_pix
-    if not pix:
+    max_pix=tile.apt_smoothing_pix
+    for airport in dico_airports:
+        if 'smoothing_pix' in dico_airports[airport]:
+            try:
+                max_pix=max(int(dico_airports[airport]['smoothing_pix']),max_pix)
+            except:
+                pass
+    if not max_pix:
         tile.dem.write_to_file(FNAMES.alt_file(tile))
         return
     if preserve_boundary:
-        up=numpy.array(tile.dem.alt_dem[:pix])
-        down=numpy.array(tile.dem.alt_dem[-pix:])
-        left=numpy.array(tile.dem.alt_dem[:,:pix])
-        right=numpy.array(tile.dem.alt_dem[:,-pix:])
+        up=numpy.array(tile.dem.alt_dem[:max_pix])
+        down=numpy.array(tile.dem.alt_dem[-max_pix:])
+        left=numpy.array(tile.dem.alt_dem[:,:max_pix])
+        right=numpy.array(tile.dem.alt_dem[:,-max_pix:])
     x0=tile.dem.x0
     x1=tile.dem.x1
     y0=tile.dem.y0
@@ -311,6 +322,11 @@ def smooth_raster_over_airports(tile,dico_airports,preserve_boundary=True):
     ystep=(y1-y0)/tile.dem.nydem
     upscale=max(ceil(ystep*GEO.lat_to_m/10),1) # target 10m of pixel size at most to avoiding aliasing
     for airport in dico_airports:
+        try:
+            pix= int(dico_airports[airport]['smoothing_pix']) if 'smoothing_pix' in dico_airports[airport] else tile.apt_smoothing_pix
+        except:
+            pix = tile.apt_smoothing_pix
+        if not pix: continue
         (xmin,ymin,xmax,ymax)=dico_airports[airport]['boundary'].bounds
         colmin=max(floor((xmin-x0)/xstep)-pix,0)
         colmax=min(ceil((xmax-x0)/xstep)+pix,tile.dem.nxdem-1)
@@ -331,6 +347,7 @@ def smooth_raster_over_airports(tile,dico_airports,preserve_boundary=True):
         airport_im=airport_im.resize((colmax-colmin+1,rowmax-rowmin+1),Image.BICUBIC)
         tile.dem.alt_dem[rowmin:rowmax+1,colmin:colmax+1]=DEM.smoothen(tile.dem.alt_dem[rowmin:rowmax+1,colmin:colmax+1],pix,airport_im,preserve_boundary=False)
     if preserve_boundary:
+        pix=max_pix
         for i in range(pix):
             tile.dem.alt_dem[i]=i/pix*tile.dem.alt_dem[i]+(pix-i)/pix*up[i]
             tile.dem.alt_dem[-i-1]=i/pix*tile.dem.alt_dem[-i-1]+(pix-i)/pix*down[-i-1]
@@ -440,7 +457,7 @@ def flatten_helipads(airport_layer,vector_map,tile):
         if airport_layer.dicosmw[wayid][0]!=airport_layer.dicosmw[wayid][-1]: continue
         way=numpy.round(numpy.array([airport_layer.dicosmn[nodeid] for nodeid in airport_layer.dicosmw[wayid]])-numpy.array([[tile.lon,tile.lat]]),7)
         pol=geometry.Polygon(way)
-        if (not pol.is_valid) or (not pol.area): continue
+        if (pol.is_empty) or (not pol.is_valid) or (not pol.area): continue
         multipol.append(pol)
         alti_way=numpy.ones((len(way),1))*numpy.mean(tile.dem.alt_vec(way))
         vector_map.insert_way(numpy.hstack([way,alti_way]),'INTERP_ALT',check=True) 

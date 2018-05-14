@@ -1,4 +1,4 @@
-/* Last modified : February 8th 2018                                         */
+/* Last modified : May 14th 2018                                             */
 /*****************************************************************************/
 /*                                                                           */
 /*                              Triangle4XP                                  */
@@ -8,7 +8,7 @@
 /*                      for the X-Plane flight simulator                     */                            
 /*                                                                           */
 /*                                                                           */ 
-/*   The following program is a short adaptation of Triangle from Jonathan   */
+/*   The following program is an adaptation of Triangle from Jonathan        */
 /*   Shewchuk to be used within the process of 3D geographic mesh            */ 
 /*   generation based on landclasses and curvature inputs from GIS data.     */
 /*   The original program Triangle has a very handy user defined function    */
@@ -22,7 +22,7 @@
 /*   edges are non blocking for the plague algorithm, but any edge whose     */
 /*   attribute bit is different from one of the attribute  being plagued.    */
 /*                                                                           */
-/*   For the ease of reading and/or further adaptation I have enclosed       */
+/*   For the ease of reading and/or further adaptation I tryed to enclosed   */
 /*   the important changes in the original triangle.c file of Jonathan       */
 /*   Shewchuk by comments of the form "Strart of : Added for Triangle4XP"    */
 /*   and "End of : Added for Triangle4XP".                                   */
@@ -3832,6 +3832,11 @@ REAL   attribute;                             /* The triangle attribute      */
   REAL maxcurv, maxalt, tmp, ratio;
   int  imin, imax, jmin, jmax, i ,j;
   int  retval;  
+    
+  /* INTERP_ALT or RUNWAY triangles do not need refinement         */
+  if (((int) (attribute+0.1)) >= 8) {
+      return 0;
+  }  
 
   /* Find the squares of the lengths of the triangle's three edges */
   /* and the triangle's area.                                      */

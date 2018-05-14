@@ -287,7 +287,45 @@ class Vector_Map():
                 if UI.red_flag: return 0
         return 1
         
-    
+    def snap_to_grid(self,digits):
+        next_node_id=1
+        next_edge_id=1
+        dico_nodes_new={}
+        dico_edges_new={}
+        nodes_dico_new={}
+        edges_dico_new={}
+        data_nodes_new={}  
+        data_edges_new={}
+        dico_old_to_new={}
+        for key in self.dico_nodes:
+            key_new=(round(key[0],digits),round(key[1],digits))
+            if key_new in dico_nodes_new:
+                idx_new =dico_nodes_new[key_new]
+            else:
+                idx_new=next_node_id
+                dico_nodes_new[key_new]=idx_new
+                next_node_id+=1
+                nodes_dico_new[idx_new]=key_new
+                data_nodes_new[idx_new]=self.data_nodes[self.dico_nodes[key]]
+            dico_old_to_new[self.dico_nodes[key]]=idx_new
+        for (id0,id1) in self.dico_edges:
+            (id0n,id1n)=(dico_old_to_new[id0],dico_old_to_new[id1])
+            if id0n==id1n: continue
+            if (id0n,id1n) in dico_edges_new:
+                eid=dico_edges_new[(id0n,id1n)]
+                data_edges_new[eid]=  data_edges_new[eid] | self.data_edges[self.dico_edges[(id0,id1)]] # bitwise add new marker if necessary
+            elif (id1n,id0n) in dico_edges_new:
+                eid=dico_edges_new[(id1n,id0n)]
+                data_edges_new[eid]=  data_edges_new[eid] | self.data_edges[self.dico_edges[(id0,id1)]] # bitwise add new marker if necessary
+            else:
+                dico_edges_new[(id0n,id1n)]=next_edge_id
+                edges_dico_new[next_edge_id]=(id0n,id1n)
+                data_edges_new[next_edge_id]=  self.data_edges[self.dico_edges[(id0,id1)]] 
+                next_edge_id+=1
+        UI.vprint(2,"Simplified ",len(self.dico_nodes)-len(dico_nodes_new),"duplicate nodes and",len(self.dico_edges)-len(dico_edges_new),"zero length edges.")
+        (self.dico_nodes,self.nodes_dico,self.dico_edges,self.edges_dico,self.data_nodes,self.data_edges)=(dico_nodes_new,nodes_dico_new,dico_edges_new,edges_dico_new,data_nodes_new,data_edges_new)        
+        
+        
 
     def write_node_file(self,node_file_name): 
         # note that Triangle4XP too is writing a(nother) node file, which as more node attributes
@@ -295,7 +333,7 @@ class Vector_Map():
         f= open(node_file_name,'w')
         f.write(str(total_nodes)+' 2 1 0\n')
         for idx in sorted(self.nodes_dico.keys()):
-            f.write(str(idx)+' '+' '.join(['{:.17f}'.format(x) for x in (self.nodes_dico[idx][0],self.nodes_dico[idx][1],self.data_nodes[idx])])+'\n')
+            f.write(str(idx)+' '+' '.join(['{:.15f}'.format(x) for x in (self.nodes_dico[idx][0],self.nodes_dico[idx][1],self.data_nodes[idx])])+'\n')
         f.close() 
     
     def write_poly_file(self,poly_file_name): 
@@ -311,7 +349,7 @@ class Vector_Map():
         f.write('\n'+str(len(self.holes))+'\n')
         idx=1
         for hole in self.holes:        
-            f.write(str(idx)+' '+' '.join(['{:.17f}'.format(h) for h in hole])+'\n')
+            f.write(str(idx)+' '+' '.join(['{:.15f}'.format(h) for h in hole])+'\n')
             idx+=1
         total_seeds=numpy.sum([len(self.seeds[key]) for key in self.seeds])
         if total_seeds==0:
@@ -323,7 +361,7 @@ class Vector_Map():
                 (key,marker)=long_key
                 if key not in self.seeds: continue
                 for seed in self.seeds[key]:
-                    f.write(str(idx)+' '+' '.join(['{:.17f}'.format(s) for s in seed])+' '+str(marker)+'\n')
+                    f.write(str(idx)+' '+' '.join(['{:.15f}'.format(s) for s in seed])+' '+str(marker)+'\n')
                     idx+=1
         f.close()
         return 

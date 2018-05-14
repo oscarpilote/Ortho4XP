@@ -4,6 +4,7 @@ import time
 from math import  atan, ceil, floor 
 import numpy
 from PIL import Image, ImageDraw, ImageFilter, ImageOps
+import O4_DEM_Utils as DEM
 import O4_File_Names as FNAMES
 import O4_UI_Utils as UI
 import O4_Geo_Utils as GEO
@@ -12,7 +13,7 @@ import O4_OSM_Utils as OSM
 import O4_Vector_Utils as VECT
 import O4_Mesh_Utils as MESH
 
-mask_altitude_above=1.5
+mask_altitude_above=0.5
 
 ##############################################################################
 def needs_mask(tile, til_x_left,til_y_top,zoomlevel,*args):
@@ -210,7 +211,13 @@ def build_masks(tile):
             f_mesh.close()
     UI.vprint(1,"-> Construction of the masks")
     if tile.masks_use_DEM_too:
-        tile.ensure_elevation_data()
+        try:
+            fill_nodata = tile.fill_nodata or "to zero"
+            source= ((";" in tile.custom_dem) and tile.custom_dem.split(";")[0]) or tile.custom_dem
+            tile.dem=DEM.DEM(tile.lat,tile.lon,source,fill_nodata,info_only=False)
+        except:
+            UI.exit_message_and_bottom_line("\nERROR: Could not determine the appropriate eleva(tion source. Please check your custom_dem entry.")
+            return 0
                 
     task_len=len(dico_masks)
     task_done=0
@@ -295,7 +302,7 @@ def build_masks(tile):
         if tile.masking_mode=="sand":
             blur_width=int(tile.masks_width/pxscal)
         elif tile.masking_mode=="rocks":
-            blur_width=tile.masks_width/pxscal
+            blur_width=tile.masks_width/(2*pxscal)
         elif tile.masking_mode=="3steps":
             blur_width=[L/pxscal for L in tile.masks_width]
         if tile.masking_mode=="sand" and blur_width: 
@@ -332,6 +339,7 @@ def build_masks(tile):
             transin=blur_width[0]
             midzone=blur_width[1]
             transout=blur_width[2]
+            #print(transin,midzone,transout)
             shore_level=255
             sea_level=int(tile.ratio_water*255)
             b_img_array=b_mask_array=numpy.array(img_array)

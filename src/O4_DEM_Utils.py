@@ -31,20 +31,27 @@ class DEM():
     def __init__(self,lat,lon,source='',fill_nodata=True,info_only=False):
         self.lat=lat
         self.lon=lon
+        self.alt=self.alt_nostrict
+        self.alt_vec=self.alt_vec_nostrict
         self.load_data(source,info_only)
         if info_only: return 
-        if fill_nodata:
-            fill_nodata_values_with_nearest_neighbor(self.alt_dem,self.nodata)
-        else:
+        if fill_nodata=="to zero":
             self.nodata_to_zero()
+        elif fill_nodata:
+            fill_nodata_values_with_nearest_neighbor(self.alt_dem,self.nodata)
+            
         UI.vprint(1,"    * Min altitude:",self.alt_dem.min(),", Max altitude:",self.alt_dem.max(),", Mean:",self.alt_dem.mean())
 
     def load_data(self,source,info_only=False):
         if not source:
             if os.path.exists(FNAMES.generic_tif(self.lat,self.lon)):
-                source=FNAMES.generic_tif(self.lat, self.lon)
+                source=(FNAMES.generic_tif(self.lat, self.lon),)
             else:
-                source=available_sources[1]
+                source=(available_sources[1],)
+        if ";" in source:
+            source,local_sources=source.split(";")[0],source.split(";")[1:]
+        else:
+            local_sources=None
         if source in available_sources[1::2]:
             short_source=available_sources[available_sources.index(source)-1]
             if short_source in global_sources:
@@ -59,6 +66,14 @@ class DEM():
         else:
             file_name=source
             (self.epsg,self.x0,self.y0,self.x1,self.y1,self.nodata,self.nxdem,self.nydem,self.alt_dem)=read_elevation_from_file(file_name,self.lat,self.lon,info_only)
+        if not local_sources: return
+        self.subdems=tuple()
+        for local_source in local_sources:
+            self.subdems=self.subdems+(DEM(self.lat,self.lon,local_source,False,info_only),)
+            self.subdems[-1].alt=self.subdems[-1].alt_strict
+            self.subdems[-1].alt_vec=self.subdems[-1].alt_vec_strict
+
+            
             
     def nodata_to_zero(self):
         if self.nodata!=0 and (self.alt_dem==self.nodata).any():
@@ -110,7 +125,7 @@ class DEM():
         pixy1=round((self.y1-ymin)/(self.y1-self.y0)*(self.nydem-1))
         return ((xmin+self.lon,xmax+self.lon,ymin+self.lat,ymax+self.lat),self.alt_dem[pixy0:pixy1+1,pixx0:pixx1+1]>=level)
 
-    def alt(self,node):
+    def alt_nostrict(self,node):
         Nx=self.nxdem-1
         Ny=self.nydem-1
         x=node[0]
@@ -131,11 +146,21 @@ class DEM():
         t4=self.alt_dem[(Nminusny-1)*(Nminusny>=1),nx]
         return ((1-rx)*t1+ry*t2+(rx-ry)*t3)*(rx>=ry)+((1-ry)*t1+rx*t2+(ry-rx)*t4)*(rx<ry)
 
-    def alt_vec(self,way):
+    def alt_strict(self,node):
+        x=node[0]
+        y=node[1]
+        return self.nodata if ((x>self.x1) or (x<self.x0) or (y<self.y0) or (y>self.y1)) else self.alt_dem[round((self.y1-y)/(self.y1-self.y0)*(self.nydem-1)),round((x-self.x0)/(self.x1-self.x0)*(self.nxdem-1))]
+        
+    def alt_composite(self,node):
+        for subdem in self.subdems[::-1]:
+            tmp=subdem.alt_strict(node)
+            if tmp != subdem.no_data: return tmp
+        return self.alt_nostrict(node)     
+        
+    def alt_vec_nostrict(self,way):
         Nx=self.nxdem-1
         Ny=self.nydem-1
-        x=way[:,0]
-        y=way[:,1]
+        x,y=way[:,0],way[:,1]
         x=numpy.maximum.reduce([x,self.x0*numpy.ones(x.shape)])
         x=numpy.minimum.reduce([x,self.x1*numpy.ones(x.shape)])
         y=numpy.maximum.reduce([y,self.y0*numpy.ones(y.shape)])
@@ -151,9 +176,24 @@ class DEM():
         t3=[self.alt_dem[i][j] for i,j in zip(Nminusny,(nx+1)*(nx<Nx)+Nx*(nx==Nx))]
         t4=[self.alt_dem[i][j] for i,j in zip((Nminusny-1)*(Nminusny>=1),nx)]
         return ((1-rx)*t1+ry*t2+(rx-ry)*t3)*(rx>=ry)+((1-ry)*t1+rx*t2+(ry-rx)*t4)*(rx<ry)
+        
+    def alt_vec_strict(self,way):
+        x,y=way[:,0],way[:,1]
+        mask=(x>=self.x0)*(x<=self.x1)*(y>=self.y0)*(y<=self.y1)
+        nx=numpy.round((x-self.x0)/(self.x1-self.x0)*(self.nxdem-1))
+        Nminusny=numpy.round((self.y1-y)/(self.y1-self.y0)*(self.nydem-1))
+        return numpy.array([self.alt_dem[i][j] if k else self.nodata for i,j,k in zip(Nminusny,nx,mask)])
+    
+    def alt_vec_composite(self,way):
+        tmp=self.alt_vec_nostrict(way)
+        for subdem in self.subdems:
+            tmp2=subdem.alt_vec_strict(way)
+            tmp[tmp2!=subdem.no_data]=tmp2[tmp2!=subdem.no_data]
+        return tmp     
+            
 ###############################################################################
 
-##############################################################################
+###############################################################################
 def build_combined_raster(source,lat,lon,info_only):
     world_tiles=numpy.array(Image.open(os.path.join(FNAMES.Utils_dir,'world_tiles.png')))
     if source in ('View','SRTM'):
@@ -170,11 +210,12 @@ def build_combined_raster(source,lat,lon,info_only):
     if info_only: return (epsg,x0,y0,x1,y1,nodata,nxdem,nydem,None)
     alt_dem=numpy.zeros((nydem,nxdem),dtype=numpy.float32)
     for (lat0,lon0) in itertools.product((lat,lat-1,lat+1),(lon,lon-1,lon+1)):
+        verbose=True if (lat0==lat and lon0==lon) else False
         x=180+lon0
         y=89-lat0
         if not world_tiles[y,x]:
             tmparray=numpy.zeros((base,base),dtype=numpy.float32)
-        elif ensure_elevation(source,lat0,lon0):
+        elif ensure_elevation(source,lat0,lon0,verbose):
             tmparray=read_elevation_from_file(FNAMES.elevation_data(source,lat0,lon0),lat0,lon0,info_only,base)[-1]
         else:
             tmparray=numpy.zeros((base,base),dtype=numpy.float32)
@@ -215,7 +256,7 @@ def read_elevation_from_file(file_name,lat,lon,info_only=False,base_if_error=360
                     fill_nodata_values_with_nearest_neighbor(alt_dem,nodata)
                     alt_dem=upsample(alt_dem)
         except:
-            UI.lvprint(1,"   ERROR: in reading elevation from", file_name, "-> replaced with zero altitude.") 
+            UI.lvprint(1,"    ERROR: in reading elevation from", file_name, "-> replaced with zero altitude.") 
             nxdem=nydem=base_if_error
             if not info_only: alt_dem=numpy.zeros((base_if_error,base_if_error),dtype=numpy.float32)
         
@@ -228,7 +269,7 @@ def read_elevation_from_file(file_name,lat,lon,info_only=False,base_if_error=360
             f.close()
             if not info_only: alt_dem=numpy.asarray(alt,dtype=numpy.float32).reshape((nxdem,nydem))[::-1]
         except:
-            UI.lvprint(1,"   ERROR: in reading elevation from", file_name, "-> replaced with zero altitude.") 
+            UI.lvprint(1,"    ERROR: in reading elevation from", file_name, "-> replaced with zero altitude.") 
             nxdem=nydem=base_if_error
             if not info_only: alt_dem=numpy.zeros((base_if_error,base_if_error),dtype=numpy.float32)
         x0=y0=0; x1=y1=1; epsg=4326; nodata=-32768
@@ -242,15 +283,17 @@ def read_elevation_from_file(file_name,lat,lon,info_only=False,base_if_error=360
             if nodata is None: 
                 UI.vprint(1,"    WARNING: raster DEM does not advertise its no_data value, assuming -32768.")
                 nodata=-32768
-            else: # elevations being stored as float32, we push the nodata to that framework too
+            else: # elevations being stored as float32, we push the nodata to that framework too, and then replace no_data values by -32768 anyway for uniformity
                 nodata=numpy.float32(nodata)
+                if not info_only: alt_dem[alt_dem==nodata]=-32768
+                nodata=-32768
             try: 
                 epsg=int(ds.GetProjection().split('"')[-2])
             except:
-                UI.vprint(1,"   WARNING: raster DEM does not advertise its EPSG code, assuming 4326.") 
+                UI.vprint(1,"    WARNING: raster DEM does not advertise its EPSG code, assuming 4326.") 
                 epsg=4326
             if epsg not in (4326,4269): # let's be blind about 4269 which might be sufficiently close to 4326 for our purposes
-                UI.lvprint(1,"   WARNING: unsupported EPSG code ",epsg,". Only EPSG:4326 is supported, result is likely to be non sense.") 
+                UI.lvprint(1,"    WARNING: unsupported EPSG code ",epsg,". Only EPSG:4326 is supported, result is likely to be non sense.") 
             geo=ds.GetGeoTransform()
             # We are assuming AREA_OR_POINT is area here 
             x0=geo[0]+.5*geo[1]-lon
@@ -271,7 +314,7 @@ def read_elevation_from_file(file_name,lat,lon,info_only=False,base_if_error=360
 ##############################################################################    
            
 ##############################################################################
-def ensure_elevation(source,lat,lon):
+def ensure_elevation(source,lat,lon,verbose=True):
     if source=='View':
         # Viewfinderpanorama grouping of files and resolutions is a bit complicated...
         if (lat,lon) in ((44,5),(45,5),(46,5),(43,6),(44,6),(45,6),(46,6),(47,6),(43,7),(44,7),(45,7),
@@ -300,7 +343,7 @@ def ensure_elevation(source,lat,lon):
             UI.vprint(2,"   Recycling ",FNAMES.viewfinderpanorama(lat,lon))
             return 1
         UI.vprint(1,"    Downloading ",FNAMES.viewfinderpanorama(lat,lon),"from Viewfinderpanoramas (J. de Ferranti).")    
-        r=http_request(url,source)
+        r=http_request(url,source,verbose)
         if not r: return 0
         with zipfile.ZipFile(io.BytesIO(r.content),"r") as zip_ref:
             for f in zip_ref.filelist:
@@ -349,7 +392,7 @@ def ensure_elevation(source,lat,lon):
             tmp=os.path.basename(FNAMES.base_file_name(lat,lon))
             tmp=tmp[0]+"0"+tmp[1:]+"_AVE_DSM.tif"    
             url+=tmp
-        r=http_request(url,source)
+        r=http_request(url,source,verbose)
         if not r: return 0
         if not os.path.isdir(os.path.dirname(FNAMES.elevation_data(source,lat,lon))):
             os.makedirs(os.path.dirname(FNAMES.elevation_data(source,lat,lon)))
@@ -365,11 +408,11 @@ def ensure_elevation(source,lat,lon):
         UI.vprint(1,"    Downloading ",FNAMES.elevation_data(source,lat,lon),"from USGS.")
         url_base='https://prd-tnm.s3.amazonaws.com/StagedProducts/Elevation/13/IMG/'
         usgs_name='USGS_NED_13_n'+str(lat + 1)+'w'+str(-lon).zfill(3)+'_IMG'
-        r=http_request(url_base+usgs_name+'.zip',source)
+        r=http_request(url_base+usgs_name+'.zip',source,verbose)
         if not r:
             UI.vprint(2,"    Trying alternative naming scheme.")
             usgs_name="imgn"+str(lat + 1)+"w"+str(-lon).zfill(3)+"_13"
-            r=http_request(url_base+'n'+str(lat + 1).zfill(2)+'w'+str(-lon).zfill(3)+'.zip',source)
+            r=http_request(url_base+'n'+str(lat + 1).zfill(2)+'w'+str(-lon).zfill(3)+'.zip',source,verbose)
             if not r:
                 return 0
         with zipfile.ZipFile(io.BytesIO(r.content),"r") as zip_ref:
@@ -387,10 +430,10 @@ def ensure_elevation(source,lat,lon):
         UI.vprint(1,"    Downloading ",FNAMES.elevation_data(source,lat,lon),"from USGS.")
         url_base='https://prd-tnm.s3.amazonaws.com/StagedProducts/Elevation/1/ArcGrid/'
         usgs_base='n'+str(lat + 1)+'w'+str(-lon).zfill(3)
-        r=http_request(url_base+'USGS_NED_1_'+usgs_base+'_ArcGrid.zip',source)
+        r=http_request(url_base+'USGS_NED_1_'+usgs_base+'_ArcGrid.zip',source,verbose)
         if not r:
             UI.vprint(2,"    Trying alternative naming scheme.")
-            r=http_request(url_base+usgs_base+'.zip',source)
+            r=http_request(url_base+usgs_base+'.zip',source,verbose)
             if not r:
                 return 0
         with zipfile.ZipFile(io.BytesIO(r.content),"r") as zip_ref:
@@ -411,7 +454,7 @@ def ensure_elevation(source,lat,lon):
 ##############################################################################
                 
 ##############################################################################
-def http_request(url,source):
+def http_request(url,source,verbose=False):
     s=requests.Session()
     tentative=0
     while True: 
@@ -421,14 +464,14 @@ def http_request(url,source):
             if ('[20' in status_code):
                 return r
             elif ('[40' in status_code or '[30' in status_code):
-                UI.vprint(2,"    Server said 'Not Found'")
+                if verbose: UI.vprint(2,"    Server said 'Not Found'")
                 return 0
             elif ('[5' in status_code):      
-                UI.vprint(2,"    Server said 'Internal Error'.",status_code)
+                if verbose: UI.vprint(2,"    Server said 'Internal Error'.",status_code)
             else:
-                UI.vprint(2,status_code)
+                if verbose: UI.vprint(2,status_code)
         except Exception as e:
-            UI.vprint(2,e)
+            if verbose: UI.vprint(2,e)
         tentative+=1
         if tentative==6: return 0
         UI.vprint(1,"    ",source,"server may be down or busy, new tentative in",2**tentative,"sec...")
