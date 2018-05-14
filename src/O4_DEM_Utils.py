@@ -45,9 +45,9 @@ class DEM():
     def load_data(self,source,info_only=False):
         if not source:
             if os.path.exists(FNAMES.generic_tif(self.lat,self.lon)):
-                source=(FNAMES.generic_tif(self.lat, self.lon),)
+                source=FNAMES.generic_tif(self.lat, self.lon)
             else:
-                source=(available_sources[1],)
+                source=available_sources[1]
         if ";" in source:
             source,local_sources=source.split(";")[0],source.split(";")[1:]
         else:
