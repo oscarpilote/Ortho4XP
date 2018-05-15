@@ -15,7 +15,8 @@ import O4_Mask_Utils as MASK
 import O4_UI_Utils as UI
 
 quad_init_level=3
-quad_capacity=50000
+quad_capacity_high=50000
+quad_capacity_low=35000
 
 experimental_water_zl=12
 experimental_water_provider_code='SEA'
@@ -192,7 +193,11 @@ def create_terrain_file(tile,texture_file_name,til_x_left,til_y_top,zoomlevel,pr
 def build_dsf(tile,download_queue):
     dico_customzl=zone_list_to_ortho_dico(tile)
     dsf_file_name=os.path.join(tile.build_dir,'Earth nav data',FNAMES.long_latlon(tile.lat,tile.lon)+'.dsf')
-    UI.vprint(1,"-> Computing the pool quadtree") 
+    UI.vprint(1,"-> Computing the pool quadtree")
+    if tile.add_low_res_sea_ovl or tile.use_masks_for_inland:
+       quad_capacity=quad_capacity_low
+    else:
+       quad_capacity=quad_capacity_high
     pool_quadtree=QuadTree(quad_init_level,quad_capacity)
     f_mesh=open(FNAMES.mesh_file(tile.build_dir,tile.lat,tile.lon),"r")
     mesh_version=float(f_mesh.readline().strip().split()[-1])

@@ -3,3 +3,4 @@ grid_type=webmercator
 url_template=http://wxs.ign.fr/61fs25ymczag0c67naqvvmap/geoportail/wmts?&SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetTile&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&FORMAT=image/jpeg&TILEMATRIXSET=PM&TILEMATRIX={zoom}&TILEROW={y}&TILECOL={x}
 max_zl=12
 imagery_dir=code
+color_filter=SEA
