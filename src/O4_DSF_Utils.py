@@ -10,7 +10,6 @@ import struct
 import hashlib
 import O4_File_Names as FNAMES
 import O4_Geo_Utils as GEO
-import O4_Imagery_Utils as IMG
 import O4_Mask_Utils as MASK
 import O4_UI_Utils as UI
 
@@ -18,7 +17,7 @@ quad_init_level=3
 quad_capacity_high=50000
 quad_capacity_low=35000
 
-experimental_water_zl=12
+experimental_water_zl=14
 experimental_water_provider_code='SEA'
 
 ##############################################################################
@@ -168,11 +167,11 @@ def create_terrain_file(tile,texture_file_name,til_x_left,til_y_top,zoomlevel,pr
             f.write('WET\n')
         f.write('BASE_TEX_NOWRAP ../textures/'+texture_file_name+'\n')
         if tri_type in (1,2) and not is_overlay: # experimental water
-            f.write('TEXTURE_NORMAL '+str(2**(17-zoomlevel))+' ../textures/water_normal_map.png\n')
+            f.write('TEXTURE_NORMAL '+str(2**(17-zoomlevel))+' ../textures/water_normal_map.dds\n')
             f.write('GLOBAL_specular 1.0\n')
             f.write('NORMAL_METALNESS\n')
-            if not os.path.exists(os.path.join(tile.build_dir,'textures','water_normal_map.png')):
-                shutil.copy(os.path.join(FNAMES.Utils_dir,'water_normal_map.png'),os.path.join(tile.build_dir,'textures'))
+            if not os.path.exists(os.path.join(tile.build_dir,'textures','water_normal_map.dds')):
+                shutil.copy(os.path.join(FNAMES.Utils_dir,'water_normal_map.dds'),os.path.join(tile.build_dir,'textures'))
         elif tri_type==1 or (tri_type==2 and is_overlay=='ratio_water'): #constant transparency level       
             f.write('BORDER_TEX ../textures/water_transition.png\n')
             if not os.path.exists(os.path.join(tile.build_dir,'textures','water_transition.png')):
@@ -421,7 +420,8 @@ def build_dsf(tile,download_queue):
                     textured_tris[0]['cross-pool'].extend(tri_p)
             # II. Low resolution texture with global coverage        
             if tri_type==2 and ((tile.experimental_water & 2) or tile.add_low_res_sea_ovl): # experimental water over sea
-                sea_zl=int(IMG.providers_dict['SEA']['max_zl'])
+                #sea_zl=int(IMG.providers_dict['SEA']['max_zl'])
+                sea_zl=experimental_water_zl
                 (til_x_left,til_y_top)=GEO.wgs84_to_orthogrid(bary_lat,bary_lon,sea_zl)
                 texture_attributes=(til_x_left,til_y_top,sea_zl,'SEA')
                 terrain_attributes=(texture_attributes,tri_type)

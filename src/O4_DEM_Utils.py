@@ -31,8 +31,12 @@ class DEM():
     def __init__(self,lat,lon,source='',fill_nodata=True,info_only=False):
         self.lat=lat
         self.lon=lon
-        self.alt=self.alt_nostrict
-        self.alt_vec=self.alt_vec_nostrict
+        if ";" in source:
+            self.alt=self.alt_composite
+            self.alt_vec=self.alt_vec_composite
+        else:
+            self.alt=self.alt_nostrict
+            self.alt_vec=self.alt_vec_nostrict
         self.load_data(source,info_only)
         if info_only: return 
         if fill_nodata=="to zero":
@@ -69,7 +73,7 @@ class DEM():
         if not local_sources: return
         self.subdems=tuple()
         for local_source in local_sources:
-            self.subdems=self.subdems+(DEM(self.lat,self.lon,local_source,False,info_only),)
+            self.subdems+=(DEM(self.lat,self.lon,local_source,False,info_only),)
             self.subdems[-1].alt=self.subdems[-1].alt_strict
             self.subdems[-1].alt_vec=self.subdems[-1].alt_vec_strict
 
@@ -154,7 +158,7 @@ class DEM():
     def alt_composite(self,node):
         for subdem in self.subdems[::-1]:
             tmp=subdem.alt_strict(node)
-            if tmp != subdem.no_data: return tmp
+            if tmp != subdem.nodata: return tmp
         return self.alt_nostrict(node)     
         
     def alt_vec_nostrict(self,way):
@@ -180,15 +184,15 @@ class DEM():
     def alt_vec_strict(self,way):
         x,y=way[:,0],way[:,1]
         mask=(x>=self.x0)*(x<=self.x1)*(y>=self.y0)*(y<=self.y1)
-        nx=numpy.round((x-self.x0)/(self.x1-self.x0)*(self.nxdem-1))
-        Nminusny=numpy.round((self.y1-y)/(self.y1-self.y0)*(self.nydem-1))
+        nx=numpy.round((x-self.x0)/(self.x1-self.x0)*(self.nxdem-1)).astype(numpy.uint16)
+        Nminusny=numpy.round((self.y1-y)/(self.y1-self.y0)*(self.nydem-1)).astype(numpy.uint16)
         return numpy.array([self.alt_dem[i][j] if k else self.nodata for i,j,k in zip(Nminusny,nx,mask)])
     
     def alt_vec_composite(self,way):
         tmp=self.alt_vec_nostrict(way)
         for subdem in self.subdems:
             tmp2=subdem.alt_vec_strict(way)
-            tmp[tmp2!=subdem.no_data]=tmp2[tmp2!=subdem.no_data]
+            tmp[tmp2!=subdem.nodata]=tmp2[tmp2!=subdem.nodata]
         return tmp     
             
 ###############################################################################

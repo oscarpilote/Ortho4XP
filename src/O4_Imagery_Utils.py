@@ -601,7 +601,6 @@ def get_wmts_image(tilematrix,til_x,til_y,provider,http_session):
         til_y=til_y//2
         tilematrix-=1
         down_sample+=1 
-        print("downsample",down_sample)
         if down_sample>=6:
             return (0,Image.new('RGB',(width,height),'white'))
     else:
@@ -655,21 +654,26 @@ def build_texture_from_tilbox(tilbox,zoomlevel,provider,progress=None):
 
 ###############################################################################################################################
 def build_texture_from_bbox_and_size(t_bbox,t_epsg,t_size,provider):
-    # warp will be needed for projections not parallel to 3857
+    # warp will be needed for projections not parallel to 3857 or too large image_size
     # if warp is not needed, crop could still be needed if the grids do not match
     warp_needed=crop_needed=False
     (ulx,uly,lrx,lry)=t_bbox
-    (t_sizex,t_sizey)=t_size 
-    [s_ulx,s_uly]=GEO.transform(t_epsg,provider['epsg_code'],ulx,uly)
-    [s_urx,s_ury]=GEO.transform(t_epsg,provider['epsg_code'],lrx,uly)
-    [s_llx,s_lly]=GEO.transform(t_epsg,provider['epsg_code'],ulx,lry)
-    [s_lrx,s_lry]=GEO.transform(t_epsg,provider['epsg_code'],lrx,lry)
-    if s_ulx!=s_llx or s_uly!=s_ury or s_lrx!=s_urx or s_lly!=s_lry:
-        s_ulx=min(s_ulx,s_llx)
-        s_uly=max(s_uly,s_ury)
-        s_lrx=max(s_urx,s_lrx)
-        s_lry=min(s_lly,s_lry)
-        warp_needed=True
+    (t_sizex,t_sizey)=t_size
+    if provider['epsg_code']=='3857': 
+        s_ulx,s_uly,s_lrx,s_lry=ulx,uly,lrx,lry
+    else:
+        (s_ulx,s_uly)=GEO.transform(t_epsg,provider['epsg_code'],ulx,uly)
+        (s_urx,s_ury)=GEO.transform(t_epsg,provider['epsg_code'],lrx,uly)
+        (s_llx,s_lly)=GEO.transform(t_epsg,provider['epsg_code'],ulx,lry)
+        (s_lrx,s_lry)=GEO.transform(t_epsg,provider['epsg_code'],lrx,lry)
+        (g_ulx,g_uly)=GEO.transform(t_epsg,'4326',ulx,uly)
+        (g_lrx,g_lry)=GEO.transform(t_epsg,'4326',lrx,lry)
+        if s_ulx!=s_llx or s_uly!=s_ury or s_lrx!=s_urx or s_lly!=s_lry or (g_uly-g_lry)>0.08:
+            s_ulx=min(s_ulx,s_llx)
+            s_uly=max(s_uly,s_ury)
+            s_lrx=max(s_urx,s_lrx)
+            s_lry=min(s_lly,s_lry)
+            warp_needed=True
     x_range=s_lrx-s_ulx
     y_range=s_uly-s_lry
     if provider['request_type']=='wms':

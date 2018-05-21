@@ -12,8 +12,6 @@ import O4_File_Names as FNAMES
 import O4_Geo_Utils as GEO
 import O4_Airport_Utils as APT
 
-lane_width=5
-water_simplification = 0.000005
 good_imagery_list=()
 
 ##############################################################################
@@ -21,7 +19,11 @@ def build_poly_file(tile):
     if UI.is_working: return 0
     UI.is_working=1
     UI.red_flag=0
+    # in case that was forgotten by the user
+    tile.iterate=0
+    # update the lat/lon scaling factor in VECT
     VECT.scalx=cos((tile.lat+0.5)*pi/180)
+    # Let's go !
     UI.logprint("Step 1 for tile lat=",tile.lat,", lon=",tile.lon,": starting.")
     UI.vprint(0,"\nStep 1 : Building vector data for tile "+FNAMES.short_latlon(tile.lat,tile.lon)+" : \n--------\n")
     timer=time.time()
@@ -37,13 +39,13 @@ def build_poly_file(tile):
     if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
     
     # Airports
-    apt_area=include_airports(vector_map,tile) 
+    (apt_array,apt_area)=include_airports(vector_map,tile) 
     UI.vprint(1,"   Number of edges at this point:",len(vector_map.dico_edges))
     
     if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
     
     # Roads
-    include_roads(vector_map,tile,apt_area)
+    include_roads(vector_map,tile,apt_array,apt_area)
     if tile.road_level: UI.vprint(1,"   Number of edges at this point:",len(vector_map.dico_edges))
 
     if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
@@ -135,15 +137,23 @@ def include_airports(vector_map,tile):
     tile.dem=DEM.DEM(tile.lat,tile.lon,tile.custom_dem,tile.fill_nodata or "to zero",info_only=False)
     APT.smooth_raster_over_airports(tile,dico_airports)
     (patches_area,patches_list)=include_patches(vector_map,tile)
-    runway_and_taxiway_area=APT.encode_runways_and_taxiways(tile,airport_layer,dico_airports,vector_map,patches_list)
+    runway_and_taxiway_area=APT.encode_runways_taxiways_and_aprons(tile,airport_layer,dico_airports,vector_map,patches_list)
     APT.encode_hangars(tile,dico_airports,vector_map,patches_list)
     APT.flatten_helipads(airport_layer,vector_map,tile)
     #APT.encode_aprons(tile,dico_airports,vector_map)
-    return ops.cascaded_union([patches_area,runway_and_taxiway_area])
+    apt_array=APT.build_airport_array(tile,dico_airports)
+    return (apt_array,ops.cascaded_union([patches_area,runway_and_taxiway_area]))
     
 ##############################################################################
 ##############################################################################
-def include_roads(vector_map,tile,apt_area):    
+def include_roads(vector_map,tile,apt_array,apt_area):
+    def road_is_too_much_banked(way,filtered_segs):
+        (col,row)=numpy.minimum(numpy.maximum(numpy.round(way[0]*1000),0),1000)
+        if apt_array[int(1000-row),int(col)]: return True
+        (col,row)=numpy.minimum(numpy.maximum(numpy.round(way[-1]*1000),0),1000)
+        if apt_array[int(1000-row),int(col)]: return True    
+        if filtered_segs>=tile.max_levelled_segs: return False
+        return (numpy.abs(tile.dem.alt_vec(way)-tile.dem.alt_vec(VECT.shift_way(way,tile.lane_width)))>=tile.road_banking_limit).any()    
     if not tile.road_level: return
     UI.vprint(0,"-> Dealing with roads")
     tags_of_interest=["bridge","tunnel"]
@@ -163,7 +173,7 @@ def include_roads(vector_map,tile,apt_area):
         return 0
     UI.vprint(1,"    * Checking which large roads need levelling.")
     (road_network_banked,road_network_flat)=OSM.OSM_to_MultiLineString(
-            road_layer,tile.lat,tile.lon,tags_for_exclusion,lambda way: (numpy.abs(tile.dem.alt_vec(way)-tile.dem.alt_vec(VECT.shift_way(way,lane_width)))>=tile.road_banking_limit).any())
+            road_layer,tile.lat,tile.lon,tags_for_exclusion,road_is_too_much_banked) 
     if UI.red_flag: return 0
     if tile.road_level>=2:
         road_layer=OSM.OSM_layer()
@@ -182,17 +192,17 @@ def include_roads(vector_map,tile,apt_area):
         UI.vprint(1,"    * Checking which smaller roads need levelling.") 
         timer=time.time()
         (road_network_banked_2,road_network_flat_2)=OSM.OSM_to_MultiLineString(road_layer,\
-                tile.lat,tile.lon,tags_for_exclusion,lambda way: (numpy.abs(tile.dem.alt_vec(way)-tile.dem.alt_vec(VECT.shift_way(way,lane_width)))>=tile.road_banking_limit).any(),limit_segs=tile.max_levelled_segs)
+                tile.lat,tile.lon,tags_for_exclusion,road_is_too_much_banked) 
         UI.vprint(3,"Time for check :",time.time()-timer)
         road_network_banked=geometry.MultiLineString(list(road_network_banked)+list(road_network_banked_2)).simplify(0.000005)
     if not road_network_banked.is_empty:
         UI.vprint(1,"    * Buffering banked road network as multipolygon.")
         timer=time.time()
-        road_area=VECT.improved_buffer(road_network_banked.difference(VECT.improved_buffer(apt_area,15,0,0)),lane_width,2,0.5,show_progress=True)
+        road_area=VECT.improved_buffer(road_network_banked.difference(VECT.improved_buffer(apt_area,tile.lane_width+2,0,0)),tile.lane_width,2,0.5,show_progress=True)
         UI.vprint(3,"Time for improved buffering:",time.time()-timer)
         if UI.red_flag: return 0 
         UI.vprint(1,"      Encoding it.")
-        vector_map.encode_MultiPolygon(road_area,lambda way: tile.dem.alt_vec(VECT.shift_way(way,lane_width)),'INTERP_ALT',check=True,refine=False)
+        vector_map.encode_MultiPolygon(road_area,lambda way: tile.dem.alt_vec(VECT.shift_way(way,tile.lane_width)),'INTERP_ALT',check=True,refine=False)
         if UI.red_flag: return 0 
     if not road_network_flat.is_empty:
         road_network_flat=road_network_flat.difference(VECT.improved_buffer(apt_area,15,0,0)).simplify(0.00001) 
@@ -279,7 +289,7 @@ def include_water(vector_map,tile):
             return 0
         UI.vprint(2,"      Number of water Multipolygons : "+str(len(dico_water)))  
         UI.vprint(1,"      Encoding it.")
-        vector_map.encode_MultiPolygon(dico_water,tile.dem.alt_vec,'WATER',area_limit=tile.min_area/10000,simplify=water_simplification,check=True)
+        vector_map.encode_MultiPolygon(dico_water,tile.dem.alt_vec,'WATER',area_limit=tile.min_area/10000,simplify=tile.water_simplification*GEO.m_to_lat,check=True)
     if not sea_equiv_area.is_empty: 
         UI.vprint(1,"      Separate treatment for larger pieces requiring masks.")
         try:
@@ -288,7 +298,7 @@ def include_water(vector_map,tile):
             return 0
         UI.vprint(2,"      Number of water Multipolygons : "+str(len(dico_water)))  
         UI.vprint(1,"      Encoding them.")
-        vector_map.encode_MultiPolygon(dico_water,tile.dem.alt_vec,'SEA_EQUIV',area_limit=tile.min_area/10000,simplify=water_simplification,check=True)    
+        vector_map.encode_MultiPolygon(dico_water,tile.dem.alt_vec,'SEA_EQUIV',area_limit=tile.min_area/10000,simplify=tile.water_simplification*GEO.m_to_lat,check=True)    
     return 1
 ##############################################################################
 

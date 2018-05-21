@@ -372,7 +372,7 @@ def get_overpass_data(query,bbox,server_code=None):
 ##############################################################################
 
 ##############################################################################
-def OSM_to_MultiLineString(osm_layer,lat,lon,tags_for_exclusion=set(),filter=None,limit_segs=None):
+def OSM_to_MultiLineString(osm_layer,lat,lon,tags_for_exclusion=set(),filter=None): #,limit_segs=None):
     multiline=[]
     multiline_reject=[]
     todo=len(osm_layer.dicosmfirst['w'])
@@ -386,7 +386,7 @@ def OSM_to_MultiLineString(osm_layer,lat,lon,tags_for_exclusion=set(),filter=Non
             done+=1
             continue  
         way=numpy.round(numpy.array([osm_layer.dicosmn[nodeid] for nodeid in osm_layer.dicosmw[wayid]],dtype=numpy.float64)-numpy.array([[lon,lat]],dtype=numpy.float64),7) 
-        if filter and not filter(way):
+        if filter and not filter(way,filtered_segs):
             try:
                 multiline_reject.append(geometry.LineString(way))
             except:
@@ -399,10 +399,10 @@ def OSM_to_MultiLineString(osm_layer,lat,lon,tags_for_exclusion=set(),filter=Non
             pass
         done+=1
         filtered_segs+=len(way)
-        if limit_segs and filtered_segs>=limit_segs: 
-            UI.vprint(1,"      (result was stripped due to user defined limit 'max_levelled_segs')")
-            UI.vprint(3,"      ",osm_layer.dicosmtags['w'][wayid])
-            break
+        #if limit_segs and filtered_segs>=limit_segs: 
+        #    UI.vprint(1,"      (result was stripped due to user defined limit 'max_levelled_segs')")
+        #    UI.vprint(3,"      ",osm_layer.dicosmtags['w'][wayid])
+        #    break
     UI.progress_bar(1,100)
     if not filter:
         return geometry.MultiLineString(multiline)

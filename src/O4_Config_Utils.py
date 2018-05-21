@@ -32,7 +32,9 @@ cfg_vars={
     # Vector
     'road_level':          {'type':int,'default':1,'values':[0,1,2,3,4,5],'hint':'Allows to level the mesh along roads and railways. Zero means nothing such is included; "1" looks for banking ways among motorways, primary and secondary roads and railway tracks; "2" adds tertiary roads; "3" brings residential and unclassified roads; "4" takes service roads, and 5 finishes with tracks. Purge the small_roads.osm cached data if you change your mind in between the levels 2-5.'},
     'road_banking_limit':  {'type':float,'default':0.5,'hint':"How much sloped does a roads need to be to be in order to be included in the mesh levelling process. The value is in meters, measuring the height difference between a point in the center of a road node and its closest point on the side of the road."}, 
+    'lane_width':          {'type':float,'default':5,'hint':"With (in meters) to be used for buffering that part of the road network that requires levelling."},
     'max_levelled_segs':   {'type':int,'default':100000,'hint':"This limits the total number of roads segments included for mesh levelling, in order to keep triangle count under control in case of abundant OSM data."},
+    'water_simplification':{'type':float,'default':0,'hint':"In case the OSM data for water areas would become too large, this parameter (in meter) can be used for node simplification."},
     'min_area':            {'type':float,'default':0.001,'hint':"Minimum area (in km^2) a water patch needs to be in order to be included in the mesh as such. Contiguous water patches are merged before area computation."}, 
     'max_area':            {'type':float,'default':200,'hint':"Any water patch larger than this quantity (in km^2) will be masked like the sea."},
     'clean_bad_geometries':{'type':bool,'default':True,'hint':"When set, all OSM geometries are checked for self-intersection and merged between themselves in case of overlapping, allowing (hopefully!) to go around most OSM errors. This is computationally expensive, especially in places where OSM road/water data is detailed, and this is the reason for this switch, but if you are not in a hurry it is probably wise leaving it always activated."},
@@ -83,7 +85,7 @@ list_app_vars=['verbosity','cleaning_level','overpass_server_choice',
 gui_app_vars_short=list_app_vars[:-2]
 gui_app_vars_long=list_app_vars[-2:]
 
-list_vector_vars=['road_level','road_banking_limit','max_levelled_segs','min_area','max_area','clean_bad_geometries','mesh_zl']
+list_vector_vars=['road_level','road_banking_limit','lane_width','max_levelled_segs','water_simplification','min_area','max_area','clean_bad_geometries','mesh_zl']
 list_mesh_vars=['curvature_tol','apt_curv_tol','apt_curv_ext','coast_curv_tol','coast_curv_ext','limit_tris','hmin','min_angle','apt_smoothing_pix','sea_smoothing_mode','water_smoothing','iterate']
 list_mask_vars=['mask_zl','masks_width','masking_mode','use_masks_for_inland','masks_use_DEM_too','masks_custom_extent']
 list_dsf_vars=['cover_airports_with_highres','cover_extent','cover_zl','ratio_water','overlay_lod','sea_texture_blur','add_low_res_sea_ovl','experimental_water','normal_map_strength','terrain_casts_shadows','use_decal_on_terrain']
