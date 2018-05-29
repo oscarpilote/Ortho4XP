@@ -75,7 +75,10 @@ def output_poly_file(tile):
 def output_ele_file(tile):
     return os.path.join(tile.build_dir,'Data'+short_latlon(tile.lat,tile.lon)+'.'+str(tile.iterate+1)+'.ele')
 def alt_file(tile):
-    return os.path.join(tile.build_dir,'Data'+short_latlon(tile.lat,tile.lon)+'.alt')
+    if tile.iterate:
+        return os.path.join(tile.build_dir,'Data'+short_latlon(tile.lat,tile.lon)+'.'+str(tile.iterate)+'.alt')
+    else:
+        return os.path.join(tile.build_dir,'Data'+short_latlon(tile.lat,tile.lon)+'.alt')
 def apt_file(tile):
     return os.path.join(tile.build_dir,'Data'+short_latlon(tile.lat,tile.lon)+'.apt')
 def weight_file(tile):

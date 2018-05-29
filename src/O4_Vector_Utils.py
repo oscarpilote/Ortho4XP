@@ -38,7 +38,7 @@ scaly=1
 ##############################################################################
 class Vector_Map():
     
-    dico_attributes = {'DUMMY':0,'WATER':1,'SEA':2,'SEA_EQUIV':4,'RUNWAY':8,'INTERP_ALT':16,'HANGAR':32}
+    dico_attributes = {'DUMMY':0,'WATER':1,'SEA':2,'SEA_EQUIV':4,'INTERP_ALT':8,'RUNWAY':16,'TAXIWAY':32,'APRON':64,'HANGAR':128}
     def __init__(self):
         self.dico_nodes={}  # keys are tuples of 2 floats (in our case (lon-base_lon), lat-base_lat) and values are ints (ids)  
         self.dico_edges={}  # keys are tuples of 2 ints (end-points ids) and values are ints (ids). An egde id is needed for the index (bbox)

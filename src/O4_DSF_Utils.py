@@ -300,7 +300,7 @@ def build_dsf(tile,download_queue):
         bary_lon=(node_coords[5*n1]+node_coords[5*n2]+node_coords[5*n3])/3
         bary_lat=(node_coords[5*n1+1]+node_coords[5*n2+1]+node_coords[5*n3+1])/3
         texture_attributes=dico_customzl[GEO.wgs84_to_orthogrid(bary_lat,bary_lon,tile.mesh_zl)]
-        # Triangles whith type>=8 are set for type=0, and type between 2 and 7 are set to 2 (mask) 
+        # Triangles of mixed types are set for water in priority (to avoid water cut by solid roads), and others are set for type=0 
         tri_type = (tri_type & has_water) and (2*((tri_type & has_water)>1 or tile.use_masks_for_inland) or 1)
         # The entries for the terrain and texture main dictionnaries
         terrain_attributes=(texture_attributes,tri_type)

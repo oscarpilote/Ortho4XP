@@ -30,6 +30,7 @@ cfg_vars={
     'custom_scenery_dir':    {'type':str,'default':'','hint':'Your X-Plane Custom Scenery. Used only for "1-click" creation (or deletion) of symbolic links from Ortho4XP tiles to there.'},
     'custom_overlay_src':    {'module':'OVL','type':str,'default':'','hint':'The directory containing the sceneries with the overlays you would like to extract. You need to select the level of directory just _ABOVE_ Earth nav data.'},
     # Vector
+    'apt_smoothing_pix':   {'type':int,  'default':8,'hint':"How much gaussian blur is applied to the elevation raster for the look up of altitude over airports. Unit is the evelation raster pixel size."},
     'road_level':          {'type':int,'default':1,'values':[0,1,2,3,4,5],'hint':'Allows to level the mesh along roads and railways. Zero means nothing such is included; "1" looks for banking ways among motorways, primary and secondary roads and railway tracks; "2" adds tertiary roads; "3" brings residential and unclassified roads; "4" takes service roads, and 5 finishes with tracks. Purge the small_roads.osm cached data if you change your mind in between the levels 2-5.'},
     'road_banking_limit':  {'type':float,'default':0.5,'hint':"How much sloped does a roads need to be to be in order to be included in the mesh levelling process. The value is in meters, measuring the height difference between a point in the center of a road node and its closest point on the side of the road."}, 
     'lane_width':          {'type':float,'default':5,'hint':"With (in meters) to be used for buffering that part of the road network that requires levelling."},
@@ -48,7 +49,6 @@ cfg_vars={
     'limit_tris'    :      {'type':int,  'default':0,'hint':"If non zero, upper bound on the number of final triangles in the mesh."},
     'hmin':                {'type':float,'default':0,'hint':"The mesh algorithm will not try to subdivide triangles whose shortest edge is already smaller than hmin (in meters). If hmin is smaller than half of the levation data step size, it will default to it anyhow (its default zero value thus means : as good as the DEM can do)."}, 
     'min_angle':           {'type':float,'default':10,'hint':"The mesh algorithm will try to not have mesh triangles with second smallest angle less than the value (in deg) of min_angle (prior to v1.3 it was the smallest, not second smallest) The goal behind this is to avoid potential artifacts when a triangle vertex is very close the the middle of its facing edge."},
-    'apt_smoothing_pix':   {'type':int,  'default':8,'hint':"How much gaussian blur is applied to the elevation raster for the look up of altitude over airports. Unit is the evelation raster pixel size."},
     'sea_smoothing_mode':  {'type':str,  'default':'zero','values':['zero','mean','none'],'hint':"Zero means that all nodes of sea triangles are set to zero elevation. With mean, some kind of smoothing occurs (triangles are levelled one at a time to their mean elevation), None (a value mostly appropriate for DEM resolution of 10m and less), positive altitudes of sea nodes are kept intact, only negative ones are brought back to zero, this avoids to create unrealistic vertical cliffs if the coastline vector data was lower res."},
     'water_smoothing':     {'type':int,  'default':10,'hint':"Number of smoothing passes over all inland water triangles (sequentially set to their mean elevation)."},
     'iterate':             {'type':int,  'default':0,'hint':"Allows to refine a mesh using higher resolution elevation data of local scope only (requires Gdal), typically LIDAR data. Having an iterate number is handy to go backward one step when some choice of parameters needs to be revised. REQUIRES cleaning_level=0."},     
@@ -85,8 +85,8 @@ list_app_vars=['verbosity','cleaning_level','overpass_server_choice',
 gui_app_vars_short=list_app_vars[:-2]
 gui_app_vars_long=list_app_vars[-2:]
 
-list_vector_vars=['road_level','road_banking_limit','lane_width','max_levelled_segs','water_simplification','min_area','max_area','clean_bad_geometries','mesh_zl']
-list_mesh_vars=['curvature_tol','apt_curv_tol','apt_curv_ext','coast_curv_tol','coast_curv_ext','limit_tris','hmin','min_angle','apt_smoothing_pix','sea_smoothing_mode','water_smoothing','iterate']
+list_vector_vars=['apt_smoothing_pix','road_level','road_banking_limit','lane_width','max_levelled_segs','water_simplification','min_area','max_area','clean_bad_geometries','mesh_zl']
+list_mesh_vars=['curvature_tol','apt_curv_tol','apt_curv_ext','coast_curv_tol','coast_curv_ext','limit_tris','hmin','min_angle','sea_smoothing_mode','water_smoothing','iterate']
 list_mask_vars=['mask_zl','masks_width','masking_mode','use_masks_for_inland','masks_use_DEM_too','masks_custom_extent']
 list_dsf_vars=['cover_airports_with_highres','cover_extent','cover_zl','ratio_water','overlay_lod','sea_texture_blur','add_low_res_sea_ovl','experimental_water','normal_map_strength','terrain_casts_shadows','use_decal_on_terrain']
 list_other_vars=['custom_dem','fill_nodata']
@@ -176,8 +176,15 @@ class Tile():
                         cmd="self."+var+"=cfg_vars['"+var+"']['type'](value)"
                     exec(cmd)
                 except Exception as e:
-                    UI.vprint(2,e)
-                    pass
+                    # compatibility with zone_list config files from version <= 1.20
+                    if "zone_list.append" in line:
+                        try:
+                            exec("self."+line)
+                        except:
+                            pass
+                    else:
+                        UI.vprint(2,e)
+                        pass
             f.close()
             return 1
         except:
@@ -188,6 +195,11 @@ class Tile():
     def write_to_config(self,config_file=None):
         if not config_file: 
             config_file=os.path.join(self.build_dir,"Ortho4XP_"+FNAMES.short_latlon(self.lat,self.lon)+".cfg")
+            config_file_bak=config_file+".bak"
+        try:
+            os.replace(config_file,config_file_bak)
+        except:
+            pass
         try:
             f=open(config_file,'w')
             for var in list_tile_vars:

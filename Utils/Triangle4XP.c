@@ -1312,7 +1312,9 @@ int minus1mod3[3] = {2, 0, 1};
 /* Modified for Triangle4XP */
 /*  * (int *) ((osub).ss + 8) =  value */
 #define setmark(osub, value)                                                  \
-  * (int *) ((osub).ss + 8) =  (value | (* (int *) ((osub).ss+8)))
+  * (int *) ((osub).ss + 8) =  value
+#define updatemark(osub, value)                                               \
+  * (int *) ((osub).ss + 8) =  (value | (* (int *) ((osub).ss+8))) 
 /* End of Modified for Triangle4XP */
 
 
@@ -8044,7 +8046,7 @@ int subsegmark;                            /* Marker for the new subsegment. */
   } else {
     /* Modified for Triangle4XP */
     /* if (mark(newsubseg) == 0) {*/
-      setmark(newsubseg, subsegmark);
+      updatemark(newsubseg, subsegmark);
     /* End of Modified for Triangle4XP */
     /*}                                */   
   }
@@ -13138,11 +13140,11 @@ REAL area;
       /* We wish to traverse any segment whose corresponding bit (each      */
       /* bit corresponds to a regional attribute) is zero.                  */
       if ((neighbor.tri != m->dummytri) && !infected(neighbor)
-          && ((neighborsubseg.ss == m->dummysub)| !(mark(neighborsubseg) & (int)(attribute+0.1)))) {
+        && ((neighborsubseg.ss == m->dummysub)| !(mark(neighborsubseg) & (int)(attribute+0.1)))) {
       /* End of : Added for Triangle4XP                                     */
-          /*printf("%i",(int)(attribute+0.5));
-          fflush(stdout);*/
-          if (b->verbose > 2) {
+        /*printf("%i",(int)(attribute+0.5));
+        fflush(stdout);*/
+        if (b->verbose > 2) {
           org(neighbor, regionorg);
           dest(neighbor, regiondest);
           apex(neighbor, regionapex);
@@ -16093,9 +16095,6 @@ char **argv;
   readnodes(&m, &b, b.innodefilename, b.inpolyfilename, &polyfile);
 #endif /* not TRILIBRARY */
 
-  /* HACK */
-  /*writenodes(&m, &b, b.outnodefilename, argc, argv);*/
-  /*triexit(1);*/
 
 #ifndef NO_TIMER
   if (!b.quiet) {

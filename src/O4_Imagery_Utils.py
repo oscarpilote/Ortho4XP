@@ -473,12 +473,16 @@ def http_request_to_image(width,height,url,request_headers,http_session):
                 r=http_session.get(url, timeout=http_timeout) 
             status_code = str(r)   
             if ('[200]' in status_code) and ('image' in r.headers['Content-Type']):
-                try:
-                    small_image=Image.open(io.BytesIO(r.content))
-                    return (1,small_image)
-                except:
-                    UI.vprint(2,"Server said 'OK', but the received image was corrupted.")
-                    UI.vprint(3,url,r.headers)
+                # Bing white image with small camera => try to downsample to lower ZL
+                if (r.headers['Content-Length']!='1033') or ('png' not in r.headers['Content-Type']) or ('virtualearth' not in url): 
+                    try:
+                        small_image=Image.open(io.BytesIO(r.content))
+                        return (1,small_image)
+                    except:
+                        UI.vprint(2,"Server said 'OK', but the received image was corrupted.")
+                        UI.vprint(3,url,r.headers)
+                else: # Proceed as for GO2
+                    return (0,'[404]')
             elif ('[404]' in status_code):
                 UI.vprint(2,"Server said 'Not Found'")
                 UI.vprint(3,url,r.headers)

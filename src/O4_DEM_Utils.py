@@ -80,10 +80,10 @@ class DEM():
             
             
     def nodata_to_zero(self):
-        if self.nodata!=0 and (self.alt_dem==self.nodata).any():
+        if (self.alt_dem==self.nodata).any():
             UI.vprint(1,"   INFO: Replacing nodata nodes with zero altitude.")
             self.alt_dem[self.alt_dem==self.nodata]=0
-            self.nodata=0
+        self.nodata=-32768
         return
         
     def write_to_file(self,filename):

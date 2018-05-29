@@ -10,7 +10,8 @@ import O4_Geo_Utils as GEO
 import O4_DEM_Utils as DEM
 import O4_File_Names as FNAMES
 
-runway_chunks=50
+runway_chunks=100   # how much chunks to split a runway longitudinally, ... 
+chunk_min_size=10   # as long as the chunks do not get smaller than this (in meters) .
 
 def discover_airport_names(airport_layer,dico_airports): 
     for osmtype in ('r','w','n'):
@@ -381,7 +382,7 @@ def smooth_raster_over_airports(tile,dico_airports,preserve_boundary=True):
 
 ####################################################################################################
 def encode_runways_taxiways_and_aprons(tile,airport_layer,dico_airports,vector_map,patches_list):
-    seeds=[]
+    seeds={'RUNWAY':[],'TAXIWAY':[],'APRON':[]}
     total_rwy=0
     total_taxi=0
     for airport in dico_airports:
@@ -420,30 +421,29 @@ def encode_runways_taxiways_and_aprons(tile,airport_layer,dico_airports,vector_m
         ## First runways
         for (runway_pol,runway_start,runway_end,runway_width) in apt['runway'][1]+apt['runway'][2]:
             runway_length=VECT.length_in_meters(numpy.vstack((runway_start,runway_end)))
-            refine_size=max(runway_length//runway_chunks,7)
+            refine_size=max(runway_length//runway_chunks,chunk_min_size)
             for pol in VECT.ensure_MultiPolygon(VECT.cut_to_tile(runway_pol)):
-                #way=numpy.round(VECT.refine_way(numpy.array(pol.exterior.coords),refine_size),7)
-                way=numpy.round(VECT.refine_way(numpy.array(pol.exterior.coords),15),7)
-                #way=numpy.round(numpy.array(pol.exterior.coords),7)
+                way=numpy.round(VECT.refine_way(numpy.array(pol.exterior.coords),refine_size),7)
                 alti_way=numpy.array([VECT.weighted_alt(node,alt_idx,alt_dico,tile.dem) for node in way]).reshape((len(way),1))
                 vector_map.insert_way(numpy.hstack([way,alti_way]),'RUNWAY',check=True)
                 pols.append(pol)
         for pol in pols:
             for subpol in VECT.ensure_MultiPolygon(pol.difference(ops.cascaded_union([pol2 for pol2 in pols if pol2!=pol]))):
-                seeds.append(numpy.array(subpol.representative_point()))
+                seeds['RUNWAY'].append(numpy.array(subpol.representative_point()))
             for subpol in VECT.ensure_MultiPolygon(pol.intersection(ops.cascaded_union([pol2 for pol2 in pols if pol2!=pol]))):
-                seeds.append(numpy.array(subpol.representative_point()))   
+                seeds['RUNWAY'].append(numpy.array(subpol.representative_point()))   
         ## Then taxiways
-        cleaned_taxiway_area=VECT.improved_buffer(apt['taxiway'][0].difference(VECT.improved_buffer(apt['runway'][0].union(apt['hangar']),20,0,0)),5,3,1)
+        #cleaned_taxiway_area=VECT.improved_buffer(apt['taxiway'][0].difference(VECT.improved_buffer(apt['runway'][0],10,0,0).union(VECT.improved_buffer(apt['hangar'],20,0,0))),5,3,1)
+        cleaned_taxiway_area=VECT.improved_buffer(apt['taxiway'][0].difference(VECT.improved_buffer(apt['hangar'],20,0,0)),0,0,0.5)
         for pol in VECT.ensure_MultiPolygon(VECT.cut_to_tile(cleaned_taxiway_area)):
             way=numpy.round(VECT.refine_way(numpy.array(pol.exterior),20),7)
             alti_way=numpy.array([VECT.weighted_alt(node,alt_idx,alt_dico,tile.dem) for node in way]).reshape((len(way),1))
-            vector_map.insert_way(numpy.hstack([way,alti_way]),'RUNWAY',check=True) 
+            vector_map.insert_way(numpy.hstack([way,alti_way]),'TAXIWAY',check=True) 
             for subpol in pol.interiors:
                 way=numpy.round(VECT.refine_way(numpy.array(subpol),20),7)
                 alti_way=numpy.array([VECT.weighted_alt(node,alt_idx,alt_dico,tile.dem) for node in way]).reshape((len(way),1))
-                vector_map.insert_way(numpy.hstack([way,alti_way]),'RUNWAY',check=True)
-            seeds.append(numpy.array(pol.representative_point()))
+                vector_map.insert_way(numpy.hstack([way,alti_way]),'TAXIWAY',check=True)
+            seeds['TAXIWAY'].append(numpy.array(pol.representative_point()))
         ## Try to bring some aprons with, we are looking for the small ones along runways
         for wayid in apt['apron'][1]: 
             if wayid not in airport_layer.dicosmtags['w'] or 'include' not in airport_layer.dicosmtags['w'][wayid]: continue
@@ -453,15 +453,16 @@ def encode_runways_taxiways_and_aprons(tile,airport_layer,dico_airports,vector_m
                 apron_pol=geometry.Polygon(way)
                 if not apron_pol.is_empty and runway_pol.is_valid:    
                     alti_way=numpy.array([VECT.weighted_alt(node,alt_idx,alt_dico,tile.dem) for node in way]).reshape((len(way),1))
-                    vector_map.insert_way(numpy.hstack([way,alti_way]),'RUNWAY',check=True) 
-                    seeds.append(numpy.array(apron_pol.representative_point()))
+                    vector_map.insert_way(numpy.hstack([way,alti_way]),'APRON',check=True) 
+                    seeds['APRON'].append(numpy.array(apron_pol.representative_point()))
             except:
                 pass
-    if seeds:
-        if 'RUNWAY' in vector_map.seeds:
-            vector_map.seeds['RUNWAY']+=seeds
-        else:
-            vector_map.seeds['RUNWAY']=seeds
+    for surface in ('RUNWAY','TAXIWAY','APRON'):
+        if seeds[surface]:
+            if surface in vector_map.seeds:
+                vector_map.seeds[surface]+=seeds[surface]
+            else:
+                vector_map.seeds[surface]=seeds[surface]
     plural_rwy='s' if total_rwy>1 else ''
     plural_taxi='s' if total_taxi>1 else ''    
     UI.vprint(1,"   Auto-patched",total_rwy,"runway"+plural_rwy+" and",total_taxi,"piece"+plural_taxi+" of taxiway.")
@@ -478,13 +479,13 @@ def encode_hangars(tile,dico_airports,vector_map,patches_list):
         for pol in VECT.ensure_MultiPolygon(VECT.cut_to_tile(dico_airports[airport]['hangar'])):
             way=numpy.array(pol.exterior.coords)
             alti_way=numpy.ones((len(way),1))*numpy.min(tile.dem.alt_vec(way))
-            vector_map.insert_way(numpy.hstack([way,alti_way]),'INTERP_ALT',check=True) 
+            vector_map.insert_way(numpy.hstack([way,alti_way]),'HANGAR',check=True) 
             seeds.append(numpy.array(pol.representative_point()))
     if seeds:
-        if 'INTERP_ALT' in vector_map.seeds:
-            vector_map.seeds['INTERP_ALT']+=seeds
+        if 'HANGAR' in vector_map.seeds:
+            vector_map.seeds['HANGAR']+=seeds
         else:
-            vector_map.seeds['INTERP_ALT']=seeds  
+            vector_map.seeds['HANGAR']=seeds  
     return 1    
 ####################################################################################################    
     

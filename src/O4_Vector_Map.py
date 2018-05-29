@@ -153,7 +153,9 @@ def include_roads(vector_map,tile,apt_array,apt_area):
         (col,row)=numpy.minimum(numpy.maximum(numpy.round(way[-1]*1000),0),1000)
         if apt_array[int(1000-row),int(col)]: return True    
         if filtered_segs>=tile.max_levelled_segs: return False
-        return (numpy.abs(tile.dem.alt_vec(way)-tile.dem.alt_vec(VECT.shift_way(way,tile.lane_width)))>=tile.road_banking_limit).any()    
+        return (numpy.abs(tile.dem.alt_vec(way)-tile.dem.alt_vec(VECT.shift_way(way,tile.lane_width)))>=tile.road_banking_limit).any()
+    def alt_vec_shift(way):
+        return tile.dem.alt_vec(VECT.shift_way(way,tile.lane_width))    
     if not tile.road_level: return
     UI.vprint(0,"-> Dealing with roads")
     tags_of_interest=["bridge","tunnel"]
@@ -194,7 +196,7 @@ def include_roads(vector_map,tile,apt_array,apt_area):
         (road_network_banked_2,road_network_flat_2)=OSM.OSM_to_MultiLineString(road_layer,\
                 tile.lat,tile.lon,tags_for_exclusion,road_is_too_much_banked) 
         UI.vprint(3,"Time for check :",time.time()-timer)
-        road_network_banked=geometry.MultiLineString(list(road_network_banked)+list(road_network_banked_2)).simplify(0.000005)
+        road_network_banked=geometry.MultiLineString(list(road_network_banked)+list(road_network_banked_2))
     if not road_network_banked.is_empty:
         UI.vprint(1,"    * Buffering banked road network as multipolygon.")
         timer=time.time()
@@ -202,7 +204,8 @@ def include_roads(vector_map,tile,apt_array,apt_area):
         UI.vprint(3,"Time for improved buffering:",time.time()-timer)
         if UI.red_flag: return 0 
         UI.vprint(1,"      Encoding it.")
-        vector_map.encode_MultiPolygon(road_area,lambda way: tile.dem.alt_vec(VECT.shift_way(way,tile.lane_width)),'INTERP_ALT',check=True,refine=False)
+        #vector_map.encode_MultiPolygon(road_area,lambda way: tile.dem.alt_vec(VECT.shift_way(way,tile.lane_width)),'INTERP_ALT',check=True,refine=100)
+        vector_map.encode_MultiPolygon(road_area,alt_vec_shift,'INTERP_ALT',check=True,refine=100)
         if UI.red_flag: return 0 
     if not road_network_flat.is_empty:
         road_network_flat=road_network_flat.difference(VECT.improved_buffer(apt_area,15,0,0)).simplify(0.00001) 
