@@ -1,5 +1,4 @@
 grid_type=webmercator
 url_template=http://mt{switch:0,1,2,3}.google.com/vt/lyrs=s&x={x}&y={y}&z={zoom}
 max_threads=16
-#fake_headers={'Host':'mt0.google.com','User-Agent': user_agent_generic,'Accept':'image/png,image/*;q=0.8,*/*;q=0.5','Accept-Language':'fr,fr-FR;q=0.8,en-US;q=0.5,en;q=0.3','Accept-Encoding':'gzip,deflate','Referer':'https://www.google.fr','Origin':'https://www.google.fr','Connection':'keep-alive'}
 imagery_dir=grouped

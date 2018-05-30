@@ -6,4 +6,3 @@ tile_size=512
 url_template=http://www.pcn.minambiente.it/arcgis/rest/services/immagini/ortofoto_colore_12/MapServer/tile/{zoom}/{y}/{x}
 max_threads=16
 imagery_dir=grouped
-# modif couleur  : couleur sombre 3 0 0 mid 3 0 -8 clair 0 0 0 saturation 20 bc -40 20

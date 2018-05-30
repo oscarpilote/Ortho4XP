@@ -1,4 +1,4 @@
 grid_type=webmercator
-url_template=https://{switch:1,2,3,4}.aerial.maps.api.here.com/maptile/2.1/maptile/231e2c689a/satellite.day/{zoom}/{x}/{y}/256/jpg?app_id=bC4fb9WQfCCZfkxspD4z&app_code=K2Cpd_EKDzrZb1tz0zdpeQ
+url_template=https://{switch:1,2,3,4}.aerial.maps.api.here.com/maptile/2.1/maptile/b378b12264/satellite.day/{zoom}/{x}/{y}/256/jpg?app_id=bC4fb9WQfCCZfkxspD4z&app_code=K2Cpd_EKDzrZb1tz0zdpeQ
 max_threads=16
 imagery_dir=grouped
