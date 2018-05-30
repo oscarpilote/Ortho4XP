@@ -264,7 +264,8 @@ def include_water(vector_map,tile):
                 UI.vprint(1,"      * ",dicosmtags[osmid]['name'],"will be masked like the sea due to its large area of",area,"km^2.")
                 return True
         else:
-            UI.vprint(1,"      * ","Some large OSM water patch close to lat=",'{:.2f}'.format(pol.exterior.coords[0][1]+tile.lon),"lon=",'{:.2f}'.format(pol.exterior.coords[0][0]+tile.lat),"will be masked due to its large area of",area,"km^2.")
+            pt= pol.exterior.coords[0] if 'Multi' not in pol.geom_type else pol[0].exterior.coords[0] 
+            UI.vprint(1,"      * ","Some large OSM water patch close to lat=",'{:.2f}'.format(pt[1]+tile.lon),"lon=",'{:.2f}'.format(pt[0]+tile.lat),"will be masked due to its large area of",area,"km^2.")
             return True
     UI.vprint(0,"-> Dealing with inland water")
     water_layer=OSM.OSM_layer()
