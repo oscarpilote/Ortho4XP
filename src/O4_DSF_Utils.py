@@ -158,7 +158,7 @@ def create_terrain_file(tile,texture_file_name,til_x_left,til_y_top,zoomlevel,pr
     ter_file_name=texture_file_name[:-4]+suffix+'.ter'
     with open(os.path.join(tile.build_dir,'terrain',ter_file_name),'w') as f:
         f.write('A\n800\nTERRAIN\n\n')
-        [lat_med,lon_med]=GEO.gtile_to_wgs84(til_x_left+4,til_y_top+4,zoomlevel)
+        [lat_med,lon_med]=GEO.gtile_to_wgs84(til_x_left+8,til_y_top+8,zoomlevel)
         texture_approx_size=GEO.webmercator_pixel_size(lat_med,zoomlevel)*4096
         f.write('LOAD_CENTER '+'{:.5f}'.format(lat_med)+' '\
                +'{:.5f}'.format(lon_med)+' '\
