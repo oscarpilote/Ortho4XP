@@ -159,12 +159,10 @@ def create_terrain_file(tile,texture_file_name,til_x_left,til_y_top,zoomlevel,pr
     with open(os.path.join(tile.build_dir,'terrain',ter_file_name),'w') as f:
         f.write('A\n800\nTERRAIN\n\n')
         [lat_med,lon_med]=GEO.gtile_to_wgs84(til_x_left+8,til_y_top+8,zoomlevel)
-        texture_approx_size=GEO.webmercator_pixel_size(lat_med,zoomlevel)*4096
+        texture_approx_size=int(GEO.webmercator_pixel_size(lat_med,zoomlevel)*4096)
         f.write('LOAD_CENTER '+'{:.5f}'.format(lat_med)+' '\
                +'{:.5f}'.format(lon_med)+' '\
                +str(texture_approx_size)+' 4096\n')
-        if tri_type in (1,2):
-            f.write('WET\n')
         f.write('BASE_TEX_NOWRAP ../textures/'+texture_file_name+'\n')
         if tri_type in (1,2) and not is_overlay: # experimental water
             f.write('TEXTURE_NORMAL '+str(2**(17-zoomlevel))+' ../textures/water_normal_map.dds\n')
@@ -180,11 +178,12 @@ def create_terrain_file(tile,texture_file_name,til_x_left,til_y_top,zoomlevel,pr
             f.write('LOAD_CENTER_BORDER '+'{:.5f}'.format(lat_med)+' '\
                +'{:.5f}'.format(lon_med)+' '+str(texture_approx_size)+' '+str(4096//2**(zoomlevel-tile.mask_zl))+'\n')
             f.write('BORDER_TEX ../textures/'+FNAMES.mask_file(til_x_left,til_y_top,zoomlevel,provider_code)+'\n')
-        else: #land
-            if tile.use_decal_on_terrain:
-                f.write('DECAL_LIB lib/g10/decals/maquify_1_green_key.dcl\n')
-            if not tile.terrain_casts_shadows:
-                f.write('NO_SHADOW\n')
+        elif tile.use_decal_on_terrain:
+            f.write('DECAL_LIB lib/g10/decals/maquify_1_green_key.dcl\n')
+        if tri_type in (1,2):
+            f.write('WET\n')
+        if tri_type in (1,2) or not tile.terrain_casts_shadows:
+            f.write('NO_SHADOW\n')
         return ter_file_name
 ##############################################################################
 
@@ -504,7 +503,7 @@ def build_dsf(tile,download_queue):
             size_of_geod_atom+=21+dsf_pool_plane[k]*(9+2*dsf_pool_length[k])
     UI.vprint(2,"     Size of DEFN atom : "+str(size_of_defn_atom)+" bytes.")    
     UI.vprint(2,"     Size of GEOD atom : "+str(size_of_geod_atom)+" bytes.")    
-    f=open(dsf_file_name,'wb')
+    f=open(dsf_file_name+'.tmp','wb')
     f.write(b'XPLNEDSF')
     f.write(struct.pack('<I',1))
     
@@ -656,13 +655,13 @@ def build_dsf(tile,download_queue):
     if UI.red_flag: UI.vprint(1,"DSF construction interrupted."); return 0   
     
     f.close()
-    f=open(dsf_file_name,'rb')
+    f=open(dsf_file_name+'.tmp','rb')
     data=f.read()
     m=hashlib.md5()
     m.update(data)
     md5sum=m.digest()
     f.close()
-    f=open(dsf_file_name,'ab')
+    f=open(dsf_file_name+'.tmp','ab')
     f.write(md5sum)
     f.close()
     UI.progress_bar(1,100)

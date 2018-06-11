@@ -98,6 +98,12 @@ def build_tile(tile):
                 UI.vprint(1,"DDS conversion process interrupted.")
             elif dico_conv_progress['done']>=1: 
                 UI.vprint(1," *DDS conversion of textures completed.")
+    UI.vprint(1," *Activating DSF file.")
+    dsf_file_name=os.path.join(tile.build_dir,'Earth nav data',FNAMES.long_latlon(tile.lat,tile.lon)+'.dsf')
+    try:
+        os.rename(dsf_file_name+'.tmp',dsf_file_name)
+    except:
+        UI.vprint(0,"ERROR : could not rename DSF file, tile is not actived.")
     if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
     if UI.cleaning_level>1:
         try: os.remove(FNAMES.alt_file(tile))
