@@ -35,15 +35,18 @@ request_headers_generic={
 
 if 'dar' in sys.platform:
     dds_convert_cmd = os.path.join(UI.Ortho4XP_dir,"Utils","nvcompress","nvcompress.app") 
-    gdal_transl_cmd = 'gdal_translate'
+    gdal_transl_cmd = "gdal_translate"
+    gdalwarp_cmd    = "gdalwarp"
     devnull_rdir    = " >/dev/null 2>&1"
 elif 'win' in sys.platform: 
     dds_convert_cmd = os.path.join(UI.Ortho4XP_dir, "Utils", "nvcompress", "nvcompress.exe") 
-    gdal_transl_cmd = 'gdal_translate'
+    gdal_transl_cmd = "gdal_translate.exe"
+    gdalwarp_cmd    = "gdalwarp.exe"
     devnull_rdir    = " > nul  2>&1"
 else:
     dds_convert_cmd = "nvcompress" 
-    gdal_transl_cmd = 'gdal_translate'
+    gdal_transl_cmd = "gdal_translate"
+    gdalwarp_cmd    = "gdalwarp"
     devnull_rdir    = " >/dev/null 2>&1 "
     
 ###############################################################################################################################
@@ -288,10 +291,23 @@ def initialize_combined_providers_dict():
                     print("Unknown extent in combined provider",provider_code,":",extent_code)
                     continue
                 if color_code=='default':
-                    color_code=providers_dict[layer_code]['color_filters']
+                    try: color_code=providers_dict[layer_code]['color_filters']
+                    except: 
+                        print("Unknown color filter in combined provider",provider_code,":",color_code)
+                        continue
                 if color_code not in color_filters_dict:
-                    print("Unknown color filter in combined provider",provider_code,":",color_code)
-                    continue
+                    try:
+                        if color_code[0]=='L' : b=1
+                        elif color_code[0]=='D' : b=-1
+                        brightness=b*float(color_code[1:3])
+                        contrast=float(color_code[4:6])
+                        color_filters_dict[color_code]=[['brightness-contrast',brightness,contrast]]
+                        if len(color_code)>6:
+                            saturation=float(color_code[7:9])
+                            color_filters_dict[color_code].append(['saturation',saturation])
+                    except:
+                        print("Unknown color filter in combined provider",provider_code,":",color_code)
+                        continue
                 if priority not in ['low','medium','high','mask']:
                     print("Unknown priority in combined provider",provider_code,":",priority,)
                     continue
@@ -855,29 +871,69 @@ def build_combined_ortho(tile, latp,lonp,zoomlevel,provider_code,mask_zl,filenam
     initialize_providers_dict()
     initialize_combined_providers_dict()
     (til_x_left,til_y_top)=GEO.wgs84_to_orthogrid(latp,lonp,zoomlevel)
-    for rlayer in combined_providers_dict[provider_code]:
-        (y0,x0)=GEO.gtile_to_wgs84(til_x_left,til_y_top,zoomlevel)
-        (y1,x1)=GEO.gtile_to_wgs84(til_x_left+16,til_y_top+16,zoomlevel)
-        if has_data((x0,y0,x1,y1),rlayer['extent_code']):
-            true_til_x_left=til_x_left
-            true_til_y_top=til_y_top
-            true_zl=zoomlevel
-            if 'max_zl' in providers_dict[rlayer['layer_code']]:
-                max_zl=int(providers_dict[rlayer['layer_code']]['max_zl'])
-                if max_zl<zoomlevel:
-                    (latmed,lonmed)=GEO.gtile_to_wgs84(til_x_left+8,til_y_top+8,zoomlevel)
-                    (true_til_x_left,true_til_y_top)=GEO.wgs84_to_orthogrid(latmed,lonmed,max_zl)
-                    true_zl=max_zl
-            true_texture_attributes=(true_til_x_left,true_til_y_top,true_zl,rlayer['layer_code'])
-            true_file_name=FNAMES.jpeg_file_name_from_attributes(true_til_x_left, true_til_y_top, true_zl, provider_code)
-            true_file_dir=FNAMES.jpeg_file_dir_from_attributes(tile.lat, tile.lon, true_zl, providers_dict[provider_code])
-            if not os.path.isfile(os.path.join(true_file_dir,true_file_name)):
-                UI.vprint(1,"   Downloading missing orthophoto "+true_file_name+" (for combining in "+provider_code+")\n")
-                download_jpeg_ortho(true_file_dir,true_file_name,*true_texture_attributes)
-            else:
-                UI.vprint(1,"   The orthophoto "+true_file_name+" (for combining in "+provider_code+") is already present.\n")
-    big_img=combine_textures(tile,til_x_left,til_y_top,zoomlevel,provider_code)
-    big_img.save(filename)
+    big_image=Image.new('RGBA',(4096,4096))
+    (y0,x0)=GEO.gtile_to_wgs84(til_x_left,til_y_top,zoomlevel)
+    (y1,x1)=GEO.gtile_to_wgs84(til_x_left+16,til_y_top+16,zoomlevel)
+    mask_weight_below=numpy.zeros((4096,4096),dtype=numpy.uint16)
+    for rlayer in combined_providers_dict[provider_code][::-1]:
+        mask=has_data((x0,y0,x1,y1),rlayer['extent_code'],return_mask=True,is_mask_layer=(tile.lat,tile.lon, tile.mask_zl) if rlayer['priority']=='mask' else False)
+        if not mask: continue
+        # we turn the image mask into an array 
+        mask=numpy.array(mask,dtype=numpy.uint16)
+        true_til_x_left=til_x_left
+        true_til_y_top=til_y_top
+        true_zl=zoomlevel
+        crop=False
+        if 'max_zl' in providers_dict[rlayer['layer_code']]:
+            max_zl=int(providers_dict[rlayer['layer_code']]['max_zl'])
+            if max_zl<zoomlevel:
+                (latmed,lonmed)=GEO.gtile_to_wgs84(til_x_left+8,til_y_top+8,zoomlevel)
+                (true_til_x_left,true_til_y_top)=GEO.wgs84_to_orthogrid(latmed,lonmed,max_zl)
+                true_zl=max_zl
+                crop=True
+                pixx0=round(256*(til_x_left*2**(max_zl-zoomlevel)-true_til_x_left))
+                pixy0=round(256*(til_y_top*2**(max_zl-zoomlevel)-true_til_y_top))
+                pixx1=round(pixx0+2**(12-zoomlevel+max_zl))
+                pixy1=round(pixy0+2**(12-zoomlevel+max_zl))
+        true_file_name=FNAMES.jpeg_file_name_from_attributes(true_til_x_left, true_til_y_top, true_zl,rlayer['layer_code'])
+        true_file_dir=FNAMES.jpeg_file_dir_from_attributes(tile.lat, tile.lon, true_zl,providers_dict[rlayer['layer_code']])
+        if not os.path.isfile(os.path.join(true_file_dir,true_file_name)):
+            UI.vprint(1,"   Downloading missing orthophoto "+true_file_name+" (for combining in "+provider_code+")\n")
+            download_jpeg_ortho(true_file_dir,true_file_name,true_til_x_left, true_til_y_top, true_zl,rlayer['layer_code'])
+        else:
+            UI.vprint(1,"   The orthophoto "+true_file_name+" (for combining in "+provider_code+") is already present.\n")
+        true_im=Image.open(os.path.join(true_file_dir,true_file_name))
+        UI.vprint(2,"Imprinting for provider",rlayer,til_x_left,til_y_top) 
+        true_im=color_transform(true_im,rlayer['color_code'])  
+        if rlayer['priority']=='mask' and tile.sea_texture_blur:
+            UI.vprint(2,"Blur of a mask !")
+            true_im=true_im.filter(ImageFilter.GaussianBlur(tile.sea_texture_blur*2**(true_zl-17)))
+        if crop: 
+            true_im=true_im.crop((pixx0,pixy0,pixx1,pixy1)).resize((4096,4096),Image.BICUBIC)
+        # in case the smoothing of the extent mask was too strong we remove the
+        # the mask (where it is nor 0 nor 255) the pixels for which the true_im
+        # is all white
+        # true_arr=numpy.array(true_im).astype(numpy.uint16)
+        # mask[(numpy.sum(true_arr,axis=2)>=715)*(mask>=1)*(mask<=253)]=0
+        # mask[(numpy.sum(true_arr,axis=2)<=15)*(mask>=1)*(mask<=253)]=0
+        if rlayer['priority']=='low':
+            # low priority layers, do not increase mask_weight_below
+            wasnt_zero=(mask_weight_below+mask)!=0
+            mask[wasnt_zero]=255*mask[wasnt_zero]/(mask_weight_below+mask)[wasnt_zero]
+        elif rlayer['priority'] in ['high','mask']:
+            mask_weight_below+=mask
+        elif rlayer['priority']=='medium':
+            not_zero=mask!=0
+            mask_weight_below+=mask
+            mask[not_zero]=255*mask[not_zero]/mask_weight_below[not_zero]
+            # undecided about the next two lines
+            # was_zero=mask_weight_below==0
+            # mask[was_zero]=255 
+        # we turn back the array mask into an image
+        mask=Image.fromarray(mask.astype(numpy.uint8))
+        big_image=Image.composite(true_im,big_image,mask)
+    UI.vprint(2,"Finished imprinting",til_x_left,til_y_top)
+    big_image.save(filename)
 ###############################################################################################################################
 
 ###############################################################################################################################
@@ -1101,11 +1157,14 @@ def convert_texture(tile,til_x_left,til_y_top,zoomlevel,provider_code,type='dds'
     elif type=='tif':
         out_file_name=FNAMES.geotiff_file_name_from_attributes(til_x_left,til_y_top,zoomlevel,provider_code)
         png_file_name=out_file_name.replace('tif','png')
+        tmp_tif_file_name = os.path.join(UI.Ortho4XP_dir,'tmp',out_file_name.replace('4326','3857'))
     UI.vprint(1,"   Converting orthophoto(s) to build texture "+out_file_name+".")
-    
+    erase_tmp_png=False
+    erase_tmp_tif=False    
     if provider_code in local_combined_providers_dict:
         big_image=combine_textures(tile,til_x_left,til_y_top,zoomlevel,provider_code)
         file_to_convert=os.path.join(UI.Ortho4XP_dir,'tmp',png_file_name)
+        erase_tmp_png=True
         big_image.save(file_to_convert) 
         # If one wanted to distribute jpegs instead of dds, uncomment the next line
         # big_image.convert('RGB').save(os.path.join(tile.build_dir,'textures',out_file_name.replace('dds','jpg')),quality=70)
@@ -1116,6 +1175,7 @@ def convert_texture(tile,til_x_left,til_y_top,zoomlevel,provider_code,type='dds'
         big_image=Image.open(os.path.join(file_dir,jpeg_file_name),'r').convert('RGB')
         big_image=color_transform(big_image,providers_dict[provider_code]['color_filters'])
         file_to_convert=os.path.join(UI.Ortho4XP_dir,'tmp',png_file_name)
+        erase_tmp_png=True
         big_image.save(file_to_convert) 
     # finally if nothing needs to be done prior to the conversion
     else:
@@ -1128,7 +1188,19 @@ def convert_texture(tile,til_x_left,til_y_top,zoomlevel,provider_code,type='dds'
     else:
         (latmax,lonmin)=GEO.gtile_to_wgs84(til_x_left,til_y_top,zoomlevel)
         (latmin,lonmax)=GEO.gtile_to_wgs84(til_x_left+16,til_y_top+16,zoomlevel)
-        conv_cmd=[gdal_transl_cmd,'-of','Gtiff','-co','COMPRESS=JPEG','-a_ullr',str(lonmin),str(latmax),str(lonmax),str(latmin),'-a_srs','epsg:4326',file_to_convert,os.path.join(FNAMES.Geotiff_dir,out_file_name)] 
+        (xmin,ymin)=GEO.transform('4326','3857',lonmin,latmin)
+        (xmax,ymax)=GEO.transform('4326','3857',lonmax,latmax)
+        if latmax-latmin < 0.04:
+            conv_cmd=[gdal_transl_cmd,'-of','Gtiff','-co','COMPRESS=JPEG','-a_ullr',str(lonmin),str(latmax),str(lonmax),str(latmin),'-a_srs','epsg:4326',file_to_convert,os.path.join(FNAMES.Geotiff_dir,out_file_name)]     
+        else:
+            geotag_cmd=[gdal_transl_cmd,'-of','Gtiff','-co','COMPRESS=JPEG','-a_ullr',str(xmin),str(ymax),str(xmax),str(ymin),'-a_srs','epsg:3857',file_to_convert,tmp_tif_file_name] 
+            erase_tmp_tif=True
+            if subprocess.call(geotag_cmd,stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT):
+                UI.vprint(1,"ERROR: Could not geotag texture (gdal not present ?) ",os.path.join(tile.build_dir,'textures',out_file_name))
+                try: os.remove(os.path.join(UI.Ortho4XP_dir,'tmp',png_file_name))
+                except: pass  
+                return
+            conv_cmd=[gdalwarp_cmd,'-of','Gtiff','-co','COMPRESS=JPEG','-s_srs','epsg:3857','-t_srs','epsg:4326','ts','4096','4096','-rb',tmp_tif_file_name,os.path.join(FNAMES.Geotiff_dir,out_file_name)] 
     tentative=0
     while True:
         if not subprocess.call(conv_cmd,stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT):
@@ -1139,8 +1211,12 @@ def convert_texture(tile,til_x_left,til_y_top,zoomlevel,provider_code,type='dds'
             break
         UI.lvprint(1,"WARNING: Could not convert texture",os.path.join(tile.build_dir,'textures',out_file_name))
         time.sleep(1)
-    try: os.remove(os.path.join(UI.Ortho4XP_dir,'tmp',png_file_name))
-    except: pass  
+    if erase_tmp_png:
+        try: os.remove(os.path.join(UI.Ortho4XP_dir,'tmp',png_file_name))
+        except: pass
+    if erase_tmp_tif:
+        try: os.remove(os.path.join(UI.Ortho4XP_dir,'tmp',png_file_name))
+        except: pass
     return 
 ###############################################################################################################################
 
