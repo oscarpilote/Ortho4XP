@@ -354,7 +354,7 @@ def smooth_raster_over_airports(tile,dico_airports,preserve_boundary=True):
         colmax=min(ceil((xmax-x0)/xstep)+pix,tile.dem.nxdem-1)
         rowmin=max(floor((y1-ymax)/ystep)-pix,0)
         rowmax=min(ceil((y1-ymin)/ystep)+pix,tile.dem.nydem-1)
-        if colmin==colmax or rowmin==rowmax: continue
+        if colmin>=colmax or rowmin>=rowmax: continue
         X0=x0+colmin*xstep
         Y1=y1-rowmin*ystep
         airport_im=Image.new('L',(upscale*(colmax-colmin+1),upscale*(rowmax-rowmin+1)))
