@@ -360,9 +360,9 @@ class GTile:
         return (tile
                 for x_offset in [-16, 0, 16]
                 for y_offset in [-16, 0, 16]
-                for tile in (GTile(self.x + x_offset,
+                for tile in [GTile(self.x + x_offset,
                                    self.y + y_offset,
-                                   self.zl))
+                                   self.zl)]
                 if tile != self or include_self)
 
     @functools.lru_cache(maxsize=2 ** 14)
@@ -455,12 +455,13 @@ class Runway:
                                                     lats2=self.end_2_lat)
 
         # Deduce the polygon dimensions
-        polygon_length = optimal_ground_dist + length
+        polygon_length = 2 * optimal_ground_dist + length
         polygon_width = (optimal_ground_dist + self.width) / 1.61803398875
+        center = self._runway_center()
 
         # Compute the two points near end_1
-        (lon, lat, _) = geod.fwd(lons=self._runway_center().x,
-                                 lats=self._runway_center().y,
+        (lon, lat, _) = geod.fwd(lons=center.x,
+                                 lats=center.y,
                                  az=azimut_2_1,
                                  dist=polygon_length / 2)
         ((lon_1, lon_2), (lat_1, lat_2), _) = geod.fwd(lons=(lon, lon),
