@@ -635,12 +635,13 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
             return TILE.smart_zone_list_1(tile_lat_lon=(self.lat, self.lon),
                                           screen_res=2560,
                                           fov=60,
-                                          fpa=5,
-                                          provider='BI',
-                                          max_zl=19,
-                                          min_zl=12,
-                                          greediness=1,
+                                          fpa=10,
+                                          provider='GO2',
+                                          max_zl=20,
+                                          min_zl=16,
+                                          greediness=3,
                                           greediness_threshold=0.70)
+
         wall_time = time.clock()
 
         if _tmp_enable_profiler:
@@ -1081,7 +1082,7 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
                         tmpf.close()
                         if not prov: prov='?'
                         if zl:
-                            color=color=ZOOM_LEVELS.tkinter_color_of[zl]
+                            color=ZOOM_LEVELS.tkinter_color_of[zl]
                         else:
                             zl='?'
                         content=prov+'\n'+str(zl)

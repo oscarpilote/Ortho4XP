@@ -1,3 +1,4 @@
+import datetime
 import math
 import os
 import time
@@ -149,14 +150,28 @@ def build_tile_list(tile,list_lat_lon,do_osm,do_mesh,do_mask,do_dsf,do_ovl,do_pt
     UI.red_flag=0
     timer=time.time()
     UI.lvprint(0,"Batch build launched for a number of",len(list_lat_lon),"tiles.")
-    k=0
-    for (lat,lon) in list_lat_lon:
-        k+=1
-        UI.vprint(1,"Dealing with tile ",k,"/",len(list_lat_lon),":",FNAMES.short_latlon(lat,lon)) 
+
+    wall_time = time.clock()
+    UI.lvprint(0,"Auto-generating a list of ZL zones around the airports of each tile.")
+    zone_lists = smart_zone_list(list_lat_lon=list_lat_lon,
+                                 screen_res=2560,
+                                 fov=60,
+                                 fpa=10,
+                                 provider='GO2',
+                                 max_zl=20,
+                                 min_zl=16,
+                                 greediness=3,
+                                 greediness_threshold=0.70)
+    wall_time_delta = datetime.timedelta(seconds=(time.clock() - wall_time))
+    UI.lvprint(0, "ZL zones computed in {}s".format(wall_time_delta))
+
+    for (k, (lat, lon)) in enumerate(list_lat_lon):
+        UI.vprint(1,"Dealing with tile ",k+1,"/",len(list_lat_lon),":",FNAMES.short_latlon(lat,lon)) 
         (tile.lat,tile.lon)=(lat,lon)
         tile.build_dir=FNAMES.build_dir(tile.lat,tile.lon,tile.custom_build_dir)
         tile.dem=None
         if do_ptc: tile.read_from_config()
+        tile.zone_list = zone_lists[k]
         if (do_osm or do_mesh or do_dsf): tile.make_dirs()
         if do_osm: 
             VMAP.build_poly_file(tile)
