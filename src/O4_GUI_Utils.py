@@ -170,7 +170,11 @@ class Ortho4XP_GUI(tk.Tk):
             self.custom_build_dir.set(custom_build_dir)
             f.close()
         except:
-            pass
+            self.lat.set(48)
+            self.lon.set(-6)
+            self.default_website.set('BI')
+            self.default_zl.set(16)
+            self.custom_build_dir.set('')
 
     # GUI methods
     def write(self,line):
@@ -214,7 +218,7 @@ class Ortho4XP_GUI(tk.Tk):
         if self.default_website.get(): CFG.default_website=str(self.default_website.get())
         if self.default_zl.get(): CFG.default_zl=int(self.default_zl.get())
 
-    def get_lat_lon(self):
+    def get_lat_lon(self,check=True):
         error_string=''
         try:
             lat=int(self.lat.get())
@@ -228,9 +232,11 @@ class Ortho4XP_GUI(tk.Tk):
                 error_string+="Longitude out of range (-180,179)."
         except:
             error_string+="Longitude wrongly encoded."
-        if error_string:
+        if error_string and check:
             UI.vprint(0,"Error: "+error_string)
             return None
+        elif error_string:
+            return (48,-6)
         return (lat,lon)
         
     def tile_from_interface(self):
@@ -305,8 +311,8 @@ class Ortho4XP_GUI(tk.Tk):
             self.earth_window.lift()
             return 1
         except:
-            try: (lat,lon)=self.get_lat_lon()
-            except: return 0
+            try: (lat,lon)=self.get_lat_lon(check=False)
+            except: (lat,lon)=(48,-6)
             self.earth_window=Ortho4XP_Earth_Preview(self,lat,lon)        
             return 1
 
@@ -832,8 +838,8 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
         self.canvas.bind("<Control-ButtonPress-1>",self.toggle_to_custom)
         self.canvas.focus_set()
         self.draw_canvas(self.nx0,self.ny0)
-        self.active_lat=int(self.parent.lat.get())
-        self.active_lon=int(self.parent.lon.get())
+        self.active_lat=lat #int(self.parent.lat.get())
+        self.active_lon=lon #int(self.parent.lon.get())
         self.latlon.set(FNAMES.short_latlon(self.active_lat,self.active_lon))        
         [x0,y0]=GEO.wgs84_to_pix(self.active_lat+1,self.active_lon,self.earthzl)
         [x1,y1]=GEO.wgs84_to_pix(self.active_lat,self.active_lon+1,self.earthzl)
@@ -865,8 +871,8 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
             for dir_name in os.listdir(self.working_dir):
                 if "zOrtho4XP_" in dir_name:
                     try:
-                        lat=int(dir_name[-7:-4])
-                        lon=int(dir_name[-4:])
+                        lat=int(dir_name.split("zOrtho4XP_")[1][:3])
+                        lon=int(dir_name.split("zOrtho4XP_")[1][3:7])
                     except:
                         continue                     
                     [x0,y0]=GEO.wgs84_to_pix(lat+1,lon,self.earthzl)
@@ -901,7 +907,7 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
                                 )
                         link=os.path.join(CFG.custom_scenery_dir,'zOrtho4XP_'+FNAMES.short_latlon(lat,lon))
                         if os.path.isdir(link):
-                            if os.path.samefile(os.path.realpath(link),os.path.realpath(os.path.join(self.working_dir,'zOrtho4XP_'+FNAMES.short_latlon(lat,lon)))):
+                            if os.path.samefile(os.path.realpath(link),os.path.realpath(os.path.join(self.working_dir,dir_name))):
                                 self.canvas.itemconfig(self.dico_tiles_done[(lat,lon)][0],stipple='gray50')
         elif self.grouped and os.path.isdir(os.path.join(self.working_dir,'Earth nav data')):
             for dir_name in os.listdir(os.path.join(self.working_dir,'Earth nav data')):
@@ -932,7 +938,7 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
                         if (prov and zl):
                             color=dico_color[zl]
                             content=prov+'\n'+str(zl)
-                            self.dico_tiles_done[(lat,lon)]=(\
+                    self.dico_tiles_done[(lat,lon)]=(\
                                 self.canvas.create_rectangle(x0,y0,x1,y1,fill=color,stipple='gray12'),\
                                 self.canvas.create_text((x0+x1)//2,(y0+y1)//2,justify=CENTER,text=content)\
                                 )
