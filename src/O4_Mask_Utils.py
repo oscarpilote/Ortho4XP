@@ -287,7 +287,7 @@ def build_masks(tile):
         if tile.masks_custom_extent:
             (latm1,lonm1)=GEO.gtile_to_wgs84(til_x+16,til_y+16,tile.mask_zl)
             bbox_4326=(lonm0,latm0,lonm1,latm1)
-            masks_im=IMG.has_data(bbox_4326,tile.masks_extent_code,True,mask_size=(4096,4096),is_sharp_resize=False,is_mask_layer=False)
+            masks_im=IMG.has_data(bbox_4326,tile.masks_custom_extent,True,mask_size=(4096,4096),is_sharp_resize=False,is_mask_layer=False)
             if masks_im:
                 custom_mask_array=(numpy.array(masks_im,dtype=numpy.uint8)*tile.ratio_water).astype(numpy.uint8)
         
@@ -494,8 +494,8 @@ if __name__ == '__main__':
     multipolygon_area=OSM.OSM_to_MultiPolygon(osm_layer,0,0)
     del(osm_layer)
     if not multipolygon_area.area:
-        try: os.remove(cached_file_name)
-        except: pass    
+        #try: os.remove(cached_file_name)
+        #except: pass    
         print("Humm... an empty response. Are you sure about the exact OSM tag for your region ?")
         print("Exiting with no extent created.")
         del(vector_map)
