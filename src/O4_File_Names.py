@@ -99,8 +99,12 @@ def preview(lat, lon, zoomlevel, provider_code):
 ##############################################################################
 def custom_coastline(lat, lon):
     return os.path.join(OSM_dir,long_latlon(lat,lon),short_latlon(lat,lon)+'_custom_coastline.osm.bz2')
+def custom_coastline_dir(lat, lon):
+    return os.path.join(OSM_dir,long_latlon(lat,lon),'custom_coastline')    
 def custom_water(lat, lon):
     return os.path.join(OSM_dir,long_latlon(lat,lon),short_latlon(lat,lon)+'_custom_water.osm.bz2')
+def custom_water_dir(lat, lon):
+    return os.path.join(OSM_dir,long_latlon(lat,lon),'custom_water')
 def osm_cached(lat, lon, cached_suffix):
     return os.path.join(OSM_dir,long_latlon(lat,lon),short_latlon(lat,lon)+'_'+cached_suffix+'.osm.bz2')
 def osm_old_cached(lat, lon, query):

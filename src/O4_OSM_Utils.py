@@ -22,8 +22,12 @@ max_osm_tentatives=8
 class OSM_layer():
 
     def __init__(self):
-        self.dicosmn={}
+        self.dicosmn={}      # keys are ints (ids) and values are tuple of (lat,lon)
+        self.dicosmn_reverse={} # reverese of the previous one
         self.dicosmw={}
+        self.next_node_id=-1
+        self.next_way_id=-1
+        self.next_rel_id=-1
         # rels already sorted out and containing nodeids rather than wayids 
         self.dicosmr={}
         # original rels containing wayids only, not sorted and/or reversed
@@ -31,8 +35,6 @@ class OSM_layer():
         # ids of objects directly queried, not of child or 
         # parent objects pulled indirectly by queries. Since
         # osm ids are only unique per object type we need one for each:
-        #HACK
-        #self.dicosmfirst={'n':[],'w':[],'r':[]}  
         self.dicosmfirst={'n':set(),'w':set(),'r':set()}  
         self.dicosmtags={'n':{},'w':{},'r':{}}
         self.dicosm=[self.dicosmn,self.dicosmw,self.dicosmr,self.dicosmrorig,
@@ -46,6 +48,8 @@ class OSM_layer():
         initnodes=len(self.dicosmn)
         initways=len(self.dicosmfirst['w'])
         initrels=len(self.dicosmfirst['r'])
+        dicosmn_id_map={}
+        dicosmw_id_map={}
         # osm_input may either refer to an osm filename (e.g. cached data) or 
         # to a xml bytestring (direct download) 
         if isinstance(osm_input,str):
@@ -60,12 +64,12 @@ class OSM_layer():
                 return 0    
         elif isinstance(osm_input,bytes):
             pfile=io.StringIO(osm_input.decode(encoding="utf-8"))
-        #finished_with_file=False
         first_line=pfile.readline()
+        if "<osm " not in first_line:
+            first_line=pfile.readline()
         separator="'" if "'" in first_line else '"'
         normal_exit=False
         for line in pfile:
-            #while not finished_with_file==True:
             items=line.split(separator)
             if '<node id=' in items[0]:
                 osmtype='n'
@@ -75,47 +79,67 @@ class OSM_layer():
                         latp=float(items[j+1])
                     elif items[j]==' lon=':
                         lonp=float(items[j+1])
-                self.dicosmn[osmid]=(lonp,latp)
+                if (lonp,latp) in self.dicosmn_reverse:
+                    true_osmid=self.dicosmn_reverse[(lonp,latp)]
+                    dicosmn_id_map[osmid]=true_osmid
+                    osmid=true_osmid
+                else:
+                    true_osmid=self.next_node_id
+                    dicosmn_id_map[osmid]=true_osmid
+                    osmid=true_osmid
+                    self.dicosmn_reverse[(lonp,latp)]=osmid
+                    self.dicosmn[osmid]=(lonp,latp)
+                    self.next_node_id-=1
             elif '<way id=' in items[0]:
                 osmtype='w'
                 osmid=items[1]
+                true_osmid=self.next_way_id
+                self.next_way_id-=1
+                dicosmw_id_map[osmid]=true_osmid
+                osmid=true_osmid
                 self.dicosmw[osmid]=[]  
-                #HACK
-                #if not input_tags: self.dicosmfirst['w'].append(osmid)
                 if not input_tags: self.dicosmfirst['w'].add(osmid)
             elif '<nd ref=' in items[0]:
-                self.dicosmw[osmid].append(items[1])
+                try:
+                    self.dicosmw[osmid].append(dicosmn_id_map[items[1]])
+                except:
+                    print(dicosmn_id_map,self.dicosmw)
+                    self.dicosmw[osmid].append(dicosmn_id_map[items[1]])    
             elif '<relation id=' in items[0]:
                 osmtype='r'
                 osmid=items[1]
+                true_osmid=self.next_rel_id
+                self.next_rel_id-=1
+                osmid=true_osmid
                 self.dicosmr[osmid]={'outer':[],'inner':[]}
                 self.dicosmrorig[osmid]={'outer':[],'inner':[]}
                 dico_rel_check={'inner':{},'outer':{}}
-                #HACK
-                #if not input_tags: self.dicosmfirst['r'].append(osmid)
-                if not input_tags: self.dicosmfirst['r'].add(osmid)
+                if not input_tags: 
+                    self.dicosmfirst['r'].add(osmid)
             elif '<member type=' in items[0]:
                 role=items[5]
                 if items[1]!='way' or role not in ('outer','inner'):
                     if items[1]=='node': continue # not necessary to report these
                     UI.lvprint(2,"Relation id=",osmid,"contains a member of type","'"+items[1]+"'","and role","'"+role+"'","which was not treated (only deal with 'ways' of role 'inner' or 'outer').")
                     continue                
-                if items[3] not in self.dicosmw: 
+                try:
+                    wayid=dicosmw_id_map[items[3]]
+                except:
                     continue
-                self.dicosmrorig[osmid][role].append(items[3])
-                endpt1=self.dicosmw[items[3]][0]
-                endpt2=self.dicosmw[items[3]][-1]
+                self.dicosmrorig[osmid][role].append(wayid)
+                endpt1=self.dicosmw[wayid][0]
+                endpt2=self.dicosmw[wayid][-1]
                 if endpt1==endpt2:
-                    self.dicosmr[osmid][role].append(self.dicosmw[items[3]])
+                    self.dicosmr[osmid][role].append(self.dicosmw[wayid])
                 else:
                     if endpt1 in dico_rel_check[role]:
-                        dico_rel_check[role][endpt1].append(items[3])
+                        dico_rel_check[role][endpt1].append(wayid)
                     else:
-                        dico_rel_check[role][endpt1]=[items[3]]
+                        dico_rel_check[role][endpt1]=[wayid]
                     if endpt2 in dico_rel_check[role]:
-                        dico_rel_check[role][endpt2].append(items[3])
+                        dico_rel_check[role][endpt2].append(wayid)
                     else:
-                        dico_rel_check[role][endpt2]=[items[3]]
+                        dico_rel_check[role][endpt2]=[wayid]
             elif ('<tag k=' in items[0]):
                 # Do we need to catch that tag ?
                 if (not input_tags) or (('all','') in target_tags[osmtype])\
@@ -126,24 +150,20 @@ class OSM_layer():
                     else:
                         self.dicosmtags[osmtype][osmid][items[1]]=items[3]                     
                     # If so, do we need to declare this osmid as a first catch, not one only brought with as a child    
-                    #HACK
-                    #if input_tags and (((items[1],'') in input_tags[osmtype]) or ((items[1],items[3]) in input_tags[osmtype])) \
-                    #              and (not self.dicosmfirst[osmtype] or self.dicosmfirst[osmtype][-1]!=osmid):
-                    #    self.dicosmfirst[osmtype].append(osmid)       
                     if input_tags and (((items[1],'') in input_tags[osmtype]) or ((items[1],items[3]) in input_tags[osmtype])):
                         self.dicosmfirst[osmtype].add(osmid)                         
             elif '</way' in items[0]:
                 if not self.dicosmw[osmid]: 
                     del(self.dicosmw[osmid]) 
-                    #HACK
-                    #if self.dicosmfirst['w'] and self.dicosmfirst['w'][-1]==osmid: del(self.dicosmfirst['w'][-1])
-                    #if osmid in self.dicosmtags['w']: del(self.dicosmtags[osmtype][osmid])
+                    self.next_way_id+=1
                     if osmid in self.dicosmfirst['w']: self.dicosmfirst['w'].remove(osmid)
                     if osmid in self.dicosmtags['w']: del(self.dicosmtags[osmtype][osmid])
             elif '</relation>' in items[0]:
                 bad_rel=False
                 for role,endpt in ((r,e) for r in ['outer','inner'] for e in dico_rel_check[r]):
                     if len(dico_rel_check[role][endpt])!=2:
+                        # HACK
+                        print(len(dico_rel_check[role][endpt]))
                         bad_rel=True
                         break
                 if bad_rel==True:
@@ -151,8 +171,7 @@ class OSM_layer():
                     del(self.dicosmr[osmid])
                     del(self.dicosmrorig[osmid])
                     del(dico_rel_check)
-                    #HACK
-                    #if self.dicosmfirst['r'] and self.dicosmfirst['r'][-1]==osmid: del(self.dicosmfirst['r'][-1])
+                    self.next_rel_id+=1
                     if osmid in self.dicosmfirst['r']: self.dicosmfirst['r'].remove(osmid)
                     if osmid in self.dicosmtags['r']: del(self.dicosmtags['r'][osmid])
                     continue
@@ -193,8 +212,7 @@ class OSM_layer():
                 if not self.dicosmr[osmid]['outer']: 
                     del(self.dicosmr[osmid])
                     del(self.dicosmrorig[osmid])
-                    #HACK
-                    #if self.dicosmfirst['r'] and self.dicosmfirst['r'][-1]==osmid: del(self.dicosmfirst['r'][-1])
+                    self.next_rel_id+=1
                     if osmid in self.dicosmfirst['r']: self.dicosmfirst['r'].remove(osmid)
                     if osmid in self.dicosmtags['r']: del(self.dicosmtags['r'][osmid])
                 del(dico_rel_check)
@@ -217,36 +235,32 @@ class OSM_layer():
         except:
             UI.vprint(1,"    Could not open",filename,"for writing.")
             return 0
-        fout.write('<?xml version="1.0" encoding="UTF-8"?>\n<osm version="0.6" generator="Overpass API postprocessed by Ortho4XP">\n')
+        fout.write('<?xml version="1.0" encoding="UTF-8"?>\n<osm version="0.6" generator="Ortho4XP">\n')
         if not len(self.dicosmfirst['n']):
             for nodeid,(lonp,latp) in self.dicosmn.items():
-                fout.write('  <node id="'+nodeid+'" lat="'+'{:.7f}'.format(latp)+'" lon="'+'{:.7f}'.format(lonp)+'" version="1"/>\n')
+                fout.write('  <node id="'+str(nodeid)+'" lat="'+'{:.7f}'.format(latp)+'" lon="'+'{:.7f}'.format(lonp)+'" version="1"/>\n')
         else:
             for nodeid,(lonp,latp) in self.dicosmn.items():
                 if nodeid not in self.dicosmtags['n']:
-                    fout.write('  <node id="'+nodeid+'" lat="'+'{:.7f}'.format(latp)+'" lon="'+'{:.7f}'.format(lonp)+'" version="1"/>\n')
+                    fout.write('  <node id="'+str(nodeid)+'" lat="'+'{:.7f}'.format(latp)+'" lon="'+'{:.7f}'.format(lonp)+'" version="1"/>\n')
                 else:
-                    fout.write('  <node id="'+nodeid+'" lat="'+'{:.7f}'.format(latp)+'" lon="'+'{:.7f}'.format(lonp)+'" version="1">\n')
+                    fout.write('  <node id="'+str(nodeid)+'" lat="'+'{:.7f}'.format(latp)+'" lon="'+'{:.7f}'.format(lonp)+'" version="1">\n')
                     for tag in self.dicosmtags['n'][nodeid]:
                         fout.write('    <tag k="'+tag+'" v="'+self.dicosmtags['n'][nodeid][tag]+'"/>\n')
                     fout.write('  </node>\n')
-        #HACK
-        #for wayid in self.dicosmfirst['w']+list(set(self.dicosmw).difference(set(self.dicosmfirst['w']))):
         for wayid in tuple(self.dicosmfirst['w'])+tuple(set(self.dicosmw).difference(self.dicosmfirst['w'])):
-            fout.write('  <way id="'+wayid+'" version="1">\n')
+            fout.write('  <way id="'+str(wayid)+'" version="1">\n')
             for nodeid in self.dicosmw[wayid]:
-                fout.write('    <nd ref="'+nodeid+'"/>\n')
+                fout.write('    <nd ref="'+str(nodeid)+'"/>\n')
             for tag in self.dicosmtags['w'][wayid] if wayid in self.dicosmtags['w'] else []:
                 fout.write('    <tag k="'+tag+'" v="'+self.dicosmtags['w'][wayid][tag]+'"/>\n')
             fout.write('  </way>\n')
-        #HACK
-        #for relid in self.dicosmfirst['r']+list(set(self.dicosmrorig).difference(set(self.dicosmfirst['r']))):
         for relid in tuple(self.dicosmfirst['r'])+tuple(set(self.dicosmrorig).difference(self.dicosmfirst['r'])):
-            fout.write('  <relation id="'+relid+'" version="1">\n')
+            fout.write('  <relation id="'+str(relid)+'" version="1">\n')
             for wayid in self.dicosmrorig[relid]['outer']:
-                fout.write('    <member type="way" ref="'+wayid+'" role="outer"/>\n')
+                fout.write('    <member type="way" ref="'+str(wayid)+'" role="outer"/>\n')
             for wayid in self.dicosmrorig[relid]['inner']:
-                fout.write('    <member type="way" ref="'+wayid+'" role="inner"/>\n')
+                fout.write('    <member type="way" ref="'+str(wayid)+'" role="inner"/>\n')
             for tag in self.dicosmtags['r'][relid] if relid in self.dicosmtags['r'] else []:
                 fout.write('    <tag k="'+tag+'" v="'+self.dicosmtags['r'][relid][tag]+'"/>\n')
             fout.write('  </relation>\n')
