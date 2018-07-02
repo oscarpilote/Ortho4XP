@@ -432,19 +432,19 @@ def build_poly_file(lat0,lon0,option,build_dir,airport_website=default_website):
     tags=[]
     if option==2:  # Orthophoto only for inland water
         print("-> Downloading airport and water/ground boundary data on Openstreetmap")
-        tags.append('way["aeroway"="aerodrome"]')                                         
-        tags.append('rel["aeroway"="aerodrome"]')                                         
-        tags.append('way["aeroway"="heliport"]')                                         
+        tags.append('way["aeroway"="aerodrome"]')
+        tags.append('rel["aeroway"="aerodrome"]')
+        tags.append('way["aeroway"="heliport"]')
         tags.append('way["natural"="coastline"]')
     else:  # Mixed
         print("-> Downloading airport and water/ground boundary data from Openstreetmap :")
-        tags.append('way["aeroway"="aerodrome"]')                                         
-        tags.append('rel["aeroway"="aerodrome"]')                                         
-        tags.append('way["aeroway"="heliport"]')                                         
-        tags.append('way["natural"="water"]["tidal"!="yes"]')                                         
-        tags.append('rel["natural"="water"]["tidal"!="yes"]')                                         
-        tags.append('way["waterway"="riverbank"]')                                    
-        tags.append('rel["waterway"="riverbank"]')                                    
+        tags.append('way["aeroway"="aerodrome"]')
+        tags.append('rel["aeroway"="aerodrome"]')
+        tags.append('way["aeroway"="heliport"]')
+        tags.append('way["natural"="water"]["tidal"!="yes"]')
+        tags.append('rel["natural"="water"]["tidal"!="yes"]')
+        tags.append('way["waterway"="riverbank"]')
+        tags.append('rel["waterway"="riverbank"]')
         tags.append('way["natural"="coastline"]')
         tags.append('way["waterway"="dock"]')
     try:
@@ -2880,6 +2880,10 @@ def filename_from_attributes(strlat,strlon,til_x_left,til_y_top,\
     else:
         file_name=str(til_y_top)+"_"+str(til_x_left)+"_"+website+str(zoomlevel)   
     file_ext=".jpg"
+
+    if build_for_ESP:
+        file_ext = ".bmp"
+
     return [file_dir,file_name,file_ext]
 ##############################################################################
 
@@ -2994,7 +2998,6 @@ def attribute_texture(lat1,lon1,lat2,lon2,lat3,lon3,ortho_list,tri_type):
 ##############################################################################
 
 def build_jpeg_ortho(strlat,strlon,til_x_left,til_y_top,zoomlevel,website):
-    
     jobs=[]
     
     if website=='g2xpl_8': 
@@ -3034,8 +3037,43 @@ def build_jpeg_ortho(strlat,strlon,til_x_left,til_y_top,zoomlevel,website):
     if not os.path.exists(file_dir):
         os.makedirs(file_dir)
     big_image.save(file_dir+file_name+file_ext)
+
+    nbr = 16
+    if build_for_ESP:
+        make_ESP_inf_file(file_dir, file_name, til_x_left, (til_x_left + nbr), til_y_top, (til_y_top + nbr), zoomlevel)
     return
 
+
+def make_ESP_inf_file(file_dir, file_name, til_x_left, til_x_right, til_y_top, til_y_bot, zoomlevel):
+    top_left_tile = gtile_to_wgs84(til_x_left, til_y_top, zoomlevel)
+    bottom_right_tile = gtile_to_wgs84(til_x_right, til_y_bot, zoomlevel)
+    # TODO: add support for images of different sizes (I think different websites make different size images), but for now 4096x4096 support is good enough
+    IMG_X_Y_DIM = 4096
+    cell_x_dimension_deg = (bottom_right_tile[1] - top_left_tile[1]) / IMG_X_Y_DIM
+    cell_y_dimension_deg = (top_left_tile[0] - bottom_right_tile[0]) / IMG_X_Y_DIM
+
+    with open(file_dir + file_name + ".inf", "w") as inf_file:
+        contents = "[Destination]\n"
+        contents += "DestDir             = " + os.path.abspath(file_dir) + dir_sep + "ADDON_SCENERY" + dir_sep + "scenery\n"
+        contents += "DestBaseFileName     = " + file_name + "\n"
+        contents += "BuildSeasons        = 0\n"
+        contents += "UseSourceDimensions  = 1\n"
+        contents += "CompressionQuality   = 100\n"
+        contents += "LOD = Auto,13\n"
+        contents += "[Source]\n"
+        contents += "Type          = Custom\n"
+        contents += "SourceDir  = " + os.path.abspath(file_dir) + "\n"
+        contents += "SourceFile = " + file_name + ".bmp" + "\n"
+        contents += "Lon               = " + str(top_left_tile[1]) + "\n"
+        contents += "Lat               = " + str(top_left_tile[0]) + "\n"
+        contents += "NumOfCellsPerLine = 4096       ;Pixel isn't FSX/P3D\n"
+        contents += "NumOfLines        = 4096       ;Pixel isn't used in FSX/P3D\n"
+        contents += "CellXdimensionDeg = """ + str(cell_x_dimension_deg) + "\n"
+        contents += "CellYdimensionDeg = """ + str(cell_y_dimension_deg) + "\n"
+        contents += "PixelIsPoint      = 0\n"
+        contents += "SamplingMethod    = Point"
+
+        inf_file.write(contents)
 
 def obtain_jpeg_row(til_x_left,til_y_top,til_y,zoomlevel,website,big_image):
     """
@@ -3458,9 +3496,11 @@ def download_textures(strlat,strlon):
             except:
                 pass
         elif download_to_do_list[0] != 'finished':
+            global ESP_build_dir
             texture=download_to_do_list[0]
             [file_dir,file_name,file_ext]=filename_from_attributes(\
                                strlat,strlon,*texture)
+            ESP_build_dir = file_dir
             if os.path.isfile(file_dir+file_name+file_ext) != True:
                 if verbose_output==True:
                     print("   Downloading missing orthophoto "+\
@@ -4528,6 +4568,11 @@ def build_tile(lat,lon,build_dir,mesh_filename,check_for_what_next=True):
         clean_temporary_files(build_dir,['POLY','ELE'])                                                 
     else:
         clean_temporary_files(build_dir,['ELE'])
+
+    if build_for_ESP:
+        global ESP_build_dir
+        run_ESP_resample(ESP_build_dir)
+
     print('\nCompleted in '+str('{:.2f}'.format(time.time()-t3))+\
               'sec.')
     print('_____________________________________________________________'+\
@@ -4566,8 +4611,24 @@ def build_tile(lat,lon,build_dir,mesh_filename,check_for_what_next=True):
         pass
     return
 ##############################################################################
+def run_ESP_resample(build_dir):
+    if ESP_resample_location is None:
+        print("No resample.exe is specified in cfg, quitting")
+        return
+    if not os.path.isfile(ESP_resample_location):
+        print("resample.exe doesn't exist at " + ESP_resample_location + ", quitting")
+        return
 
+    command = [ESP_resample_location]
 
+    for (dirpath, dir_names, file_names) in os.walk(build_dir):
+        for full_file_name in file_names:
+            file_name, file_extension = os.path.splitext(full_file_name)
+            if file_extension == ".inf":
+                command.append(build_dir + dir_sep + full_file_name)
+
+    print("Calling resample")
+    subprocess.call(command)
 ##############################################################################
 def build_overlay(lat,lon,file_to_sniff):
     strlat='{:+.0f}'.format(lat).zfill(3)
@@ -6593,6 +6654,8 @@ class Ortho4XP_Graphical(Tk):
         self.complexmasks.set(0)
         self.masksinland     = IntVar()
         self.masksinland.set(0)
+        self.build_for_ESP     = IntVar()
+        self.build_for_ESP.set(0)
         self.verbose         = IntVar()
         self.verbose.set(1)
         self.sniff           = IntVar()
@@ -6731,6 +6794,9 @@ class Ortho4XP_Graphical(Tk):
         self.masksinland_check=  Checkbutton(self.frame_left,text="Use masks for inland",\
                                     anchor=W,variable=self.masksinland,command=self.set_masksinland,bg="light green",\
                                     activebackground="light green",highlightthickness=0)                    
+        self.build_ESP_check=  Checkbutton(self.frame_left,text="Build tiles for ESP",\
+                                    anchor=W,variable=self.build_for_ESP,command=self.set_build_for_ESP,bg="light green",\
+                                    activebackground="light green",highlightthickness=0)
         self.label_overlay        =  Label(self.frame_left,justify=RIGHT,anchor=W,text="Build Overlays",\
                                     fg = "light green",bg = "dark green",font = "Helvetica 16 bold italic")
         self.sniff_check      =  Checkbutton(self.frame_left,text="Custom overlay dir :",\
@@ -6808,6 +6874,7 @@ class Ortho4XP_Graphical(Tk):
         self.cleanddster_check.grid(row=14,column=3,columnspan=2, pady=5,sticky=N+S+W)
         self.complexmasks_check.grid(row=15,column=0,columnspan=2, pady=5,sticky=N+S+W)
         self.masksinland_check.grid(row=15,column=2,columnspan=1, pady=5,sticky=N+S+W)
+        self.build_ESP_check.grid(row=15,column=3,columnspan=1, pady=5,sticky=N+S+W)
         self.title_masks_width.grid(row=16,column=0, padx=5, pady=5,sticky=W+E) 
         self.masks_width_e.grid(row=16,column=1, padx=5, pady=5,sticky=W)
         self.title_ratio_water.grid(row=16,column=2,columnspan=1, padx=5, pady=5,sticky=W) 
@@ -6863,6 +6930,7 @@ class Ortho4XP_Graphical(Tk):
             self.sniff_dir.set(default_sniff_dir)
             self.complexmasks.set(complex_masks)
             self.masksinland.set(use_masks_for_inland)
+            self.build_for_ESP.set(build_for_ESP)
         except:
             print("\nWARNING : the config variables are incomplete or do not follow the syntax,")
             print("I could not initialize all the parameters to your wish.")
@@ -6991,11 +7059,16 @@ class Ortho4XP_Graphical(Tk):
             globals()['use_masks_for_inland']=False
         else:
             globals()['use_masks_for_inland']=True
+        if self.build_for_ESP.get()==0:
+            globals()['build_for_ESP']=False
+        else:
+            globals()['build_for_ESP']=True
         if self.sniff.get()==1:
             globals()['default_sniff_dir']=self.sniff_dir_entry.get()
         return 'success' 
            
     def write(self,text):
+        sys.__stdout__.write(str(text))
         if text=='' or text[-1]!='\r':
             self.std_out.insert(END,str(text))
             self.std_out.see(END)
@@ -7541,6 +7614,14 @@ class Ortho4XP_Graphical(Tk):
             use_masks_for_inland=True
         return
     
+    def set_build_for_ESP(self):
+        global build_for_ESP
+        if self.build_for_ESP.get()==0:
+            build_for_ESP=False
+        else:
+            build_for_ESP=True
+        return
+
     def kill_process(self):
         return
 
