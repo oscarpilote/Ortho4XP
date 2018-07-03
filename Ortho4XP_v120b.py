@@ -3008,13 +3008,13 @@ def build_jpeg_ortho(strlat,strlon,til_x_left,til_y_top,zoomlevel,website):
     if website=='g2xpl_8':
         for til_y in range(til_y_top,til_y_top+16):
             fargs=[til_x_left,til_y_top,til_y,zoomlevel,website,big_image]
-            connection_thread=threading.Thread(target=obtain_jpeg_row,\
+            connection_thread=threading.Thread(target=obtain_photo_row,\
                           args=fargs)
             jobs.append(connection_thread)
     elif website in px256_list:
         for til_y in range(til_y_top,til_y_top+16):
             fargs=[til_x_left,til_y_top,til_y,zoomlevel,website,big_image]
-            connection_thread=threading.Thread(target=obtain_jpeg_row,\
+            connection_thread=threading.Thread(target=obtain_photo_row,\
                           args=fargs)
             jobs.append(connection_thread)
     elif website in wms2048_list:
@@ -3075,7 +3075,7 @@ def make_ESP_inf_file(file_dir, file_name, til_x_left, til_x_right, til_y_top, t
 
         inf_file.write(contents)
 
-def obtain_jpeg_row(til_x_left,til_y_top,til_y,zoomlevel,website,big_image):
+def obtain_photo_row(til_x_left,til_y_top,til_y,zoomlevel,website,big_image):
     """
     Obtain 16 gtiles in a row, http transactions take time so better 
     stay in line for a few consecutive tiles. We shall thread these calls in 
