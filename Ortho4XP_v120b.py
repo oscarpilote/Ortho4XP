@@ -2997,7 +2997,7 @@ def attribute_texture(lat1,lon1,lat2,lon2,lat3,lon3,ortho_list,tri_type):
 #  The process depend on the provider.
 ##############################################################################
 
-def build_jpeg_ortho(strlat,strlon,til_x_left,til_y_top,zoomlevel,website):
+def build_photo_ortho(strlat,strlon,til_x_left,til_y_top,zoomlevel,website):
     jobs=[]
     
     if website=='g2xpl_8': 
@@ -3505,7 +3505,7 @@ def download_textures(strlat,strlon):
                 if verbose_output==True:
                     print("   Downloading missing orthophoto "+\
                       file_name+file_ext)
-                build_jpeg_ortho(strlat,strlon,*texture)
+                build_photo_ortho(strlat,strlon,*texture)
                 nbr_done+=1
                 nbr_done_or_in+=1
                 convert_to_do_list.append(texture)
