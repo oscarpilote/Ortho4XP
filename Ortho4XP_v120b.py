@@ -439,14 +439,14 @@ def build_poly_file(lat0,lon0,option,build_dir,airport_website=default_website):
     else:  # Mixed
         print("-> Downloading airport and water/ground boundary data from Openstreetmap :")
         tags.append('way["aeroway"="aerodrome"]')
-        tags.append('rel["aeroway"="aerodrome"]')
-        tags.append('way["aeroway"="heliport"]')
-        tags.append('way["natural"="water"]["tidal"!="yes"]')
-        tags.append('rel["natural"="water"]["tidal"!="yes"]')
-        tags.append('way["waterway"="riverbank"]')
-        tags.append('rel["waterway"="riverbank"]')
-        tags.append('way["natural"="coastline"]')
-        tags.append('way["waterway"="dock"]')
+        # tags.append('rel["aeroway"="aerodrome"]')
+        # tags.append('way["aeroway"="heliport"]')
+        # tags.append('way["natural"="water"]["tidal"!="yes"]')
+        # tags.append('rel["natural"="water"]["tidal"!="yes"]')
+        # tags.append('way["waterway"="riverbank"]')
+        # tags.append('rel["waterway"="riverbank"]')
+        # tags.append('way["natural"="coastline"]')
+        # tags.append('way["waterway"="dock"]')
     try:
         application.red_flag.set(0)
     except:
@@ -3044,34 +3044,57 @@ def build_photo_ortho(strlat,strlon,til_x_left,til_y_top,zoomlevel,website):
     return
 
 
+def create_INF_source_string(source_num, source_dir, source_file, lon, lat, num_cells_line, num_lines, cell_x_dim, cell_y_dim):
+    contents = "[Source" + source_num + "]\n"
+    contents += "Type          = Custom\n"
+    contents += "SourceDir  = " + source_dir + "\n"
+    contents += "SourceFile = " + source_file + ".bmp" + "\n"
+    contents += "Lon               = " + lon + "\n"
+    contents += "Lat               = " + lat + "\n"
+    contents += "NumOfCellsPerLine = " + num_cells_line + "       ;Pixel isn't FSX/P3D\n"
+    contents += "NumOfLines        = " + num_lines + "       ;Pixel isn't used in FSX/P3D\n"
+    contents += "CellXdimensionDeg = """ + cell_x_dim + "\n"
+    contents += "CellYdimensionDeg = """ + cell_y_dim + "\n"
+    contents += "PixelIsPoint      = 0\n"
+    contents += "SamplingMethod    = Point"
+
+    return contents
+
 def make_ESP_inf_file(file_dir, file_name, til_x_left, til_x_right, til_y_top, til_y_bot, zoomlevel):
+    global do_build_masks
     top_left_tile = gtile_to_wgs84(til_x_left, til_y_top, zoomlevel)
     bottom_right_tile = gtile_to_wgs84(til_x_right, til_y_bot, zoomlevel)
     # TODO: add support for images of different sizes (I think different websites make different size images), but for now 4096x4096 support is good enough
     IMG_X_Y_DIM = 4096
-    cell_x_dimension_deg = (bottom_right_tile[1] - top_left_tile[1]) / IMG_X_Y_DIM
-    cell_y_dimension_deg = (top_left_tile[0] - bottom_right_tile[0]) / IMG_X_Y_DIM
+    img_cell_x_dimension_deg = (bottom_right_tile[1] - top_left_tile[1]) / IMG_X_Y_DIM
+    img_cell_y_dimension_deg = (top_left_tile[0] - bottom_right_tile[0]) / IMG_X_Y_DIM
 
     with open(file_dir + file_name + ".inf", "w") as inf_file:
-        contents = "[Destination]\n"
+        contents = create_INF_source_string("1", os.path.abspath(file_dir), file_name, str(top_left_tile[1]),
+                    str(top_left_tile[0]), "4096", "4096", str(img_cell_x_dimension_deg), str(img_cell_y_dimension_deg))
+
+        if True or do_build_masks:
+            build_dir_path_parts = os.path.abspath(file_dir).split(dir_sep)
+            str_lat_lon_folder_name = build_dir_path_parts[build_dir_path_parts.index("Orthophotos") + 1]
+            img_mask_folder_abs_path = os.path.abspath(Ortho4XP_dir + dir_sep + "Masks" + dir_sep + str_lat_lon_folder_name)
+            img_mask_abs_path = img_mask_folder_abs_path + dir_sep + "whole_tile_blured.bmp"
+            img_width, img_height = Image.open(img_mask_abs_path).size
+
+            mask_cell_x_dimension_deg = (bottom_right_tile[1] - top_left_tile[1]) / img_width
+            mask_cell_y_dimension_deg = (top_left_tile[0] - bottom_right_tile[0]) / img_height
+
+            contents = "[Source]\nType = MultiSource\nNumberOfSources = 2\n\n" + contents + "\n"
+            contents += "; pull the blend mask from Source2, band 0\nChannel_BlendMask = 2.0\n"
+            contents += create_INF_source_string("2", img_mask_folder_abs_path, "whole_tile_blured", str(top_left_tile[1]),
+                    str(top_left_tile[0]), str(img_width), str(img_height), str(mask_cell_x_dimension_deg), str(mask_cell_y_dimension_deg)) + "\n\n"
+
+        contents += "[Destination]\n"
         contents += "DestDir             = " + os.path.abspath(file_dir) + dir_sep + "ADDON_SCENERY" + dir_sep + "scenery\n"
         contents += "DestBaseFileName     = " + file_name + "\n"
         contents += "BuildSeasons        = 0\n"
         contents += "UseSourceDimensions  = 1\n"
         contents += "CompressionQuality   = 100\n"
         contents += "LOD = Auto,13\n"
-        contents += "[Source]\n"
-        contents += "Type          = Custom\n"
-        contents += "SourceDir  = " + os.path.abspath(file_dir) + "\n"
-        contents += "SourceFile = " + file_name + ".bmp" + "\n"
-        contents += "Lon               = " + str(top_left_tile[1]) + "\n"
-        contents += "Lat               = " + str(top_left_tile[0]) + "\n"
-        contents += "NumOfCellsPerLine = 4096       ;Pixel isn't FSX/P3D\n"
-        contents += "NumOfLines        = 4096       ;Pixel isn't used in FSX/P3D\n"
-        contents += "CellXdimensionDeg = """ + str(cell_x_dimension_deg) + "\n"
-        contents += "CellYdimensionDeg = """ + str(cell_y_dimension_deg) + "\n"
-        contents += "PixelIsPoint      = 0\n"
-        contents += "SamplingMethod    = Point"
 
         inf_file.write(contents)
 
@@ -5076,10 +5099,15 @@ def build_masks(lat,lon,build_dir,mesh_filename_list,masks_zl=14):
             '____________________________________')
     return
 ##############################################################################
+def convert_BMP_to_24_bit(img_name, saveNewName=False):
+    img = Image.open(img_name).convert("RGB")
+    img.save(img_name)
 
 ##############################################################################
 def build_masks_legacy(lat,lon,build_dir,mesh_filename_list):
+    global do_build_masks
     t4=time.time()
+    do_build_masks = True
     try:
         application.red_flag.set(0)
     except:
@@ -5087,6 +5115,10 @@ def build_masks_legacy(lat,lon,build_dir,mesh_filename_list):
     strlat='{:+.0f}'.format(lat).zfill(3)
     strlon='{:+.0f}'.format(lon).zfill(4)
     eps=0.000001
+    masks_extension = ".png"
+    if build_for_ESP:
+        masks_extension = ".bmp"
+
     [til_x_min,til_y_min]=wgs84_to_texture(lat+1-eps,lon+eps,14,'BI')
     [til_x_max,til_y_max]=wgs84_to_texture(lat+eps,lon+1-eps,14,'BI')
     nx=(til_x_max-til_x_min)//16+1
@@ -5097,7 +5129,7 @@ def build_masks_legacy(lat,lon,build_dir,mesh_filename_list):
     masks_dir=Ortho4XP_dir+dir_sep+"Masks"+dir_sep+strlat+strlon
     if not os.path.exists(masks_dir):
         os.makedirs(masks_dir)
-    if not os.path.isfile(masks_dir+dir_sep+'whole_tile.png') or keep_old_pre_mask==False:
+    if not os.path.isfile(masks_dir+dir_sep+'whole_tile' + masks_extension) or keep_old_pre_mask==False:
         for mesh_filename in mesh_filename_list:
             try:
                 f_mesh=open(mesh_filename,"r")
@@ -5164,11 +5196,15 @@ def build_masks_legacy(lat,lon,build_dir,mesh_filename_list):
                 except:
                     pass
             f_mesh.close()
-        masks_im.save(masks_dir+dir_sep+'whole_tile.png')
+
+        masks_im.save(masks_dir+dir_sep+'whole_tile' + masks_extension)
+        if build_for_ESP:
+            convert_BMP_to_24_bit(masks_dir+dir_sep+'whole_tile' + masks_extension)
+
         del(masks_im)
     if not use_gimp:
         print(" Blur of size masks_width applied to the binary mask...")
-        masks_im=Image.open(masks_dir+dir_sep+'whole_tile.png').convert("L")
+        masks_im=Image.open(masks_dir+dir_sep+'whole_tile' + masks_extension).convert("L")
         img_array=numpy.array(masks_im,dtype=numpy.uint8)
         #kernel=numpy.ones(int(masks_width))/int(masks_width)
         kernel=numpy.array(range(1,2*masks_width))
@@ -5183,25 +5219,27 @@ def build_masks_legacy(lat,lon,build_dir,mesh_filename_list):
         img_array=2*numpy.minimum(img_array,127) #*numpy.ones(img_array.shape)) 
         img_array=numpy.array(img_array,dtype=numpy.uint8)
         masks_im=Image.fromarray(img_array)
-        masks_im.save(masks_dir+dir_sep+'whole_tile_blured.png')
+        masks_im.save(masks_dir+dir_sep+'whole_tile_blured' + masks_extension)
+        if build_for_ESP:
+            convert_BMP_to_24_bit(masks_dir+dir_sep+'whole_tile_blured' + masks_extension, True)
     else: #use_gimp
         print(" Gaussian blur and level adjustment applied to the binary mask with Gimp...")
         if ('dar' in sys.platform) or ('win' not in sys.platform):   # Mac and Linux
             os.system(gimp_cmd+" -i -c -b '(blurX "+' "'+masks_dir+dir_sep+\
-                'whole_tile.png" '+str(masks_width)+' "'+masks_dir+dir_sep+\
-                'whole_tile_blured.png")'+"' -b '(gimp-quit 0)' ")
+                'whole_tile' + masks_extension + '" '+str(masks_width)+' "'+masks_dir+dir_sep+\
+                'whole_tile_blured' + masks_extension + '")'+"' -b '(gimp-quit 0)' ")
         else: # Windows specific
             tmpf=open('batchgimp.bat','w')
             tmpcmd='"'+gimp_cmd+'" '+\
-                   '-i -c -b "(blurX \\\"'+Ortho4XP_dir+'\\\\Masks\\\\'+strlat+strlon+'\\\\whole_tile.png\\\" '+\
-                   str(masks_width)+' \\\"'+Ortho4XP_dir+'\\\\Masks\\\\'+strlat+strlon+'\\\\whole_tile_blured.png\\\")"'+\
+                   '-i -c -b "(blurX \\\"'+Ortho4XP_dir+'\\\\Masks\\\\'+strlat+strlon+'\\\\whole_tile' + masks_extension + '\\\" '+\
+                   str(masks_width)+' \\\"'+Ortho4XP_dir+'\\\\Masks\\\\'+strlat+strlon+'\\\\whole_tile_blured' + masks_extension + '\\\")"'+\
                    ' -b "(gimp-quit 0)"'
             tmpf.write(tmpcmd)
             tmpf.close()
             os.system('batchgimp.bat')
             os.system(delete_cmd+' batchgimp.bat')
         try:
-            masks_im=Image.open(masks_dir+dir_sep+'whole_tile_blured.png')
+            masks_im=Image.open(masks_dir+dir_sep+'whole_tile_blured' + masks_extension)
         except:
             print("\nGimp is either not present on your system, or didn't configure its")
             print("access command correctly, or it has no access to the blurX script-fu.")
@@ -5235,8 +5273,8 @@ def build_masks_legacy(lat,lon,build_dir,mesh_filename_list):
             box=(nxloc*4096,nyloc*4096,(nxloc+1)*4096,(nyloc+1)*4096)
             tex_im=masks_im.crop(box)
             if tex_im.getextrema()[1]>=10:
-                tex_im.save(masks_dir+dir_sep+str(til_y_min+nyloc*16)+'_'+str(til_x_min+nxloc*16)+'.png')
-                tex_im.save(build_dir+dir_sep+"textures"+dir_sep+str(til_y_min+nyloc*16)+'_'+str(til_x_min+nxloc*16)+'.png')
+                tex_im.save(masks_dir+dir_sep+str(til_y_min+nyloc*16)+'_'+str(til_x_min+nxloc*16)+masks_extension)
+                tex_im.save(build_dir+dir_sep+"textures"+dir_sep+str(til_y_min+nyloc*16)+'_'+str(til_x_min+nxloc*16)+masks_extension)
     try:
         application.progress_attr.set(100)
         if application.red_flag.get()==1:
@@ -5365,6 +5403,7 @@ def build_tile_list(tile_list,build_dir_option,read_config,use_existing_mesh,bbm
         print("\nStep 3 : Building Tile "+strlat+strlon+" : ")
         print("--------\n")
         build_tile(lat,lon,build_dir,mesh_filename,False)
+
         if application.red_flag.get()==1:
             print("\nBatch build process interrupted.")
             print('_____________________________________________________________'+\
@@ -5958,6 +5997,10 @@ class Earth_Preview_window(Toplevel):
         return
 
     def batch_build(self):
+        # reset for next round
+        global do_build_masks
+        do_build_masks = False
+
         tile_list=[]
         if self.ptc.get()==1:
             read_config=True
@@ -6594,7 +6637,7 @@ class Expert_config(Toplevel):
     
 
 ##############################################################################
-
+do_build_masks = False
 ############################################################################################
 class Ortho4XP_Graphical(Tk):
 
