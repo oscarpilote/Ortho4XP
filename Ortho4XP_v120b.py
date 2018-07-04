@@ -3073,7 +3073,7 @@ def make_ESP_inf_file(file_dir, file_name, til_x_left, til_x_right, til_y_top, t
         contents = create_INF_source_string("1", os.path.abspath(file_dir), file_name, str(top_left_tile[1]),
                     str(top_left_tile[0]), "4096", "4096", str(img_cell_x_dimension_deg), str(img_cell_y_dimension_deg))
 
-        if True or do_build_masks:
+        if do_build_masks:
             build_dir_path_parts = os.path.abspath(file_dir).split(dir_sep)
             str_lat_lon_folder_name = build_dir_path_parts[build_dir_path_parts.index("Orthophotos") + 1]
             img_mask_folder_abs_path = os.path.abspath(Ortho4XP_dir + dir_sep + "Masks" + dir_sep + str_lat_lon_folder_name)
