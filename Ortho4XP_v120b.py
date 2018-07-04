@@ -4529,7 +4529,7 @@ def build_tile(lat,lon,build_dir,mesh_filename,check_for_what_next=True):
             except:
                 pass
         download_thread.start()
-        if skip_converts != True:
+        if skip_converts != True and not build_for_ESP:
             convert_thread.start()
     build_dsf_thread.join()
     if skip_downloads != True:
@@ -4539,7 +4539,7 @@ def build_tile(lat,lon,build_dir,mesh_filename,check_for_what_next=True):
                 APL_stop()
             except:
                 pass
-        if skip_converts != True:
+        if skip_converts != True and not build_for_ESP:
             convert_thread.join()
     try:
         if application.red_flag.get()==1:
@@ -4613,22 +4613,23 @@ def build_tile(lat,lon,build_dir,mesh_filename,check_for_what_next=True):
 ##############################################################################
 def run_ESP_resample(build_dir):
     if ESP_resample_location is None:
-        print("No resample.exe is specified in cfg, quitting")
+        print("No resample.exe is specified in Ortho4XP.cfg, quitting")
         return
     if not os.path.isfile(ESP_resample_location):
         print("resample.exe doesn't exist at " + ESP_resample_location + ", quitting")
         return
 
-    command = [ESP_resample_location]
-
+    # call resample on each individual file, to avoid file name too long errors with subprocess
+    # https://stackoverflow.com/questions/2381241/what-is-the-subprocess-popen-max-length-of-the-args-parameter
+    # passing shell=True to subprocess didn't help with this error when there are a large amount of inf files to process
+    # another solution would be to create inf files with multiple sources, but the below is simpler to code...
     for (dirpath, dir_names, file_names) in os.walk(build_dir):
         for full_file_name in file_names:
             file_name, file_extension = os.path.splitext(full_file_name)
             if file_extension == ".inf":
-                command.append(build_dir + dir_sep + full_file_name)
-
-    print("Calling resample")
-    subprocess.call(command)
+                inf_abs_path = os.path.abspath(Ortho4XP_dir + dir_sep + build_dir + dir_sep + full_file_name)
+                print(inf_abs_path)
+                subprocess.call([ESP_resample_location, inf_abs_path])
 ##############################################################################
 def build_overlay(lat,lon,file_to_sniff):
     strlat='{:+.0f}'.format(lat).zfill(3)
