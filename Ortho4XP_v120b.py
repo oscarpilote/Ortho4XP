@@ -439,14 +439,14 @@ def build_poly_file(lat0,lon0,option,build_dir,airport_website=default_website):
     else:  # Mixed
         print("-> Downloading airport and water/ground boundary data from Openstreetmap :")
         tags.append('way["aeroway"="aerodrome"]')
-        # tags.append('rel["aeroway"="aerodrome"]')
-        # tags.append('way["aeroway"="heliport"]')
-        # tags.append('way["natural"="water"]["tidal"!="yes"]')
-        # tags.append('rel["natural"="water"]["tidal"!="yes"]')
-        # tags.append('way["waterway"="riverbank"]')
-        # tags.append('rel["waterway"="riverbank"]')
-        # tags.append('way["natural"="coastline"]')
-        # tags.append('way["waterway"="dock"]')
+        tags.append('rel["aeroway"="aerodrome"]')
+        tags.append('way["aeroway"="heliport"]')
+        tags.append('way["natural"="water"]["tidal"!="yes"]')
+        tags.append('rel["natural"="water"]["tidal"!="yes"]')
+        tags.append('way["waterway"="riverbank"]')
+        tags.append('rel["waterway"="riverbank"]')
+        tags.append('way["natural"="coastline"]')
+        tags.append('way["waterway"="dock"]')
     try:
         application.red_flag.set(0)
     except:
