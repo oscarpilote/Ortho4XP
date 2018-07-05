@@ -3071,10 +3071,9 @@ def make_ESP_inf_file(file_dir, file_name, til_x_left, til_x_right, til_y_top, t
     img_cell_y_dimension_deg = (top_left_tile[0] - bottom_right_tile[0]) / IMG_X_Y_DIM
 
     with open(file_dir + file_name + ".inf", "w") as inf_file:
-        contents = create_INF_source_string("1", "BMP", "Imagery", os.path.abspath(file_dir), file_name, str(top_left_tile[1]),
-                    str(top_left_tile[0]), "4096", "4096", str(img_cell_x_dimension_deg), str(img_cell_y_dimension_deg))
-
         if do_build_masks:
+            contents = create_INF_source_string("1", "BMP", "Imagery", os.path.abspath(file_dir), file_name, str(top_left_tile[1]),
+                    str(top_left_tile[0]), "4096", "4096", str(img_cell_x_dimension_deg), str(img_cell_y_dimension_deg))
             build_dir_path_parts = os.path.abspath(file_dir).split(dir_sep)
             str_lat_lon_folder_name = build_dir_path_parts[build_dir_path_parts.index("Orthophotos") + 1]
             img_mask_folder_abs_path = os.path.abspath(Ortho4XP_dir + dir_sep + "Masks" + dir_sep + str_lat_lon_folder_name)
@@ -3088,6 +3087,10 @@ def make_ESP_inf_file(file_dir, file_name, til_x_left, til_x_right, til_y_top, t
             contents += "; pull the blend mask from Source2, band 0\nChannel_BlendMask = 2.0\n\n"
             contents += create_INF_source_string("2", "BMP", "None", img_mask_folder_abs_path, "whole_tile_blured", str(top_left_tile[1]),
                     str(top_left_tile[0]), str(img_width), str(img_height), str(mask_cell_x_dimension_deg), str(mask_cell_y_dimension_deg))
+        else:
+            contents = create_INF_source_string("", "BMP", "Imagery", os.path.abspath(file_dir), file_name, str(top_left_tile[1]),
+                    str(top_left_tile[0]), "4096", "4096", str(img_cell_x_dimension_deg), str(img_cell_y_dimension_deg))
+
 
         contents += "\n\n[Destination]\n"
         contents += "DestDir             = " + os.path.abspath(file_dir) + dir_sep + "ADDON_SCENERY" + dir_sep + "scenery\n"
