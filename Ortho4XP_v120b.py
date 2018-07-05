@@ -3044,9 +3044,10 @@ def build_photo_ortho(strlat,strlon,til_x_left,til_y_top,zoomlevel,website):
     return
 
 
-def create_INF_source_string(source_num, source_dir, source_file, lon, lat, num_cells_line, num_lines, cell_x_dim, cell_y_dim):
+def create_INF_source_string(source_num, type, layer, source_dir, source_file, lon, lat, num_cells_line, num_lines, cell_x_dim, cell_y_dim):
     contents = "[Source" + source_num + "]\n"
-    contents += "Type          = Custom\n"
+    contents += "Type          = " + type + "\n"
+    contents += "Layer          = " + layer + "\n"
     contents += "SourceDir  = " + source_dir + "\n"
     contents += "SourceFile = " + source_file + ".bmp" + "\n"
     contents += "Lon               = " + lon + "\n"
@@ -3070,7 +3071,7 @@ def make_ESP_inf_file(file_dir, file_name, til_x_left, til_x_right, til_y_top, t
     img_cell_y_dimension_deg = (top_left_tile[0] - bottom_right_tile[0]) / IMG_X_Y_DIM
 
     with open(file_dir + file_name + ".inf", "w") as inf_file:
-        contents = create_INF_source_string("1", os.path.abspath(file_dir), file_name, str(top_left_tile[1]),
+        contents = create_INF_source_string("1", "BMP", "Imagery", os.path.abspath(file_dir), file_name, str(top_left_tile[1]),
                     str(top_left_tile[0]), "4096", "4096", str(img_cell_x_dimension_deg), str(img_cell_y_dimension_deg))
 
         if do_build_masks:
@@ -3084,11 +3085,11 @@ def make_ESP_inf_file(file_dir, file_name, til_x_left, til_x_right, til_y_top, t
             mask_cell_y_dimension_deg = (top_left_tile[0] - bottom_right_tile[0]) / img_height
 
             contents = "[Source]\nType = MultiSource\nNumberOfSources = 2\n\n" + contents + "\n"
-            contents += "; pull the blend mask from Source2, band 0\nChannel_BlendMask = 2.0\n"
-            contents += create_INF_source_string("2", img_mask_folder_abs_path, "whole_tile_blured", str(top_left_tile[1]),
-                    str(top_left_tile[0]), str(img_width), str(img_height), str(mask_cell_x_dimension_deg), str(mask_cell_y_dimension_deg)) + "\n\n"
+            contents += "; pull the blend mask from Source2, band 0\nChannel_BlendMask = 2.0\n\n"
+            contents += create_INF_source_string("2", "BMP", "None", img_mask_folder_abs_path, "whole_tile_blured", str(top_left_tile[1]),
+                    str(top_left_tile[0]), str(img_width), str(img_height), str(mask_cell_x_dimension_deg), str(mask_cell_y_dimension_deg))
 
-        contents += "[Destination]\n"
+        contents += "\n\n[Destination]\n"
         contents += "DestDir             = " + os.path.abspath(file_dir) + dir_sep + "ADDON_SCENERY" + dir_sep + "scenery\n"
         contents += "DestBaseFileName     = " + file_name + "\n"
         contents += "BuildSeasons        = 0\n"
