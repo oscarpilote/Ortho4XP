@@ -3049,7 +3049,7 @@ def create_INF_source_string(source_num, type, layer, source_dir, source_file, l
     contents += "Type          = " + type + "\n"
     contents += "Layer          = " + layer + "\n"
     contents += "SourceDir  = " + source_dir + "\n"
-    contents += "SourceFile = " + source_file + ".bmp" + "\n"
+    contents += "SourceFile = " + source_file + "\n"
     contents += "Lon               = " + lon + "\n"
     contents += "Lat               = " + lat + "\n"
     contents += "NumOfCellsPerLine = " + num_cells_line + "       ;Pixel isn't FSX/P3D\n"
@@ -3063,33 +3063,45 @@ def create_INF_source_string(source_num, type, layer, source_dir, source_file, l
 
 def make_ESP_inf_file(file_dir, file_name, til_x_left, til_x_right, til_y_top, til_y_bot, zoomlevel):
     global do_build_masks
-    top_left_tile = gtile_to_wgs84(til_x_left, til_y_top, zoomlevel)
-    bottom_right_tile = gtile_to_wgs84(til_x_right, til_y_bot, zoomlevel)
+    img_top_left_tile = gtile_to_wgs84(til_x_left, til_y_top, zoomlevel)
+    img_bottom_right_tile = gtile_to_wgs84(til_x_right, til_y_bot, zoomlevel)
     # TODO: add support for images of different sizes (I think different websites make different size images), but for now 4096x4096 support is good enough
     IMG_X_Y_DIM = 4096
-    img_cell_x_dimension_deg = (bottom_right_tile[1] - top_left_tile[1]) / IMG_X_Y_DIM
-    img_cell_y_dimension_deg = (top_left_tile[0] - bottom_right_tile[0]) / IMG_X_Y_DIM
+    img_cell_x_dimension_deg = (img_bottom_right_tile[1] - img_top_left_tile[1]) / IMG_X_Y_DIM
+    img_cell_y_dimension_deg = (img_top_left_tile[0] - img_bottom_right_tile[0]) / IMG_X_Y_DIM
 
     with open(file_dir + file_name + ".inf", "w") as inf_file:
         if do_build_masks:
-            contents = create_INF_source_string("1", "BMP", "Imagery", os.path.abspath(file_dir), file_name, str(top_left_tile[1]),
-                    str(top_left_tile[0]), "4096", "4096", str(img_cell_x_dimension_deg), str(img_cell_y_dimension_deg))
+            contents = create_INF_source_string("1", "BMP", "Imagery", os.path.abspath(file_dir), file_name + ".bmp", str(img_top_left_tile[1]),
+                    str(img_top_left_tile[0]), "4096", "4096", str(img_cell_x_dimension_deg), str(img_cell_y_dimension_deg))
             build_dir_path_parts = os.path.abspath(file_dir).split(dir_sep)
             str_lat_lon_folder_name = build_dir_path_parts[build_dir_path_parts.index("Orthophotos") + 1]
             img_mask_folder_abs_path = os.path.abspath(Ortho4XP_dir + dir_sep + "Masks" + dir_sep + str_lat_lon_folder_name)
-            img_mask_abs_path = img_mask_folder_abs_path + dir_sep + "whole_tile_blured.bmp"
+            img_mask_abs_path = img_mask_folder_abs_path + dir_sep + "whole_tile.bmp"
             img_width, img_height = Image.open(img_mask_abs_path).size
 
-            mask_cell_x_dimension_deg = (bottom_right_tile[1] - top_left_tile[1]) / img_width
-            mask_cell_y_dimension_deg = (top_left_tile[0] - bottom_right_tile[0]) / img_height
+            lat = application.lat.get()
+            lon = application.lon.get()
+            eps=0.000001
+            [til_x_min,til_y_min]=wgs84_to_texture(lat+1-eps,lon+eps,14,'BI')
+            [til_x_max,til_y_max]=wgs84_to_texture(lat+eps,lon+1-eps,14,'BI')
+            nx=(til_x_max-til_x_min)//16+1
+            ny=(til_y_max-til_y_min)//16+1
+            til_x_max = til_x_min + (16 * nx)
+            til_y_max = til_y_min + (16 * ny)
+            mask_top_left_tile = gtile_to_wgs84(til_x_min, til_y_min, 14)
+            mask_bottom_right_tile = gtile_to_wgs84(til_x_max, til_y_max, 14)
+
+            mask_cell_x_dimension_deg = (mask_bottom_right_tile[1] - mask_top_left_tile[1]) / img_width
+            mask_cell_y_dimension_deg = (mask_top_left_tile[0] - mask_bottom_right_tile[0]) / img_height
 
             contents = "[Source]\nType = MultiSource\nNumberOfSources = 2\n\n" + contents + "\n"
             contents += "; pull the blend mask from Source2, band 0\nChannel_BlendMask = 2.0\n\n"
-            contents += create_INF_source_string("2", "BMP", "None", img_mask_folder_abs_path, "whole_tile_blured", str(top_left_tile[1]),
-                    str(top_left_tile[0]), str(img_width), str(img_height), str(mask_cell_x_dimension_deg), str(mask_cell_y_dimension_deg))
+            contents += create_INF_source_string("2", "BMP", "None", img_mask_folder_abs_path, "whole_tile.bmp", str(mask_top_left_tile[1]),
+                    str(mask_top_left_tile[0]), str(img_width), str(img_height), str(mask_cell_x_dimension_deg), str(mask_cell_y_dimension_deg))
         else:
-            contents = create_INF_source_string("", "BMP", "Imagery", os.path.abspath(file_dir), file_name, str(top_left_tile[1]),
-                    str(top_left_tile[0]), "4096", "4096", str(img_cell_x_dimension_deg), str(img_cell_y_dimension_deg))
+            contents = create_INF_source_string("", "BMP", "Imagery", os.path.abspath(file_dir), file_name + ".bmp", str(img_top_left_tile[1]),
+                    str(img_top_left_tile[0]), "4096", "4096", str(img_cell_x_dimension_deg), str(img_cell_y_dimension_deg))
 
 
         contents += "\n\n[Destination]\n"
