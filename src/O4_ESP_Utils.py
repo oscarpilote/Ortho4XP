@@ -35,7 +35,7 @@ def make_ESP_inf_file(file_dir, file_name, til_x_left, til_x_right, til_y_top, t
     img_cell_y_dimension_deg = (img_top_left_tile[0] - img_bottom_right_tile[0]) / IMG_X_Y_DIM
 
     with open(file_dir + os.sep + file_name_no_extension + ".inf", "w") as inf_file:
-        if True or O4_ESP_Globals.do_build_masks:
+        if O4_ESP_Globals.do_build_masks:
             contents = create_INF_source_string("1", "BMP", "Imagery", os.path.abspath(file_dir), file_name, str(img_top_left_tile[1]),
                     str(img_top_left_tile[0]), str(IMG_X_Y_DIM), str(IMG_X_Y_DIM), str(img_cell_x_dimension_deg), str(img_cell_y_dimension_deg))
             build_dir_path_parts = os.path.abspath(file_dir).split(os.sep)
@@ -88,3 +88,4 @@ def run_ESP_resample(build_dir):
 def convert_BMP_to_8_bit_grayscale_tif(img_name, saveNewName=False):
     img = Image.open(img_name).convert("RGB")
     img.save(img_name)
+
