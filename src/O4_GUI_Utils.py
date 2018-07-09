@@ -19,6 +19,7 @@ import O4_Mask_Utils as MASK
 import O4_Tile_Utils as TILE
 import O4_UI_Utils as UI
 import O4_Config_Utils as CFG
+import O4_ESP_Globals
 
 
 ############################################################################################
@@ -179,6 +180,8 @@ class Ortho4XP_GUI(tk.Tk):
     # GUI methods
     def write(self,line):
         self.console_queue.put(line)
+        # temporary for debugging ESP functionality
+        self.stdout_orig.write(line)
     def flush(self):
         return
     def console_update(self):
@@ -749,7 +752,7 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
     resolution=2**earthzl*256
     
     list_del_ckbtn = ['OSM data','Mask data','Jpeg imagery','Tile (whole)','Tile (textures)']
-    list_do_ckbtn  = ['Assemble vector data','Triangulate 3D mesh','Draw water masks','Build imagery/DSF','Extract overlays','Read per tile cfg'] 
+    list_do_ckbtn  = ['Assemble vector data','Triangulate 3D mesh','Draw water masks','Build imagery/DSF','Extract overlays','Read per tile cfg', 'Build For ESP (FSX/P3D)']
     
     canvas_min_x=900
     canvas_min_y=700
@@ -1044,6 +1047,9 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
         return
 
     def batch_build(self):
+        O4_ESP_Globals.build_for_ESP = True if self.v_["Build For ESP (FSX/P3D)"].get() else False
+        O4_ESP_Globals.do_build_masks = True if self.v_["Draw water masks"].get() else False
+
         list_lat_lon=sorted(self.dico_tiles_todo.keys())
         if not list_lat_lon: return
         (lat,lon)= list_lat_lon[0]

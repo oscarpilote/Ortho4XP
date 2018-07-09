@@ -12,6 +12,8 @@ import O4_Mask_Utils as MASK
 import O4_DSF_Utils as DSF
 import O4_Overlay_Utils as OVL
 from O4_Parallel_Utils import parallel_launch, parallel_join
+import O4_ESP_Globals
+import O4_ESP_Utils
 
 max_convert_slots=4 
 skip_downloads=False
@@ -26,7 +28,7 @@ def download_textures(tile,download_queue,convert_queue):
         if isinstance(texture_attributes,str) and texture_attributes=='quit':
             UI.progress_bar(2,100)
             break
-        if IMG.build_jpeg_ortho(tile,*texture_attributes):
+        if IMG.build_photo_ortho(tile,*texture_attributes):
             done+=1
             UI.progress_bar(2,int(100*done/(done+download_queue.qsize()))) 
             convert_queue.put((tile,*texture_attributes))
@@ -119,6 +121,9 @@ def build_tile(tile):
         except: pass
     if UI.cleaning_level>1 and not tile.grouped:
         remove_unwanted_textures(tile)
+    if O4_ESP_Globals.build_for_ESP:
+        O4_ESP_Utils.run_ESP_resample(O4_ESP_Globals.ESP_build_dir)
+
     UI.timings_and_bottom_line(timer)
     UI.logprint("Step 3 for tile lat=",tile.lat,", lon=",tile.lon,": normal exit.")
     return 1

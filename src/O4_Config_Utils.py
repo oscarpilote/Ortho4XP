@@ -53,7 +53,7 @@ cfg_vars={
     'water_smoothing':     {'type':int,  'default':10,'hint':"Number of smoothing passes over all inland water triangles (sequentially set to their mean elevation)."},
     'iterate':             {'type':int,  'default':0,'hint':"Allows to refine a mesh using higher resolution elevation data of local scope only (requires Gdal), typically LIDAR data. Having an iterate number is handy to go backward one step when some choice of parameters needs to be revised. REQUIRES cleaning_level=0."},     
     # Masks
-    'mask_zl':             {'type':int,'default':15,'hint':'The zoomlevel at which the (sea) water masks are built. Masks are used for alpha channel, and this channel usually requires less resolution than the RGB ones, the reason for this (VRAM saving) parameter. If the coastline and elevation data are very detailed, it might be interesting to lieft this parameter up so that the masks can reproduce this complexity.'},
+    'mask_zl':             {'type':int,'default':12,'hint':'The zoomlevel at which the (sea) water masks are built. Masks are used for alpha channel, and this channel usually requires less resolution than the RGB ones, the reason for this (VRAM saving) parameter. If the coastline and elevation data are very detailed, it might be interesting to lieft this parameter up so that the masks can reproduce this complexity.'},
     'masks_width':         {'type':list,'default':100,'hint':'Maximum extent of the masks perpendicularly to the coastline (rough definition). NOTE: The value is now in meters, it used to be in ZL14 pixel size in earlier verions, the scale is roughly one to ten between both.'},
     'masking_mode':        {'type':str,'default':'sand','values':['sand','rocks','3steps'],'hint':'A selection of three tentative masking algorithms (still looking for the Holy Grail...). The first two (sand and rocks) requires masks_width to be a single value; the third one (3steps) requires a list of the form [a,b,c] for masks width: "a" is the length in meters of a first transition from plain imagery at the shoreline towards ratio_water transparency, "b" is the second extent zone where transparency level is kept constant equal to ratio_water, and "c" is the last extent where the masks eventually fade to nothing. The transition with rocks is more abrupt than with sand.'},
     'use_masks_for_inland':{'type':bool,'default':False,'hint':'Will use masks for the inland water (lakes, rivers, etc) too, instead of the default constant transparency level determined by ratio_water. This is VRAM expensive and presumably not really worth the price.'},
@@ -61,7 +61,7 @@ cfg_vars={
     'masks_custom_extent': {'type':str,'default':'','hint':'Yet another tentative to draw masks with maximizing the use of the good imagery part. Requires to draw (JOSM) the "good imagery" threshold first, but it could be one order of magnitude faster to do compared to hand tweaking the masks and the imageries one by one.'},
     # DSF/Imagery
     'default_website':     {'type':str,'default':'','hint':''},
-    'default_zl':          {'type':int,'default':16,'hint':''},
+    'default_zl':          {'type':int,'default':12,'hint':''},
     'zone_list':           {'type':list,'default':[],'hint':''},
     'cover_airports_with_highres':{'type':bool,'default':False,'hint':'When set, textures above airports will be upgraded to a higher zoomlevel, the imagery being the same as the one they would otherwise receive.','short_name':'high_zl_airports'},
     'cover_extent':        {'type':float,'default':1,'hint':'The extent (in km) past the airport boundary taken into account for higher ZL. Note that for VRAM efficiency higher ZL textures are fully used on their whole extent as soon as part of them are needed.'},
@@ -76,7 +76,8 @@ cfg_vars={
     'use_decal_on_terrain':{'type':bool,'default':False,'hint':'Terrain files for all but water triangles will contain the maquify_1_green_key.dcl decal directive. The effect is noticeable at very low altitude and helps to overcome the orthophoto blur at such levels. Can be slightly distracting at higher altitude.'},
     # Other
     'custom_dem':          {'type':str,'default':'','hint':'Path to an elevation data file to be used instead of the default Viewfinderpanoramas.org ones (J. de Ferranti). The raster must be in geopgraphical coordinates (EPSG:4326) but the extent need not match the tile boundary (requires Gdal). Regions of the tile that are not covered by the raster are mapped to zero altitude (can be useful for high resolution data over islands in particular).     '},
-    'fill_nodata':         {'type':bool,'default':True,'hint':'When set, the no_data values in the raster will be filled by a nearest neighbour algorithm. If unset, they are turned into zero (can be useful for rasters with no_data over the whole oceanic part or partial LIDAR data).'}
+    'fill_nodata':         {'type':bool,'default':True,'hint':'When set, the no_data values in the raster will be filled by a nearest neighbour algorithm. If unset, they are turned into zero (can be useful for rasters with no_data over the whole oceanic part or partial LIDAR data).'},
+    'ESP_resample_loc':    {'type':str,'default':'','hint':'Enter the location to your resample.exe'}
 }
 
 list_app_vars=['verbosity','cleaning_level','overpass_server_choice',

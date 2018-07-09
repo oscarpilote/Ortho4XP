@@ -19,6 +19,8 @@ except:
 import O4_Geo_Utils as GEO
 import O4_File_Names as FNAMES
 from O4_Parallel_Utils import parallel_execute
+import O4_ESP_Globals
+from O4_ESP_Utils import *
 
 http_timeout=10
 check_tms_response=False
@@ -812,8 +814,10 @@ def download_jpeg_ortho(file_dir,file_name,til_x_left,til_y_top,zoomlevel,provid
 ###############################################################################################################################
 
 ###############################################################################################################################
-def build_jpeg_ortho(tile, til_x_left,til_y_top,zoomlevel,provider_code,out_file_name=''):
+def build_photo_ortho(tile, til_x_left,til_y_top,zoomlevel,provider_code,out_file_name=''):
     texture_attributes=(til_x_left,til_y_top,zoomlevel,provider_code)
+    final_file_dir = None
+    final_file_name = None
     if provider_code in local_combined_providers_dict:
         data_found=False
         for rlayer in local_combined_providers_dict[provider_code]:
@@ -833,6 +837,12 @@ def build_jpeg_ortho(tile, til_x_left,til_y_top,zoomlevel,provider_code,out_file
                 true_texture_attributes=(true_til_x_left,true_til_y_top,true_zl,rlayer['layer_code'])
                 true_file_name=FNAMES.jpeg_file_name_from_attributes(true_til_x_left, true_til_y_top, true_zl,rlayer['layer_code'])
                 true_file_dir=FNAMES.jpeg_file_dir_from_attributes(tile.lat, tile.lon,true_zl,providers_dict[rlayer['layer_code']])
+                name, extension = os.path.splitext(true_file_name)
+                if O4_ESP_Globals.build_for_ESP:
+                    extension = ".bmp"
+                    true_file_name = name + extension
+                final_file_dir = true_file_dir
+                final_file_name = true_file_name
                 if not os.path.isfile(os.path.join(true_file_dir,true_file_name)):
                     UI.vprint(1,"   Downloading missing orthophoto "+true_file_name+" (for combining in "+provider_code+")")
                     if not download_jpeg_ortho(true_file_dir,true_file_name,*true_texture_attributes):
@@ -849,6 +859,12 @@ def build_jpeg_ortho(tile, til_x_left,til_y_top,zoomlevel,provider_code,out_file
     elif provider_code in providers_dict:  
         file_name=FNAMES.jpeg_file_name_from_attributes(til_x_left, til_y_top, zoomlevel,provider_code)
         file_dir=FNAMES.jpeg_file_dir_from_attributes(tile.lat, tile.lon,zoomlevel,providers_dict[provider_code])
+        name, extension = os.path.splitext(file_name)
+        if O4_ESP_Globals.build_for_ESP:
+            extension = ".bmp"
+            file_name = name + extension
+        final_file_dir = file_dir
+        final_file_name = file_name
         if not os.path.isfile(os.path.join(file_dir,file_name)):
             UI.vprint(1,"   Downloading missing orthophoto "+file_name)
             if not download_jpeg_ortho(file_dir,file_name,*texture_attributes):
@@ -859,6 +875,14 @@ def build_jpeg_ortho(tile, til_x_left,til_y_top,zoomlevel,provider_code,out_file
         (tlat,tlon)=GEO.gtile_to_wgs84(til_x_left+8,til_y_top+8,zoomlevel)
         UI.vprint(1,"   Unknown provider",provider_code,"or it has no data around",tlat,tlon,".")
         return 0
+
+    if O4_ESP_Globals.build_for_ESP:
+        nbr = 16
+        # TODO: stop using globals, only used them cause I wanted to get v130 to work in one night with masking, etc
+        O4_ESP_Globals.ESP_build_dir = final_file_dir
+        make_ESP_inf_file(final_file_dir, final_file_name, til_x_left, (til_x_left + nbr), til_y_top, (til_y_top + nbr), zoomlevel)
+        return 0
+
     return 1
 ###############################################################################################################################
 
@@ -944,7 +968,7 @@ def build_geotiffs(tile,texture_attributes_list):
     todo=len(texture_attributes_list)
     for texture_attributes in texture_attributes_list:
         (til_x_left,til_y_top,zoomlevel,provider_code)=texture_attributes
-        if build_jpeg_ortho(tile,til_x_left,til_y_top,zoomlevel,provider_code):
+        if build_photo_ortho(tile,til_x_left,til_y_top,zoomlevel,provider_code):
             convert_texture(tile,til_x_left,til_y_top,zoomlevel,provider_code,type='tif')
         done+=1
         UI.progress_bar(1,int(100*done/todo))

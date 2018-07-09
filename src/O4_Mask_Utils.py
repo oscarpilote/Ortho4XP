@@ -12,6 +12,7 @@ import O4_Imagery_Utils as IMG
 import O4_OSM_Utils as OSM
 import O4_Vector_Utils as VECT
 import O4_Mesh_Utils as MESH
+import O4_ESP_Globals
 
 mask_altitude_above=0.5
 
@@ -291,11 +292,15 @@ def build_masks(tile):
             if masks_im:
                 custom_mask_array=(numpy.array(masks_im,dtype=numpy.uint8)*tile.ratio_water).astype(numpy.uint8)
         
+        mask_name = FNAMES.legacy_mask(til_x, til_y)
+        if O4_ESP_Globals.build_for_ESP:
+            name, extension = os.path.splitext(mask_name)
+            mask_name = name + ".tif"
         if (img_array.max()==0) and (custom_mask_array.max()==0): # no need to test if the mask is all white since it would otherwise not be present in dico_mask
-            UI.vprint(1,"   Skipping", FNAMES.legacy_mask(til_x, til_y))
+            UI.vprint(1,"   Skipping", mask_name)
             continue
         else:
-            UI.vprint(1,"   Creating", FNAMES.legacy_mask(til_x, til_y))
+            UI.vprint(1,"   Creating", mask_name)
 
         # Blur of the mask
         pxscal=GEO.webmercator_pixel_size(tile.lat+0.5,tile.mask_zl)
@@ -382,9 +387,14 @@ def build_masks(tile):
         img_array=numpy.maximum(img_array,b_img_array)[1024:4096+1024,1024:4096+1024]
         img_array=numpy.maximum(img_array,custom_mask_array)
 
-        if not (img_array.max()==0 or img_array.min()==255):
+        # the and condition is needed because if we are building for ESP, we want all the tiles
+        if not (img_array.max()==0 or img_array.min()==255) and O4_ESP_Globals.build_for_ESP:
             masks_im=Image.fromarray(img_array)  #.filter(ImageFilter.GaussianBlur(3))
-            masks_im.save(os.path.join(FNAMES.mask_dir(tile.lat,tile.lon), FNAMES.legacy_mask(til_x, til_y)))
+            mask_img_name = os.path.join(FNAMES.mask_dir(tile.lat,tile.lon), FNAMES.legacy_mask(til_x, til_y))
+            if O4_ESP_Globals.build_for_ESP:
+                name, extension = os.path.splitext(mask_img_name)
+                mask_img_name = name + ".tif"
+            masks_im.save(mask_img_name)
             UI.vprint(2,"     Done.") 
         else:
             UI.vprint(1,"     Ends-up being discarded.")        
