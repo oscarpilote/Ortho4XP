@@ -35,14 +35,16 @@ def make_ESP_inf_file(file_dir, file_name, til_x_left, til_x_right, til_y_top, t
     img_cell_y_dimension_deg = (img_top_left_tile[0] - img_bottom_right_tile[0]) / IMG_X_Y_DIM
 
     with open(file_dir + os.sep + file_name_no_extension + ".inf", "w") as inf_file:
-        if O4_ESP_Globals.do_build_masks:
+        build_dir_path_parts = os.path.abspath(file_dir).split(os.sep)
+        str_lat_lon_folder_name = build_dir_path_parts[build_dir_path_parts.index("Orthophotos") + 1] + os.sep + build_dir_path_parts[build_dir_path_parts.index("Orthophotos") + 2]
+        img_mask_folder_abs_path = os.path.abspath(FNAMES.Ortho4XP_dir + os.sep + "Masks" + os.sep + str_lat_lon_folder_name)
+        img_mask_name = "_".join(file_name.split(".bmp")[0].split("_")[0:2]) + ".tif"
+        img_mask_abs_path = os.path.abspath(img_mask_folder_abs_path + os.sep + img_mask_name)
+
+        # check the mask for this tile was created
+        if O4_ESP_Globals.do_build_masks and os.path.isfile(img_mask_abs_path):
             contents = create_INF_source_string("1", "BMP", "Imagery", os.path.abspath(file_dir), file_name, str(img_top_left_tile[1]),
                     str(img_top_left_tile[0]), str(IMG_X_Y_DIM), str(IMG_X_Y_DIM), str(img_cell_x_dimension_deg), str(img_cell_y_dimension_deg))
-            build_dir_path_parts = os.path.abspath(file_dir).split(os.sep)
-            str_lat_lon_folder_name = build_dir_path_parts[build_dir_path_parts.index("Orthophotos") + 1] + os.sep + build_dir_path_parts[build_dir_path_parts.index("Orthophotos") + 2]
-            img_mask_folder_abs_path = os.path.abspath(FNAMES.Ortho4XP_dir + os.sep + "Masks" + os.sep + str_lat_lon_folder_name)
-            img_mask_name = "_".join(file_name.split(".bmp")[0].split("_")[0:2]) + ".tif"
-            img_mask_abs_path = os.path.abspath(img_mask_folder_abs_path + os.sep + img_mask_name)
 
             contents = "[Source]\nType = MultiSource\nNumberOfSources = 2\n\n" + contents + "\n"
             contents += "; pull the blend mask from Source2, band 0\nChannel_BlendMask = 2.0\n\n"

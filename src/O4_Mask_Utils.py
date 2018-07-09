@@ -387,8 +387,7 @@ def build_masks(tile):
         img_array=numpy.maximum(img_array,b_img_array)[1024:4096+1024,1024:4096+1024]
         img_array=numpy.maximum(img_array,custom_mask_array)
 
-        # the or condition is needed because if we are building for ESP, we want all the tiles
-        if not (img_array.max()==0 or img_array.min()==255) or O4_ESP_Globals.build_for_ESP:
+        if not (img_array.max()==0 or img_array.min()==255):
             masks_im=Image.fromarray(img_array)  #.filter(ImageFilter.GaussianBlur(3))
             mask_img_name = os.path.join(FNAMES.mask_dir(tile.lat,tile.lon), FNAMES.legacy_mask(til_x, til_y))
             if O4_ESP_Globals.build_for_ESP:
