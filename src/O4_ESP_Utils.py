@@ -61,7 +61,6 @@ def make_ESP_inf_file(file_dir, file_name, til_x_left, til_x_right, til_y_top, t
         contents += "BuildSeasons        = 0\n"
         contents += "UseSourceDimensions  = 1\n"
         contents += "CompressionQuality   = 100\n"
-        contents += "LOD = Auto,13\n"
 
         inf_file.write(contents)
 

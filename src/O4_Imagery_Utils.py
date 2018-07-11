@@ -779,7 +779,7 @@ def build_texture_from_bbox_and_size(t_bbox,t_epsg,t_size,provider):
 ###############################################################################################################################
 
 ###############################################################################################################################
-def download_jpeg_ortho(file_dir,file_name,til_x_left,til_y_top,zoomlevel,provider_code,super_resol_factor=1):
+def download_photo_ortho(file_dir,file_name,til_x_left,til_y_top,zoomlevel,provider_code,super_resol_factor=1):
     provider=providers_dict[provider_code]
     if 'super_resol_factor' in provider and super_resol_factor==1: super_resol_factor=int(provider['super_resol_factor'])
     width=height=int(4096*super_resol_factor)
@@ -845,7 +845,7 @@ def build_photo_ortho(tile, til_x_left,til_y_top,zoomlevel,provider_code,out_fil
                 final_file_name = true_file_name
                 if not os.path.isfile(os.path.join(true_file_dir,true_file_name)):
                     UI.vprint(1,"   Downloading missing orthophoto "+true_file_name+" (for combining in "+provider_code+")")
-                    if not download_jpeg_ortho(true_file_dir,true_file_name,*true_texture_attributes):
+                    if not download_photo_ortho(true_file_dir,true_file_name,*true_texture_attributes):
                         return 0
                 else:
                     UI.vprint(1,"   The orthophoto "+true_file_name+" (for combining in "+provider_code+") is already present.")
@@ -867,7 +867,7 @@ def build_photo_ortho(tile, til_x_left,til_y_top,zoomlevel,provider_code,out_fil
         final_file_name = file_name
         if not os.path.isfile(os.path.join(file_dir,file_name)):
             UI.vprint(1,"   Downloading missing orthophoto "+file_name)
-            if not download_jpeg_ortho(file_dir,file_name,*texture_attributes):
+            if not download_photo_ortho(file_dir,file_name,*texture_attributes):
                 return 0
         else:
             UI.vprint(1,"   The orthophoto "+file_name+" is already present.")
@@ -923,7 +923,7 @@ def build_combined_ortho(tile, latp,lonp,zoomlevel,provider_code,mask_zl,filenam
         true_file_dir=FNAMES.jpeg_file_dir_from_attributes(tile.lat, tile.lon, true_zl,providers_dict[rlayer['layer_code']])
         if not os.path.isfile(os.path.join(true_file_dir,true_file_name)):
             UI.vprint(1,"   Downloading missing orthophoto "+true_file_name+" (for combining in "+provider_code+")\n")
-            download_jpeg_ortho(true_file_dir,true_file_name,true_til_x_left, true_til_y_top, true_zl,rlayer['layer_code'])
+            download_photo_ortho(true_file_dir,true_file_name,true_til_x_left, true_til_y_top, true_zl,rlayer['layer_code'])
         else:
             UI.vprint(1,"   The orthophoto "+true_file_name+" (for combining in "+provider_code+") is already present.\n")
         true_im=Image.open(os.path.join(true_file_dir,true_file_name))
@@ -995,7 +995,7 @@ def build_texture_region(dest_dir,latmin,latmax,lonmin,lonmax,zoomlevel,provider
                     nbr_to_do-=1
                     continue 
                 print("building one")
-                download_jpeg_ortho(dest_dir,file_name,til_x_left,til_y_top,zoomlevel,provider_code,super_resol_factor=1)
+                download_photo_ortho(dest_dir,file_name,til_x_left,til_y_top,zoomlevel,provider_code,super_resol_factor=1)
             else:
                 print("skipping one")
             nbr_to_do-=1
