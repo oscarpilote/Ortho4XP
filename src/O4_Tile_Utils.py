@@ -53,7 +53,9 @@ def build_tile(tile):
     
     tile.write_to_config()
     
-    IMG.initialize_local_combined_providers_dict(tile)
+    if not IMG.initialize_local_combined_providers_dict(tile): 
+        UI.exit_message_and_bottom_line('')
+        return 0
 
     try:
         if not os.path.exists(os.path.join(tile.build_dir,'Earth nav data',FNAMES.round_latlon(tile.lat,tile.lon))):
@@ -141,6 +143,7 @@ def build_all(tile):
 ##############################################################################
 def build_tile_list(tile,list_lat_lon,do_osm,do_mesh,do_mask,do_dsf,do_ovl,do_ptc):
     if UI.is_working: return 0
+    UI.red_flag=0
     timer=time.time()
     UI.lvprint(0,"Batch build launched for a number of",len(list_lat_lon),"tiles.")
     k=0
@@ -152,16 +155,26 @@ def build_tile_list(tile,list_lat_lon,do_osm,do_mesh,do_mask,do_dsf,do_ovl,do_pt
         tile.dem=None
         if do_ptc: tile.read_from_config()
         if (do_osm or do_mesh or do_dsf): tile.make_dirs()
-        if do_osm: VMAP.build_poly_file(tile)
-        if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
-        if do_mesh: MESH.build_mesh(tile)
-        if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
-        if do_mask: MASK.build_masks(tile)
-        if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
-        if do_dsf: build_tile(tile)
-        if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
-        if do_ovl: OVL.build_overlay(lat,lon)
-        if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
+        if do_osm: 
+            VMAP.build_poly_file(tile)
+            if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
+        if do_mesh: 
+            MESH.build_mesh(tile)
+            if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
+        if do_mask: 
+            MASK.build_masks(tile)
+            if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
+        if do_dsf: 
+            build_tile(tile)
+            if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
+        if do_ovl: 
+            OVL.build_overlay(lat,lon)
+            if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
+        try:
+            UI.gui.earth_window.canvas.delete(UI.gui.earth_window.dico_tiles_todo[(lat,lon)]) 
+            UI.gui.earth_window.dico_tiles_todo.pop((lat,lon),None)
+        except Exception as e:
+            print(e)
     UI.lvprint(0,"Batch process completed in",UI.nicer_timer(time.time()-timer))
     return 1
 ##############################################################################

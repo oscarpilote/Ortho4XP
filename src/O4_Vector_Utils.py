@@ -1,5 +1,5 @@
 from math import ceil, sqrt, atan2
-import numpy #, scipy.interpolate
+import numpy 
 from shapely import geometry, affinity
 from shapely import ops
 from rtree import index
@@ -525,7 +525,7 @@ def indexed_difference(idx_pol1,dico_pol1,idx_pol2,dico_pol2):
     return idx_out,dico_out
 ##############################################################################
 ##############################################################################
-def coastline_to_MultiPolygon(coastline,lat,lon):
+def coastline_to_MultiPolygon(coastline,lat,lon,custom_source=False):
     ######################################################################
     def encode_to_next(coord,new_way,remove_coords):
         if coord in inits:
@@ -562,7 +562,7 @@ def coastline_to_MultiPolygon(coastline,lat,lon):
     osm_badpoints=[]
     for line in coastline.geoms:
         if line.is_ring:
-            if geometry.LinearRing(line).is_ccw:
+            if custom_source or geometry.LinearRing(line).is_ccw:
                 islands.append(list(line.coords)) 
             else:
                 interior_seas.append(list(line.coords)) 
@@ -578,7 +578,7 @@ def coastline_to_MultiPolygon(coastline,lat,lon):
             ends.append(bd_coord(tmp[-1]))
             inits.append(bd_coord(tmp[0]))
     if osm_error:
-        UI.lvprint(1,"ERROR is OSM coastline data. Coastline abruptly stops at",osm_badpoints)
+        UI.lvprint(1,"ERROR in OSM coastline data. Coastline abruptly stops at",osm_badpoints)
         return geometry.MultiPolygon()
     bdcoords=sorted(ends+inits)
     UI.vprint(3,bdcoords)

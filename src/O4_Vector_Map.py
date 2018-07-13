@@ -204,7 +204,6 @@ def include_roads(vector_map,tile,apt_array,apt_area):
         UI.vprint(3,"Time for improved buffering:",time.time()-timer)
         if UI.red_flag: return 0 
         UI.vprint(1,"      Encoding it.")
-        #vector_map.encode_MultiPolygon(road_area,lambda way: tile.dem.alt_vec(VECT.shift_way(way,tile.lane_width)),'INTERP_ALT',check=True,refine=100)
         vector_map.encode_MultiPolygon(road_area,alt_vec_shift,'INTERP_ALT',check=True,refine=100)
         if UI.red_flag: return 0 
     if not road_network_flat.is_empty:
@@ -217,17 +216,20 @@ def include_roads(vector_map,tile,apt_array,apt_area):
 def include_sea(vector_map,tile):
     UI.vprint(0,"-> Dealing with coastline")
     sea_layer=OSM.OSM_layer()
+    custom_source=False
     custom_coastline=FNAMES.custom_coastline(tile.lat, tile.lon)
     custom_coastline_dir=FNAMES.custom_coastline_dir(tile.lat, tile.lon)
     if os.path.isfile(custom_coastline):
         UI.vprint(1,"    * User defined custom coastline data detected.")
         sea_layer.update_dicosm(custom_coastline,input_tags=None,target_tags=None)
+        custom_source=True
     elif os.path.isdir(custom_coastline_dir):
         UI.vprint(1,"    * User defined custom coastline data detected (multiple files).")
         for osm_file in os.listdir(custom_coastline_dir):
             UI.vprint(2,"      ",osm_file)
             sea_layer.update_dicosm(os.path.join(custom_coastline_dir,osm_file),input_tags=None,target_tags=None)
             sea_layer.write_to_file(custom_coastline)
+        custom_source=True
     else:
         queries=['way["natural"="coastline"]']    
         tags_of_interest=[]
@@ -249,7 +251,7 @@ def include_sea(vector_map,tile):
             remainder=VECT.ensure_MultiLineString(ops.linemerge(remainder))
         UI.vprint(3,"...done.")
         coastline=geometry.MultiLineString([line for line in remainder]+[line for line in loops])
-        sea_area=VECT.ensure_MultiPolygon(VECT.coastline_to_MultiPolygon(coastline,tile.lat,tile.lon)) 
+        sea_area=VECT.ensure_MultiPolygon(VECT.coastline_to_MultiPolygon(coastline,tile.lat,tile.lon,custom_source)) 
         if sea_area.geoms: UI.vprint(1,"      Found ",len(sea_area.geoms),"contiguous patch(es).")
         for polygon in sea_area.geoms:
             seed=numpy.array(polygon.representative_point()) 

@@ -18,6 +18,10 @@ except:
     has_URL=False
 import O4_Geo_Utils as GEO
 import O4_File_Names as FNAMES
+import O4_Vector_Utils as VECT
+import O4_Mesh_Utils as MESH
+import O4_OSM_Utils as OSM
+import O4_Mask_Utils as MASK
 from O4_Parallel_Utils import parallel_execute
 
 http_timeout=10
@@ -87,8 +91,12 @@ def initialize_extents_dict():
                     try:
                         GEO.epsg[value]=GEO.pyproj.Proj(init='epsg:'+value)
                     except:
-                        print("Error in epsg code for extent",extent_code)
-                        valid_extent=False
+                        # HACK for Slovenia 
+                        if int(value)==102060:
+                            GEO.epsg[value]=GEO.pyproj.Proj(init='epsg:3912')
+                        else:
+                            print("Error in epsg code for extent",extent_code)
+                            valid_extent=False
                 elif key=='mask_bounds':
                     try:
                         extent[key]=[float(x) for x in value.split(",")]
@@ -173,8 +181,12 @@ def initialize_providers_dict():
                     try:
                         GEO.epsg[value]=GEO.pyproj.Proj(init='epsg:'+value)
                     except:
-                        UI.vprint(0,"Error in epsg code for provider",provider_code)
-                        valid_provider=False
+                        # HACK for Slovenia 
+                        if int(value)==102060:
+                            GEO.epsg[value]=GEO.pyproj.Proj(init='epsg:3912')
+                        else:
+                            UI.vprint(0,"Error in epsg code for provider",provider_code)
+                            valid_provider=False
                 elif key=='image_type':
                     pass
                 elif key=='url_prefix':
@@ -324,7 +336,7 @@ def initialize_combined_providers_dict():
 def initialize_local_combined_providers_dict(tile):
     # This function will select from list of providers the only
     # ones whose coverage intersect the given tile.
-    global local_combined_providers_dict
+    global local_combined_providers_dict, extents_dict
     UI.vprint(1,"-> Initializing providers with potential data on this tile.")
     local_combined_providers_dict={} 
     test_set=set([tile.default_website])
@@ -333,15 +345,87 @@ def initialize_local_combined_providers_dict(tile):
     for provider_code in test_set.intersection(combined_providers_dict):
             comb_list=[]
             for rlayer in combined_providers_dict[provider_code]:
-                if has_data((tile.lon,tile.lat+1,tile.lon+1,tile.lat),rlayer['extent_code'],is_mask_layer=(tile.lat,tile.lon,tile.mask_zl) if rlayer['priority']=='mask' else False):
-                    comb_list.append(rlayer)
+                name=rlayer['extent_code']
+                if has_data((tile.lon,tile.lat+1,tile.lon+1,tile.lat),name,is_mask_layer=(tile.lat,tile.lon,tile.mask_zl) if rlayer['priority']=='mask' else False):
+                    if extents_dict[name]['dir']=='LowRes':
+                        new_rlayer=dict(rlayer)
+                        new_extent_code=name+"_"+FNAMES.short_latlon(tile.lat,tile.lon)
+                        new_rlayer['extent_code']=new_extent_code
+                        comb_list.append(new_rlayer) 
+                        extents_dict[new_extent_code]={'dir':'tmp','code':new_extent_code,'mask_bounds':[tile.lon-0.1,tile.lat-0.1,tile.lon+1.1,tile.lat+1.1]}
+                        if os.path.exists(os.path.join(FNAMES.Extent_dir,'tmp',new_extent_code+".png")):
+                            UI.vprint(1,"    Recycling layer mask for ",name)
+                            continue
+                        # need to build the extent mask over that tile
+                        if not os.path.isdir(os.path.join(FNAMES.Extent_dir,'tmp')):
+                            os.makedirs(os.path.join(FNAMES.Extent_dir,'tmp'))
+                        cached_file_name=os.path.join(FNAMES.Extent_dir,'LowRes',name+'.osm.bz2')
+                        pixel_size=10
+                        buffer_width=float(0)/pixel_size
+                        mask_width=int(300/pixel_size)
+                        pixel_size = pixel_size/111120 
+                        vector_map=VECT.Vector_Map()
+                        osm_layer=OSM.OSM_layer()
+                        if not os.path.exists(cached_file_name):
+                            UI.vprint(0,"Error, missing OSM data for extent code",name,", exiting.") 
+                            del(extents_dict[new_extent_code])
+                            return 0
+                        UI.vprint(1,"    Building layer mask for ",name)
+                        osm_layer.update_dicosm(cached_file_name,None)
+                        print("top")
+                        multipolygon_area=OSM.OSM_to_MultiPolygon(osm_layer,0,0)
+                        del(osm_layer)
+                        if not multipolygon_area.area:
+                            UI.vprint(0,"Error, erroneous OSM data for extent code",name,", skipped.") 
+                            continue
+                        print("encode")
+                        vector_map.encode_MultiPolygon(multipolygon_area,VECT.dummy_alt,'DUMMY',check=False,cut=False)
+                        vector_map.write_node_file(name+'.node')
+                        vector_map.write_poly_file(name+'.poly')
+                        print("triangulate")
+                        MESH.triangulate(name,'.')
+                        print("make image")
+                        ((xmin,ymin,xmax,ymax),mask_im)=MASK.triangulation_to_image(name,pixel_size,(tile.lon-0.1,tile.lat-0.1,tile.lon+1.1,tile.lat+1.1))
+                        if buffer_width:
+                            mask_im=mask_im.filter(ImageFilter.GaussianBlur(buffer_width/4))
+                            if buffer_width>0:
+                                mask_im=Image.fromarray((numpy.array(mask_im,dtype=numpy.uint8)>0).astype(numpy.uint8)*255)
+                            else: # buffer width can be negative
+                                mask_im=Image.fromarray((numpy.array(mask_im,dtype=numpy.uint8)==255).astype(numpy.uint8)*255)
+                        print("blur")
+                        if mask_width:
+                            mask_width+=1
+                            img_array=numpy.array(mask_im,dtype=numpy.uint8)
+                            kernel=numpy.ones(int(mask_width))/int(mask_width)
+                            kernel=numpy.array(range(1,2*mask_width))
+                            kernel[mask_width:]=range(mask_width-1,0,-1)
+                            kernel=kernel/mask_width**2
+                            for i in range(0,len(img_array)):
+                                img_array[i]=numpy.convolve(img_array[i],kernel,'same')
+                            img_array=img_array.transpose() 
+                            for i in range(0,len(img_array)):
+                                img_array[i]=numpy.convolve(img_array[i],kernel,'same')
+                            img_array=img_array.transpose()
+                            img_array[img_array>=128]=255
+                            img_array[img_array<128]*=2  
+                            img_array=numpy.array(img_array,dtype=numpy.uint8)
+                            mask_im=Image.fromarray(img_array)
+                        mask_im.save(os.path.join(FNAMES.Extent_dir,'tmp',new_extent_code+".png"))
+                        for f in [name+'.poly',name+'.node',name+'.1.node',name+'.1.ele']:
+                            try: 
+                                os.remove(f)
+                            except:
+                                pass
+                               
+                    else:    
+                        comb_list.append(rlayer)
             if comb_list:
                 local_combined_providers_dict[provider_code]=comb_list
             else:
-                UI.vprint(1,"Combined provider",provider_code,"did not contained data for this tile, skipping it.")
-                tile.zone_list.remove(region)
+                UI.vprint(1,"Combined provider",provider_code,"did not contained data for this tile, exiting.")
+                return 0
     UI.vprint(2,"     Done.")
-    return
+    return 1
     
 def read_tilematrixsets(file_name):
     f=open(file_name,'r')
@@ -487,18 +571,17 @@ def http_request_to_image(width,height,url,request_headers,http_session):
                 r=http_session.get(url, timeout=http_timeout,headers=request_headers) 
             else:
                 r=http_session.get(url, timeout=http_timeout) 
-            status_code = str(r)   
+            status_code = str(r)
+            # Bing white image with small camera => try to downsample to lower ZL
+            if ('Content-Length' in r.headers) and (r.headers['Content-Length']=='1033') and  ('virtualearth' in url):
+                return (0,'[404]')
             if ('[200]' in status_code) and ('image' in r.headers['Content-Type']):
-                # Bing white image with small camera => try to downsample to lower ZL
-                if (r.headers['Content-Length']!='1033') or ('png' not in r.headers['Content-Type']) or ('virtualearth' not in url): 
-                    try:
-                        small_image=Image.open(io.BytesIO(r.content))
-                        return (1,small_image)
-                    except:
-                        UI.vprint(2,"Server said 'OK', but the received image was corrupted.")
-                        UI.vprint(3,url,r.headers)
-                else: # Proceed as for GO2
-                    return (0,'[404]')
+                try:
+                    small_image=Image.open(io.BytesIO(r.content))
+                    return (1,small_image)
+                except:
+                    UI.vprint(2,"Server said 'OK', but the received image was corrupted.")
+                    UI.vprint(3,url,r.headers)
             elif ('[404]' in status_code):
                 UI.vprint(2,"Server said 'Not Found'")
                 UI.vprint(3,url,r.headers)
@@ -819,7 +902,7 @@ def build_jpeg_ortho(tile, til_x_left,til_y_top,zoomlevel,provider_code,out_file
         for rlayer in local_combined_providers_dict[provider_code]:
             (y0,x0)=GEO.gtile_to_wgs84(til_x_left,til_y_top,zoomlevel)
             (y1,x1)=GEO.gtile_to_wgs84(til_x_left+16,til_y_top+16,zoomlevel)
-            if has_data((x0,y0,x1,y1),rlayer['extent_code'],is_mask_layer= (tile.lat,tile.lon, tile.mask_zl) if rlayer['priority']=='mask' else False):
+            if len(local_combined_providers_dict[provider_code])==1 or has_data((x0,y0,x1,y1),rlayer['extent_code'],is_mask_layer= (tile.lat,tile.lon, tile.mask_zl) if rlayer['priority']=='mask' else False):
                 data_found=True
                 true_til_x_left=til_x_left
                 true_til_y_top=til_y_top

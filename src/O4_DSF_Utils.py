@@ -75,7 +75,13 @@ class QuadTree(dict):
         else:
             self.split_bucket(key)
             self.insert(bx,by,level+1)
-
+    
+    def clean(self):
+        for key in list(self.keys()):
+            if not self[key]['size']:
+                del(self[key])
+                
+    
     def statistics(self):
         lengths=numpy.array([self[key]['size'] for key in self])
         depths=numpy.array([len(key[0]) for key in self])
@@ -206,6 +212,7 @@ def build_dsf(tile,download_queue):
     for i in range(nbr_nodes):
         node_coords[5*i:5*i+3]=[float(x) for x in f_mesh.readline().split()[:3]]
         pool_quadtree.insert(float2qquad(node_coords[5*i]-tile.lon),float2qquad(node_coords[5*i+1]-tile.lat),quad_init_level)
+    pool_quadtree.clean()
     pool_quadtree.statistics()
     # 
     pool_nbr=len(pool_quadtree)

@@ -42,6 +42,10 @@ def needs_mask(tile, til_x_left,til_y_top,zoomlevel,*args):
 def build_masks(tile):
     if UI.is_working: return 0
     UI.is_working=1
+    # Which grey level for inland water equivalent ?
+    im=Image.open(os.path.join(FNAMES.Utils_dir,'water_transition.png'))
+    sea_level=im.getpixel((0,127*(1-min(1,0.1+tile.ratio_water))))
+    del(im)
     ##########################################
     def transition_profile(ratio,ttype):
         if ttype=='spline':
@@ -245,15 +249,15 @@ def build_masks(tile):
             (px4,py4)=GEO.wgs84_to_pix(lathere+1,lonhere,tile.mask_zl)
             px1-=px0; px2-=px0; px3-=px0; px4-=px0; py1-=py0; py2-=py0; py3-=py0; py4-=py0
             mask_draw.polygon([(px1,py1),(px2,py2),(px3,py3),(px4,py4)],fill='white')
-        # 3a)  We overwrite the withe part of the mask with grey (ratio_water dependent) where inland water was detected in the first part above   
+        # 3a)  We overwrite the white part of the mask with grey (ratio_water dependent) where inland water was detected in the first part above   
         if (til_x,til_y) in dico_masks_inland:    
             for (lat1,lon1,lat2,lon2,lat3,lon3) in dico_masks_inland[(til_x,til_y)]:
                 (px1,py1)=GEO.wgs84_to_pix(lat1,lon1,tile.mask_zl)
                 (px2,py2)=GEO.wgs84_to_pix(lat2,lon2,tile.mask_zl)
                 (px3,py3)=GEO.wgs84_to_pix(lat3,lon3,tile.mask_zl)
                 px1-=px0; px2-=px0; px3-=px0; py1-=py0; py2-=py0; py3-=py0
-                mask_draw.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=int(255*(1-tile.ratio_water)))   
-        # 3b) We overwrite the withe + grey part of the mask with black where sea water was detected in the first part above
+                mask_draw.polygon([(px1,py1),(px2,py2),(px3,py3)],fill=sea_level) #int(255*(1-tile.ratio_water)))   
+        # 3b) We overwrite the white + grey part of the mask with black where sea water was detected in the first part above
         for (lat1,lon1,lat2,lon2,lat3,lon3) in dico_masks[(til_x,til_y)]:
             (px1,py1)=GEO.wgs84_to_pix(lat1,lon1,tile.mask_zl)
             (px2,py2)=GEO.wgs84_to_pix(lat2,lon2,tile.mask_zl)
@@ -289,7 +293,7 @@ def build_masks(tile):
             bbox_4326=(lonm0,latm0,lonm1,latm1)
             masks_im=IMG.has_data(bbox_4326,tile.masks_custom_extent,True,mask_size=(4096,4096),is_sharp_resize=False,is_mask_layer=False)
             if masks_im:
-                custom_mask_array=(numpy.array(masks_im,dtype=numpy.uint8)*tile.ratio_water).astype(numpy.uint8)
+                custom_mask_array=(numpy.array(masks_im,dtype=numpy.uint8)*(sea_level/255)).astype(numpy.uint8)
         
         if (img_array.max()==0) and (custom_mask_array.max()==0): # no need to test if the mask is all white since it would otherwise not be present in dico_mask
             UI.vprint(1,"   Skipping", FNAMES.legacy_mask(til_x, til_y))
@@ -341,7 +345,6 @@ def build_masks(tile):
             transout=blur_width[2]
             #print(transin,midzone,transout)
             shore_level=255
-            sea_level=int(tile.ratio_water*255)
             b_img_array=b_mask_array=numpy.array(img_array)
             # First the transition at the shore
             # We go from shore_level to sea_level in transin meters
@@ -354,7 +357,7 @@ def build_masks(tile):
                 UI.vprint(2,value)
             # Next the intermediate zone at constant transparency
             sea_b_radius=midzone/3
-            sea_b_radius_buffered=(midzone+transout)/2
+            sea_b_radius_buffered=(midzone+transout)/3
             b_mask_array=(numpy.array(Image.fromarray(b_mask_array).convert("L").\
                 filter(ImageFilter.GaussianBlur(sea_b_radius_buffered)),dtype=numpy.uint8)>0).astype(numpy.uint8)*255
             b_mask_array=(numpy.array(Image.fromarray(b_mask_array).convert("L").\
