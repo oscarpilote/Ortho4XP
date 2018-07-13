@@ -13,7 +13,6 @@ import O4_Mask_Utils as MASK
 import O4_Tile_Utils as TILE
 import O4_GUI_Utils as GUI
 import O4_Config_Utils as CFG  # CFG imported last because it can modify other modules variables
-import O4_ESP_Globals
 
 cmd_line="USAGE: Ortho4XP_v130.py lat lon imagery zl (won't read a tile config)\n   OR:  Ortho4XP_v130.py lat lon (with existing tile config file)"
 
@@ -37,7 +36,6 @@ if __name__ == '__main__':
     IMG.initialize_combined_providers_dict()
     if len(sys.argv)==1: # switch to the graphical interface
         Ortho4XP = GUI.Ortho4XP_GUI()
-        O4_ESP_Globals.Ortho4XP_P3D_FSX_Main_GUI = Ortho4XP
 
         Ortho4XP.mainloop()	    
         print("Bon vol!")
