@@ -85,7 +85,7 @@ def build_tile(tile):
     build_dsf_thread.start()
     if not skip_downloads:
         download_thread.start()
-        if not skip_converts:
+        if not skip_converts and not O4_ESP_Globals.build_for_ESP:
             UI.vprint(1,"-> Opening convert queue and",max_convert_slots,"conversion workers.")
             dico_conv_progress={'done':0,'bar':3}
             convert_workers=parallel_launch(IMG.convert_texture,convert_queue,max_convert_slots,progress=dico_conv_progress)
@@ -93,7 +93,7 @@ def build_tile(tile):
     if not skip_downloads:
         download_queue.put('quit')
         download_thread.join()
-        if not skip_converts:
+        if not skip_converts and not O4_ESP_Globals.build_for_ESP:
             for _ in range(max_convert_slots): convert_queue.put('quit')
             parallel_join(convert_workers) 
             if UI.red_flag: 

@@ -20,7 +20,7 @@ import O4_Geo_Utils as GEO
 import O4_File_Names as FNAMES
 from O4_Parallel_Utils import parallel_execute
 import O4_ESP_Globals
-from O4_ESP_Utils import *
+import O4_ESP_Utils
 
 http_timeout=10
 check_tms_response=False
@@ -880,7 +880,7 @@ def build_photo_ortho(tile, til_x_left,til_y_top,zoomlevel,provider_code,out_fil
         nbr = 16
         # TODO: stop using globals, only used them cause I wanted to get v130 to work in one night with masking, etc
         O4_ESP_Globals.ESP_build_dir = final_file_dir
-        make_ESP_inf_file(final_file_dir, final_file_name, til_x_left, (til_x_left + nbr), til_y_top, (til_y_top + nbr), zoomlevel)
+        O4_ESP_Utils.make_ESP_inf_file(final_file_dir, final_file_name, til_x_left, (til_x_left + nbr), til_y_top, (til_y_top + nbr), zoomlevel)
 
     return 1
 ###############################################################################################################################
