@@ -82,7 +82,7 @@ def run_ESP_resample(build_dir):
         for full_file_name in file_names:
             file_name, file_extension = os.path.splitext(full_file_name)
             if file_extension == ".inf":
-                inf_abs_path = os.path.abspath(FNAMES.Ortho4XP_dir + os.sep + build_dir + os.sep + full_file_name)
+                inf_abs_path = os.path.abspath(build_dir + os.sep + full_file_name)
                 print(inf_abs_path)
                 subprocess.call([ESP_resample_loc, inf_abs_path])
 
