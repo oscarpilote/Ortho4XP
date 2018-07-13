@@ -1050,6 +1050,12 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
         O4_ESP_Globals.build_for_ESP = True if self.v_["Build For ESP (FSX/P3D)"].get() else False
         O4_ESP_Globals.do_build_masks = True if self.v_["Draw water masks"].get() else False
 
+        if O4_ESP_Globals.build_for_ESP and O4_ESP_Globals.do_build_masks:
+            main_window_tile_zoom = int(O4_ESP_Globals.Ortho4XP_P3D_FSX_Main_GUI.zl_combo.get())
+            if main_window_tile_zoom != CFG.mask_zl:
+                print("FSX/P3D building requires both the tile and mask zooms to equal. Setting the mask zoom to the tile zoom of " + str(main_window_tile_zoom))
+                CFG.mask_zl = main_window_tile_zoom
+
         list_lat_lon=sorted(self.dico_tiles_todo.keys())
         if not list_lat_lon: return
         (lat,lon)= list_lat_lon[0]
