@@ -62,6 +62,13 @@ def make_ESP_inf_file(file_dir, file_name, til_x_left, til_x_right, til_y_top, t
         contents += "UseSourceDimensions  = 1\n"
         contents += "CompressionQuality   = 100\n"
 
+        # Default land class textures will be used if the terrain system cannot find photo-imagery at LOD13 (5 meters per pixel) or greater detail.
+        # source: https://docs.microsoft.com/en-us/previous-versions/microsoft-esp/cc707102(v=msdn.10)
+        # otherwise, nothing will be added, so the default of LOD = Auto will be used
+        LOD_13_DEG_PER_PIX = 4.27484e-05
+        if img_cell_x_dimension_deg > LOD_13_DEG_PER_PIX or img_cell_y_dimension_deg > LOD_13_DEG_PER_PIX:
+            contents += "LOD = Auto, 13\n"
+
         inf_file.write(contents)
 
 
