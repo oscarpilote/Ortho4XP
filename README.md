@@ -14,7 +14,7 @@ The FSX resample.exe can be found by installing the FSX SDK found in the FSX Del
 
 Building binary:
 Use pyinstaller like this:  
-pyinstaller -F -p src Ortho4XP_v130.py
+pyinstaller --clean -F -p src Ortho4XP_v130.py
 Then, copy spatialindex-64.dll and spatialindex_c.dll (from rtree python module) into the dist folder where the new executable is:  
 cp /cygdrive/c/Users/fery2/AppData/Local/Programs/Python/Python36/lib/site-packages/rtree/spatialindex*.dll dist/  
   
