@@ -15,6 +15,7 @@ apt-get install -y python3 \
     python3-rtree \
     python3-pil \
     python3-pil.imagetk \
-    p7zip-full
+    p7zip-full \
+    ubuntu-desktop
 
 apt-get -y update
