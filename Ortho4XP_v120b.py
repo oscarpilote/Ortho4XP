@@ -6497,6 +6497,9 @@ class Expert_config(Toplevel):
     
     def write_to_global_cfg(self):
         if os.path.isfile(Ortho4XP_dir+dir_sep+'Ortho4XP.cfg'):
+            if(not os.path.isfile(Ortho4XP_dir+dir_sep+'Ortho4XP.cfg.bak')):
+                os.remove(Ortho4XP_dir+dir_sep+'Ortho4XP.cfg.bak')
+                
             os.rename(Ortho4XP_dir+dir_sep+'Ortho4XP.cfg',Ortho4XP_dir+dir_sep+'Ortho4XP.cfg.bak')
         f=open(Ortho4XP_dir+dir_sep+'Ortho4XP.cfg','w')
         for item in configvars:
