@@ -15,7 +15,9 @@ apt-get install -y python3 \
     python3-rtree \
     python3-pil \
     python3-pil.imagetk \
-    p7zip-full \
-    ubuntu-desktop
+    p7zip-full
+
+# Uncomment the line below only if you have turned on the GUI on the Vagrantfile
+# apt-get install -y ubuntu-desktop
 
 apt-get -y update
