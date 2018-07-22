@@ -17,7 +17,12 @@ apt-get install -y python3 \
     python3-pil.imagetk \
     p7zip-full
 
-# Uncomment the line below only if you have turned on the GUI on the Vagrantfile
-# apt-get install -y ubuntu-desktop
+# Comment this line below if you want to have headless Ubuntu
+apt-get install -y ubuntu-desktop
 
 apt-get -y update
+
+chmod a+x /vagrant/Ortho4XP_starter.sh
+chmod a+x /vagrant/Ortho4XP_vboxguestadditions.sh
+
+ln -s /vagrant/Ortho4XP_starter.sh /usr/local/bin/Ortho4XP_starter
