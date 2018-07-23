@@ -4,17 +4,15 @@ Ever wish you didn't have to install any dependent libraries, python etc? Fortun
 
 1. One common way to install and run Ortho4XP for Windows, Mac, and Ubuntu. That means core developer can focus more on fixing bugs or work on new features rather than trying to figure out how it can be installed on different OS.
 
-2. Your operating system doesn't get affected by the installation.
+2. Your operating system doesn't get affected by Ortho4XP dependencies.
 
 3. If you want to remove Ortho4XP. Just run vagrant destroy command and remove the Ortho4XP directory. Done. Nothing to remove from the registry or anything.
 
 =============================
-|							|
 |	Vagrant installation 	|
-|							|
 =============================
 
-Using vagrant installation requires following these steps very carefully. The order is very important. Yes, it may be a little long. But trust me, it gets easier after that.
+Vagrant installation requires following these steps very carefully. The order of the steps are very important.
 
 1. Download and install vagrant from here: https://www.vagrantup.com/downloads.html
 
@@ -22,21 +20,21 @@ Using vagrant installation requires following these steps very carefully. The or
 
 3. Download the Ortho4XP zip from the Github repo or clone it on your PC/Mac.
 
-4. Now Open a terminal or Command Prompt window. Windows users: Please make sure you open the command prompt using Administrator.
+4. Now Open a terminal or Command Prompt window. Windows users: Please make sure you open the command prompt as Administrator.
 
-5. In the command prompt or terminal make sure you are inside the downloaded/cloned directory. Ex: C:\Ortho4XP
+5. Navigate to the downloaded/cloned directory using your command prompt (Windows/Mac). Ex: C:\Ortho4XP
 
-6. Now from your command prompt, run the following command: vagrant up
+6. Now run the following command: vagrant up
 
 7. The command above will download an Ubuntu OS and run few scripts to set up everything for you. This could take 15-30 mins depending on your internet connection.
 
-8. Once the setup is complete. Run: vagrant halt
+8. Once the setup is complete, run: vagrant halt
 
 9. Yes, you have to pause the vagrant instance for a reason unknown for now. But don't worry move on to the next step.
 
 10. Now run following command again: vagrant up
 
-11. This time it will be much faster because the download and setup are complete. It's just bringing the VM up.
+11. This time it will be much faster because the download and setup are both complete. It's just bringing the VM up.
 
 12. Once the VM is up, go to VM screen and login as vagrant with the password shown below. The passwords are:
 
@@ -48,7 +46,7 @@ Using vagrant installation requires following these steps very carefully. The or
 13. On the VM window, there should be a Devices menu. Click on Devices -> Insert Guest Additions CD Image... 
 There will be a message saying "Unable to mount VBox_GAs_5.2.16". Just press OK for now. We will fix it.
 
-14. Double click the Fix_VBox icon on the Ubuntu desktop. Type yes when asked to continue.
+14. Double click the Fix_VBox icon on the Ubuntu desktop. Type yes and press enter when asked to continue.
 
 15. Once the step above finishes installing, the window will close itself automatically.
 
@@ -66,9 +64,9 @@ You will only repeat the following steps everytime you want to run Ortho4XP.
 
 3. Now login into Ubuntu using the vagrant account with its password.
 
-4. You can now double-click the Ortho4XP icon to run the application.
+4. Double click the Ortho4XP icon to run the application.
 
-5. Once you are done using Ortho4XP, in your windows/mac command prompt run: vagrant halt
+5. Once you are done using Ortho4XP, run this command in your windows/mac command prompt: vagrant halt
 
-6. The above command turns off the vagrant instance for you. You can now move the tiles and overlays from the directory to your Xplane 10/11 custom scenary directory.
+6. The above command turns off the vagrant instance for you. Feel free to move the tiles and overlays from the directory to your Xplane 10/11 custom scenary directory.
 
