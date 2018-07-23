@@ -48,7 +48,7 @@ Using vagrant installation requires following these steps very carefully. The or
 13. On the VM window, there should be a Devices menu. Click on Devices -> Insert Guest Additions CD Image... 
 There will be a message saying "Unable to mount VBox_GAs_5.2.16". Just press OK for now. We will fix it.
 
-14. Double click the Fix_VBox icon on the Ubuntu desktop.
+14. Double click the Fix_VBox icon on the Ubuntu desktop. Type yes when asked to continue.
 
 15. Once the step above finishes installing, the window will close itself automatically.
 
@@ -58,16 +58,17 @@ There will be a message saying "Unable to mount VBox_GAs_5.2.16". Just press OK 
 
 Running the Ortho4XP
 --------------------
+You will only repeat the following steps everytime you want to run Ortho4XP.
 
-1. Once the installation is done, please run: vagrant up
+1. Please open your command prompt/terminal (Windows users: as Administrator) and run: vagrant up
 
-2. Once all the commands are finished, there should be a VM window with the Ubuntu login screen. But before login into Ubuntu, make sure your command prompt (in Windows/Mac) has finished everything and ready to take new commands. Don't log in until it finishes.
+2. Once the vagrant up command finishes, there should be a VM window with the Ubuntu login screen. But before login into Ubuntu, make sure your command prompt (in Windows/Mac) has finished everything and ready to take new commands. Don't log in until it finishes.
 
 3. Now login into Ubuntu using the vagrant account with its password.
 
 4. You can now just double-click the Ortho4XP icon to run the application. That's it.
 
-5. Once you are done using Ortho4XP, just run: vagrant halt
+5. Once you are done using Ortho4XP, in your windows/mac command prompt just run: vagrant halt
 
 6. The above command turns off the vagrant instance for you. You can now move the tiles and overlays from the directory to your Xplane 10/11 custom scenary directory.
 
