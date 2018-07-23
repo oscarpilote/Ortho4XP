@@ -1,6 +1,7 @@
 #include <Python.h>
 #include <iostream>
 #include <Magick++.h>
+#include "FSET_ports.h"
 
 using namespace std;
 using namespace Magick;
@@ -9,12 +10,10 @@ void foreach_pixel(Image *img, void (*callback)(Quantum *)) {
     img->modifyImage();
     // Allocate pixel view
     Pixels view(*img);
-
     // Set all pixels in region anchored at 38x36, with size 160x230 to green.
     size_t columns = img->columns();
     size_t rows = img->rows();
     Quantum *pixels = view.get(0, 0, columns, rows);
-    unsigned long long total = 0;
     for (ssize_t row = 0; row < rows; row++) {
         for (ssize_t column = 0; column < columns; column++) {
             unsigned int offset = img->channels() * (columns * row + column);
