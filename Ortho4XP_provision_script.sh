@@ -25,4 +25,40 @@ apt-get -y update
 chmod a+x /vagrant/Ortho4XP_starter.sh
 chmod a+x /vagrant/Ortho4XP_vboxguestadditions.sh
 
-ln -s /vagrant/Ortho4XP_starter.sh /usr/local/bin/Ortho4XP_starter
+Ortho4XP_App=/vagrant/Ortho4XP_App.desktop
+Ortho4XP_VB_Fix=/vagrant/Ortho4XP_fixvbguest.desktop
+
+chmod a+x $Ortho4XP_App
+chmod a+x $Ortho4XP_VB_Fix
+
+starter=/usr/local/bin/Ortho4XP_starter
+local_app_dir=/home/vagrant/.local/share/applications
+Ortho4XP_App_local="$local_app_dir/Ortho4XP_App.desktop"
+Ortho4XP_fixvbguest="$local_app_dir/Ortho4XP_fixvbguest.desktop"
+
+Ortho4XP_App_Desktop=/home/vagrant/Desktop/Ortho4XP.desktop
+Ortho4XP_fixvbguest_Desktop=/home/vagrant/Desktop/Fix_VB.desktop
+
+if [ ! -L $starter ]; then
+  ln -s /vagrant/Ortho4XP_starter.sh $starter
+fi
+
+if [ ! -L $local_app_dir ]; then
+  mkdir -p $local_app_dir
+fi
+
+if [ ! -L $Ortho4XP_App_local ]; then
+  cp /vagrant/Ortho4XP_App.desktop $Ortho4XP_App_local
+
+  if [ ! -L $Ortho4XP_App_Desktop ]; then
+    ln -s $Ortho4XP_App_local $Ortho4XP_App_Desktop
+  fi
+fi
+
+if [ ! -L $Ortho4XP_fixvbguest ]; then
+  cp /vagrant/Ortho4XP_fixvbguest.desktop $Ortho4XP_fixvbguest
+
+  if [ ! -L $Ortho4XP_fixvbguest_Desktop ]; then
+    ln -s $Ortho4XP_fixvbguest $Ortho4XP_fixvbguest_Desktop
+  fi
+fi

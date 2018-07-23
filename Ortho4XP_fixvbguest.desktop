@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Name=Fix_VBox
+Comment="This is a fix for vbguest additions"
+Exec=/vagrant/Ortho4XP_vboxguestadditions.sh
+Icon=/usr/share/pixmaps/python3.xpm
+Terminal=true
+Type=Application
+Categories=Utility;Application;

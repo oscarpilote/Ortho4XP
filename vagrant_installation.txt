@@ -1,0 +1,73 @@
+Vagrant
+-------
+Ever wish you didn't have to install any dependent libraries, python etc? Fortunately, there is a way that you can completely isolate the installation of Ortho4XP using vagrant. Vagrant allows you to create a Virtual Machine (VM) and install a minimal Ubuntu instance and run Ortho4XP there. This is beneficial for a couple of reasons:
+
+1. One common way to install and run Ortho4XP for Windows, Mac, and Ubuntu. That means core developer can focus more on fixing bugs or work on new features rather than trying to figure out how it can be installed on different OS.
+
+2. Your operating system doesn't get affected by the installation.
+
+3. If you want to remove Ortho4XP. Just run vagrant destroy command and remove the Ortho4XP directory. Done. Nothing to remove from the registry or anything.
+
+=============================
+|							|
+|	Vagrant installation 	|
+|							|
+=============================
+
+Using vagrant installation requires following these steps very carefully. The order is very important. Yes, it may be a little long. But trust me, it gets easier after that.
+
+1. Download and install vagrant from here: https://www.vagrantup.com/downloads.html
+
+2. Download and Virtualbox from here: https://www.virtualbox.org/wiki/Downloads
+
+3. Download the Ortho4XP zip from the Github repo or clone it on your PC/Mac.
+
+4. Now Open a terminal or Command Prompt window. Windows users: Please make sure you open the command prompt using Administrator.
+
+5. In the command prompt or terminal make sure you are inside the downloaded/cloned directory. Ex: C:\Ortho4XP
+
+6. Now from your command prompt, run the following command: vagrant up
+
+7. The command above will download an Ubuntu OS and run few scripts to set up everything for you. This could take 15-30 mins depending on your internet connection.
+
+8. Once the setup is complete. Run: vagrant halt
+
+9. Yes, you have to pause the vagrant instance for a reason unknown for now. But don't worry move on to the next step.
+
+10. Now run following command again: vagrant up
+
+11. This time it will be much faster because the download and setup are complete. It's just bringing the VM up.
+
+12. Once the VM is up, go to VM screen and login as vagrant with the password shown below. The passwords are:
+
+	Account		Password
+	------- 	--------
+	vagrant 	vagrant
+	ubuntu 		ubuntu
+
+13. On the VM window, there should be a Devices menu. Click on Devices -> Insert Guest Additions CD Image... 
+There will be a message saying "Unable to mount VBox_GAs_5.2.16". Just press OK for now. We will fix it.
+
+14. Double click the Fix_VBox icon on the Ubuntu desktop.
+
+15. Once the step above finishes installing, the window will close itself automatically.
+
+16. We are done installing.
+
+17. On your command prompt (i.e Windows/Mac, not the Ubuntu terminal), run this command: vagrant halt
+
+Running the Ortho4XP
+--------------------
+
+1. Once the installation is done, please run: vagrant up
+
+2. Once all the commands are finished, there should be a VM window with the Ubuntu login screen. But before login into Ubuntu, make sure your command prompt (in Windows/Mac) has finished everything and ready to take new commands. Don't log in until it finishes.
+
+3. Now login into Ubuntu using the vagrant account with its password.
+
+4. You can now just double-click the Ortho4XP icon to run the application. That's it.
+
+5. Once you are done using Ortho4XP, just run: vagrant halt
+
+6. The above command turns off the vagrant instance for you. You can now move the tiles and overlays from the directory to your Xplane 10/11 custom scenary directory.
+

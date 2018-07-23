@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.30
+Name=Ortho4XP
+Comment=This is Ortho4XP v1.30
+Exec=Ortho4XP_starter
+Icon=/usr/share/pixmaps/python3.xpm
+Terminal=false
+Type=Application
+StartupNotify=true
+Categories=Utility;Application;

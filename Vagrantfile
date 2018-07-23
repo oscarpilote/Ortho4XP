@@ -13,6 +13,13 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     v.gui = true
     v.customize ["modifyvm", :id, "--memory", "2048"]
     v.customize ["modifyvm", :id, "--vram", "128"]
+    v.customize ["modifyvm", :id, "--accelerate3d", "on"]
+    v.customize ["storageattach", :id,
+        "--storagectl", "IDE",
+        "--port", "0",
+        "--device", "1",
+        "--type", "dvddrive",
+        "--medium", "emptydrive"]
   end
 
   config.vm.provision "shell", inline: <<-SCRIPT
