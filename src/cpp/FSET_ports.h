@@ -3,8 +3,10 @@
 
 #include <Magick++.h>
 #include <climits>
+#include <string>
 
 using namespace Magick;
+using namespace std;
 
 class MasksConfig {
     public:
@@ -124,6 +126,13 @@ class MasksConfig {
         static const bool mHardWinterStreetsConditionOn = true;
 };
 
+void foreach_pixel(Image *img, void (*callback)(Quantum *));
 bool pixelIsWaterOrWaterTransition(Quantum *pixel);
+void c_create_night(string imgName, string outName);
+void c_create_hard_winter(string imgName, string outName);
+void c_create_autumn(string imgName, string outName);
+void c_create_spring(string imgName, string outName);
+void c_create_winter(string imgName, string outName);
+
 #endif
 
