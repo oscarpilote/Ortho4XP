@@ -22,6 +22,8 @@ apt-get install -y ubuntu-desktop
 
 apt-get -y update
 
+sed -i -e 's/\r$//' /vagrant/Ortho4XP_starter.sh /vagrant/Ortho4XP_provision_script.sh /vagrant/Ortho4XP_vboxguestadditions.sh
+
 chmod a+x /vagrant/Ortho4XP_starter.sh
 chmod a+x /vagrant/Ortho4XP_vboxguestadditions.sh
 

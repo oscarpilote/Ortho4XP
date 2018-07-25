@@ -22,6 +22,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
         "--medium", "emptydrive"]
   end
 
+  config.vm.synced_folder "./", "/vagrant", owner: "vagrant", group: "vagrant", mount_options: ["dmode=775,fmode=775"]
+
   config.vm.provision "shell", inline: <<-SCRIPT
 echo "Updating ubuntu password"
 echo "ubuntu:ubuntu" | chpasswd
