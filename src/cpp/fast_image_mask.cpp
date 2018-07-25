@@ -210,6 +210,70 @@ static PyObject * create_hard_winter(PyObject *self, PyObject *args) {
     Py_RETURN_NONE;
 }
 
+static PyObject * create_autumn(PyObject *self, PyObject *args) {
+    InitializeMagick("");
+    const char *imgName, *outName;
+    if (!PyArg_ParseTuple(args, "ss", &imgName, &outName)) {
+        return NULL;
+    }
+
+    try {
+        Image img;
+        img.read(imgName);
+        foreach_pixel(&img,
+            [](Quantum *pixel) {
+                Quantum vRed = pixel[0];
+                Quantum vGreen = pixel[1];
+                Quantum vBlue = pixel[2];
+
+                bool vIsWater = pixelIsWaterOrWaterTransition(pixel);
+                ssize_t vSum = vRed + vGreen + vBlue;
+				bool vDontAlterColor = MasksConfig::mSpareOutWaterForSeasonsGeneration && pixelIsWaterOrWaterTransition(pixel);
+
+                if (!vDontAlterColor) {
+                    vSum = vRed + vGreen + vBlue;
+
+                    // Convert to autumn colors. Reduce green in all
+                    // colors; reduce red in similar way, when the pixel
+                    // is very bright; make red and blue brighter without
+                    // touching green, when the pixel is rather dark
+
+                    if ((vSum < MasksConfig::mAutumnDarkConditionRGBSumLessThanValue) &&
+                        (vSum > MasksConfig::mAutumnDarkConditionRGBSumLargerThanValue)) {
+                        // Dark pixel, but not black:
+                        vRed   += MasksConfig::mAutumnDarkRedAddition;
+                        vGreen += MasksConfig::mAutumnDarkGreenAddition;
+                        vBlue  += MasksConfig::mAutumnDarkBlueAddition;
+                    } else if ((vSum >= MasksConfig::mAutumnBrightConditionRGBSumLargerEqualThanValue) &&
+                             (vSum < MasksConfig::mAutumnBrightConditionRGBSumLessThanValue)) {
+                        //rather bright pixel
+                        vRed   += MasksConfig::mAutumnBrightRedAddition;
+                        vGreen += MasksConfig::mAutumnBrightGreenAddition;
+                        vBlue  += MasksConfig::mAutumnBrightBlueAddition;
+                    } else if ((MasksConfig::mAutumnGreenishConditionBlueIntegerFactor * vBlue) < (MasksConfig::mAutumnGreenishConditionGreenIntegerFactor * vGreen)) {  //1.4*blue < Green
+                        //very greenish pixel
+                        vRed   += MasksConfig::mAutumnGreenishRedAddition;
+                        vGreen += MasksConfig::mAutumnGreenishGreenAddition;
+                        vBlue  += MasksConfig::mAutumnGreenishBlueAddition;
+                    } else {
+                        vRed   += MasksConfig::mAutumnRestRedAddition;
+                        vGreen += MasksConfig::mAutumnRestGreenAddition;
+                        vBlue  += MasksConfig::mAutumnRestBlueAddition;
+                    }
+                }
+                pixel[0] = vRed;
+                pixel[1] = vGreen;
+                pixel[2] = vBlue;
+            }
+        );
+        img.write(outName);
+    } catch(Exception &error_) {
+        cout << "Caught exception: " << error_.what() << endl;
+        Py_RETURN_NONE;
+    }
+
+    Py_RETURN_NONE;
+}
 // Method definition object for this extension, these argumens mean:
 // ml_name: The name of the method
 // ml_meth: Function pointer to the method implementation
@@ -231,6 +295,13 @@ static PyMethodDef fast_image_mask_functions[] = {
         //METH_NOARGS,
         METH_VARARGS,
         "Create hard winter image named outName from imgName image"
+    },
+    {
+        "create_autumn",
+        create_autumn,
+        //METH_NOARGS,
+        METH_VARARGS,
+        "Create autumn image named outName from imgName image"
     },
     {NULL, NULL, 0, NULL}
 };
