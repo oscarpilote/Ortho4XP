@@ -274,6 +274,144 @@ static PyObject * create_autumn(PyObject *self, PyObject *args) {
 
     Py_RETURN_NONE;
 }
+
+static PyObject * create_spring(PyObject *self, PyObject *args) {
+    InitializeMagick("");
+    const char *imgName, *outName;
+    if (!PyArg_ParseTuple(args, "ss", &imgName, &outName)) {
+        return NULL;
+    }
+
+    try {
+        Image img;
+        img.read(imgName);
+        foreach_pixel(&img,
+            [](Quantum *pixel) {
+                Quantum vRed = pixel[0];
+                Quantum vGreen = pixel[1];
+                Quantum vBlue = pixel[2];
+
+                ssize_t vSum = vRed + vGreen + vBlue;
+
+                bool vDontAlterColor = MasksConfig::mSpareOutWaterForSeasonsGeneration && pixelIsWaterOrWaterTransition(pixel);
+
+                if (!vDontAlterColor) {
+                    vSum = vRed + vGreen + vBlue;
+
+                    if ((vSum < MasksConfig::mSpringDarkConditionRGBSumLessThanValue) &&
+                        (vSum > MasksConfig::mSpringDarkConditionRGBSumLargerThanValue)) {
+                        // Dark pixel, but not black:
+                        vRed   += MasksConfig::mSpringDarkRedAddition;
+                        vGreen += MasksConfig::mSpringDarkGreenAddition;
+                        vBlue  += MasksConfig::mSpringDarkBlueAddition;
+                    } else if ((vSum >= MasksConfig::mSpringBrightConditionRGBSumLargerEqualThanValue) &&
+                             (vSum < MasksConfig::mSpringBrightConditionRGBSumLessThanValue)) {
+                        //rather bright pixel
+                        vRed   += MasksConfig::mSpringBrightRedAddition;
+                        vGreen += MasksConfig::mSpringBrightGreenAddition;
+                        vBlue  += MasksConfig::mSpringBrightBlueAddition;
+                    } else if ((MasksConfig::mSpringGreenishConditionBlueIntegerFactor * vBlue) < (MasksConfig::mSpringGreenishConditionGreenIntegerFactor * vGreen)) {  //1.4*blue < Green
+                        //very greenish pixel
+                        vRed   += MasksConfig::mSpringGreenishRedAddition;
+                        vGreen += MasksConfig::mSpringGreenishGreenAddition;
+                        vBlue  += MasksConfig::mSpringGreenishBlueAddition;
+                    } else {
+                        vRed   += MasksConfig::mSpringRestRedAddition;
+                        vGreen += MasksConfig::mSpringRestGreenAddition;
+                        vBlue  += MasksConfig::mSpringRestBlueAddition;
+                    }
+                }
+                pixel[0] = vRed;
+                pixel[1] = vGreen;
+                pixel[2] = vBlue;
+            }
+        );
+        img.write(outName);
+    } catch(Exception &error_) {
+        cout << "Caught exception: " << error_.what() << endl;
+        Py_RETURN_NONE;
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject * create_winter(PyObject *self, PyObject *args) {
+    InitializeMagick("");
+    const char *imgName, *outName;
+    if (!PyArg_ParseTuple(args, "ss", &imgName, &outName)) {
+        return NULL;
+    }
+
+    try {
+        Image img;
+        img.read(imgName);
+        foreach_pixel(&img,
+            [](Quantum *pixel) {
+                Quantum vRed = pixel[0];
+                Quantum vGreen = pixel[1];
+                Quantum vBlue = pixel[2];
+
+                ssize_t vSum = vRed + vGreen + vBlue;
+
+                bool vIsWater = pixelIsWaterOrWaterTransition(pixel);
+                bool vDontAlterColor = MasksConfig::mSpareOutWaterForSeasonsGeneration && vIsWater;
+                //bool vSnowAllowed    = !(MasksConfig::mNoSnowInWaterForWinterAndHardWinter && vIsWater);
+
+                if (!vDontAlterColor) {
+                    vSum = vRed + vGreen + vBlue;
+
+                    // Basically fall routines with snow on greyish fields and streets:
+                    if (((vRed - vBlue)   < MasksConfig::mWinterStreetGreyConditionGreyToleranceValue) && ((vRed - vBlue)   > -MasksConfig::mWinterStreetGreyConditionGreyToleranceValue) &&
+                        ((vRed - vGreen)  < MasksConfig::mWinterStreetGreyConditionGreyToleranceValue) && ((vRed - vGreen)  > -MasksConfig::mWinterStreetGreyConditionGreyToleranceValue) &&
+                        ((vGreen - vBlue) < MasksConfig::mWinterStreetGreyConditionGreyToleranceValue) && ((vGreen - vBlue) > -MasksConfig::mWinterStreetGreyConditionGreyToleranceValue) &&
+                         (vSum > MasksConfig::mWinterStreetGreyConditionRGBSumLargerThanValue)) {
+                        Quantum vMax = vRed;
+                        if (vGreen > vMax) {
+                            vMax = vGreen;
+                        }
+                        if (vBlue > vMax) {
+                            vMax = vBlue;
+                        }
+                        Quantum vMaxDouble = MasksConfig::mWinterStreetGreyMaxFactor * (Quantum)(vMax);
+                        vRed   = (Quantum)(((Quantum)(rand()) * MasksConfig::mWinterStreetGreyRandomFactor + vMax));
+                        vGreen = (Quantum)(((Quantum)(rand()) * MasksConfig::mWinterStreetGreyRandomFactor + vMax));
+                        vBlue  = (Quantum)(((Quantum)(rand()) * MasksConfig::mWinterStreetGreyRandomFactor + vMax));
+                    } else if ((vSum < MasksConfig::mWinterDarkConditionRGBSumLessThanValue) &&
+                             (vSum > MasksConfig::mWinterDarkConditionRGBSumLargerThanValue)) {
+                        // Rather dark pixel, but not black
+                        vRed   += MasksConfig::mWinterDarkRedAddition;
+                        vGreen += MasksConfig::mWinterDarkGreenAddition;
+                        vBlue  += MasksConfig::mWinterDarkBlueAddition;
+                    } else if ((vSum >= MasksConfig::mWinterBrightConditionRGBSumLargerEqualThanValue) &&
+                             (vSum < MasksConfig::mWinterBrightConditionRGBSumLessThanValue)) {
+                        // rather bright pixel
+                        vRed   += MasksConfig::mWinterBrightRedAddition;
+                        vGreen += MasksConfig::mWinterBrightGreenAddition;
+                        vBlue  += MasksConfig::mWinterBrightBlueAddition;
+                    } else if ((MasksConfig::mWinterGreenishConditionBlueIntegerFactor * vBlue) < (MasksConfig::mWinterGreenishConditionGreenIntegerFactor * vGreen)) {  //1.4*blue < Green
+                        //very greenish pixel
+                        vRed   += MasksConfig::mWinterGreenishRedAddition;
+                        vGreen += MasksConfig::mWinterGreenishGreenAddition;
+                        vBlue  += MasksConfig::mWinterGreenishBlueAddition;
+                    } else {
+                        vRed   += MasksConfig::mWinterRestRedAddition;
+                        vGreen += MasksConfig::mWinterRestGreenAddition;
+                        vBlue  += MasksConfig::mWinterRestBlueAddition;
+                    }
+                }
+                pixel[0] = vRed;
+                pixel[1] = vGreen;
+                pixel[2] = vBlue;
+            }
+        );
+        img.write(outName);
+    } catch(Exception &error_) {
+        cout << "Caught exception: " << error_.what() << endl;
+        Py_RETURN_NONE;
+    }
+
+    Py_RETURN_NONE;
+}
 // Method definition object for this extension, these argumens mean:
 // ml_name: The name of the method
 // ml_meth: Function pointer to the method implementation
@@ -302,6 +440,20 @@ static PyMethodDef fast_image_mask_functions[] = {
         //METH_NOARGS,
         METH_VARARGS,
         "Create autumn image named outName from imgName image"
+    },
+    {
+        "create_spring",
+        create_spring,
+        //METH_NOARGS,
+        METH_VARARGS,
+        "Create spring image named outName from imgName image"
+    },
+    {
+        "create_winter",
+        create_winter,
+        //METH_NOARGS,
+        METH_VARARGS,
+        "Create winter image named outName from imgName image"
     },
     {NULL, NULL, 0, NULL}
 };
