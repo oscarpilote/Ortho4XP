@@ -1,3 +1,11 @@
+#ifndef FSET_MASKS_H
+#define FSET_MASKS_H
+
+#include <Magick++.h>
+#include <climits>
+
+using namespace Magick;
+
 class MasksConfig {
     public:
         static const int mHardWinterStreetConditionGreyToleranceValue = 31;
@@ -112,4 +120,7 @@ class MasksConfig {
         static const int mNightStreetBlueAddition = -50;
         static constexpr float mNightNonStreetLightness = 0.5;
 };
+
+bool pixelIsWaterOrWaterTransition(Quantum *pixel);
+#endif
 

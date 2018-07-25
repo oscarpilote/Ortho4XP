@@ -2,6 +2,7 @@
 #include <iostream>
 #include <Magick++.h>
 #include "FSET_ports.h"
+#include <string>
 
 using namespace std;
 using namespace Magick;
@@ -25,30 +26,68 @@ void foreach_pixel(Image *img, void (*callback)(Quantum *)) {
     view.sync();
 }
 
-void create_night_mask(Image *img) {
-    foreach_pixel(img,
-        [](Quantum *pixel) {
-            Quantum red = pixel[0];
-            Quantum green = pixel[1];
-            Quantum blue = pixel[2];
-            cout << "[" << red << " " << green << " " << blue << "]" << endl;
-        }
-    );
+void create_night_mask(string imgName, string outName) {
 }
 // Comments and tutorial courtesy of http://adamlamers.com/post/NUBSPFQJ50J1
 // Actual module method definition - this is the code that will be called by
 // hello_module.print_hello_world
-static PyObject * fast_image_mask_print_hello_world(PyObject *self, PyObject *args) {
+static PyObject * create_night_mask(PyObject *self, PyObject *args) {
     InitializeMagick("");
+    const char *imgName, *outName;
+    if (!PyArg_ParseTuple(args, "ss", &imgName, &outName)) {
+        return NULL;
+    }
 
-    // Construct the image object. Seperating image construction from the
-    // the read operation ensures that a failure to read the image file
-    // doesn't render the image object useless.
-    Image image;
     try {
-        // Read a file into image object
-        image.read("TEST.bmp");
-        create_night_mask(&image);
+        Image img;
+        img.read(imgName);
+        foreach_pixel(&img,
+            [](Quantum *pixel) {
+                Quantum vRed = pixel[0];
+                Quantum vGreen = pixel[1];
+                Quantum vBlue = pixel[2];
+
+                // TODO: placeholder, need logic for this later
+                bool vIsWater = pixelIsWaterOrWaterTransition(pixel);
+                ssize_t vSum = vRed + vGreen + vBlue;
+
+                if ((!vIsWater) &&
+                    ((vRed - vBlue)   < MasksConfig::mNightStreetGreyConditionGreyToleranceValue) && ((vRed - vBlue)   > -MasksConfig::mNightStreetGreyConditionGreyToleranceValue) &&
+                    ((vRed - vGreen)  < MasksConfig::mNightStreetGreyConditionGreyToleranceValue) && ((vRed - vGreen)  > -MasksConfig::mNightStreetGreyConditionGreyToleranceValue) &&
+                    ((vGreen - vBlue) < MasksConfig::mNightStreetGreyConditionGreyToleranceValue) && ((vGreen - vBlue) > -MasksConfig::mNightStreetGreyConditionGreyToleranceValue) &&
+                    (vSum  > MasksConfig::mNightStreetConditionRGBSumLargerThanValue) &&
+                    (vSum <= MasksConfig::mNightStreetConditionRGBSumLessEqualThanValue)) {
+                    //Stree random dither lights
+                    if (rand() < MasksConfig::mNightStreetLightDots1DitherProbabily) {
+                        vRed   = MasksConfig::mNightStreetLightDot1Red;
+                        vGreen = MasksConfig::mNightStreetLightDot1Green;
+                        vBlue  = MasksConfig::mNightStreetLightDot1Blue;
+                    } else if (rand() < MasksConfig::mNightStreetLightDots2DitherProbabily) {
+                        vRed   = MasksConfig::mNightStreetLightDot2Red;
+                        vGreen = MasksConfig::mNightStreetLightDot2Green;
+                        vBlue  = MasksConfig::mNightStreetLightDot2Blue;
+                    } else if (rand() < MasksConfig::mNightStreetLightDots3DitherProbabily) {
+                        vRed   = MasksConfig::mNightStreetLightDot3Red;
+                        vGreen = MasksConfig::mNightStreetLightDot3Green;
+                        vBlue  = MasksConfig::mNightStreetLightDot3Blue;
+                    } else {
+                        //Street Make bright and orange
+                        vRed   += MasksConfig::mNightStreetRedAddition;
+                        vGreen += MasksConfig::mNightStreetGreenAddition;
+                        vBlue  += MasksConfig::mNightStreetBlueAddition;
+                    }
+                } else {
+                    //Normal Land/Water...make factor 2 darker
+                    vRed   = (Quantum) MasksConfig::mNightNonStreetLightness * vRed;
+                    vGreen = (Quantum) MasksConfig::mNightNonStreetLightness * vGreen;
+                    vBlue  = (Quantum) MasksConfig::mNightNonStreetLightness * vBlue;
+                }
+                pixel[0] = vRed;
+                pixel[1] = vGreen;
+                pixel[2] = vBlue;
+            }
+        );
+        img.write(outName);
     } catch(Exception &error_) {
         cout << "Caught exception: " << error_.what() << endl;
         Py_RETURN_NONE;
@@ -66,10 +105,11 @@ static PyObject * fast_image_mask_print_hello_world(PyObject *self, PyObject *ar
 // ml_doc:  Contents of this method's docstring
 static PyMethodDef fast_image_mask_functions[] = { 
     {
-        "print_hello_world",
-        fast_image_mask_print_hello_world,
-        METH_NOARGS,
-        "Print 'hello world' from a method defined in a C extension."
+        "create_night_mask",
+        create_night_mask,
+        //METH_NOARGS,
+        METH_VARARGS,
+        "Create night mask image named outName from imgName image"
     },
     {NULL, NULL, 0, NULL}
 };
