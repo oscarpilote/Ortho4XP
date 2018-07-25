@@ -6,3 +6,5 @@ fast_image_mask: FSET_ports.o
 FSET_ports.o: FSET_ports.cpp
 	g++ -fpic -c `Magick++-config --cxxflags --cppflags` -O2 `Magick++-config --ldflags --libs` FSET_ports.cpp
 
+clean:
+	rm -rf *.o

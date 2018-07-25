@@ -119,6 +119,9 @@ class MasksConfig {
         static const int mNightStreetGreenAddition = 50;
         static const int mNightStreetBlueAddition = -50;
         static constexpr float mNightNonStreetLightness = 0.5;
+        static const bool mSpareOutWaterForSeasonsGeneration = false;
+        static const bool mNoSnowInWaterForWinterAndHardWinter = false;
+        static const bool mHardWinterStreetsConditionOn = true;
 };
 
 bool pixelIsWaterOrWaterTransition(Quantum *pixel);
