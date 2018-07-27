@@ -24,6 +24,17 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   config.vm.synced_folder "./", "/vagrant", owner: "vagrant", group: "vagrant", mount_options: ["dmode=775,fmode=775"]
 
+  ###########################################
+  # Enable the synced_folder based on your OS.
+
+  # 1. Enable the line below and update the path to point your X-Plane 11 path in Mac. This is to allow selecting overlay folder.
+  # config.vm.synced_folder "/Users/yamin/Desktop/X-Plane 11", "/vagrant/xplane_11", owner: "vagrant", group: "vagrant", mount_options: ["dmode=775,fmode=775"]
+
+  # 2. Enable the line below and update the path to point your X-Plane 11 path in Windows. This is to allow selecting overlay folder.
+  # config.vm.synced_folder "D:/X-Plane 11", "/vagrant/xplane_11", owner: "vagrant", group: "vagrant", mount_options: ["dmode=775,fmode=775"]
+
+  ###########################################
+
   config.vm.provision "shell", inline: <<-SCRIPT
 echo "Updating ubuntu password"
 echo "ubuntu:ubuntu" | chpasswd
