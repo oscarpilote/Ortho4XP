@@ -24,35 +24,37 @@ Vagrant installation requires following these steps very carefully. The order of
 
 5. Navigate to the downloaded/cloned directory using your command prompt (Windows/Mac). Ex: C:\Ortho4XP
 
-6. Now run the following command: vagrant up
+6. Edit the Vagrantfile and remove # for the OS of your choice to enable synced shared folder. So that you can use it for to select overlay folder / custom scenary. Save it.
 
-7. The command above will download an Ubuntu OS and run few scripts to set up everything for you. This could take 15-30 mins depending on your internet connection.
+7. Now on your command prompt, run the following command: vagrant up
 
-8. Once the setup is complete, run: vagrant halt
+8. The command above will download an Ubuntu OS and run few scripts to set up everything for you. This could take 15-30 mins depending on your internet connection.
 
-9. Yes, you have to pause the vagrant instance for a reason unknown for now. But don't worry move on to the next step.
+9. Once the setup is complete, run: vagrant halt
 
-10. Now run following command again: vagrant up
+10. Yes, you have to pause the vagrant instance for a reason unknown for now. But don't worry move on to the next step.
 
-11. This time it will be much faster because the download and setup are both complete. It's just bringing the VM up.
+11. Now run following command again: vagrant up
 
-12. Once the VM is up, go to VM screen and login as vagrant with the password shown below. The passwords are:
+12. This time it will be much faster because the download and setup are both complete. It's just bringing the VM up.
+
+13. Once the VM is up, go to VM screen and login as vagrant with the password shown below. The passwords are:
 
 	Account		Password
 	------- 	--------
 	vagrant 	vagrant
 	ubuntu 		ubuntu
 
-13. On the VM window, there should be a Devices menu. Click on Devices -> Insert Guest Additions CD Image... 
+14. On the VM window, there should be a Devices menu. Click on Devices -> Insert Guest Additions CD Image... 
 There will be a message saying "Unable to mount VBox_GAs_5.2.16". Just press OK for now. We will fix it.
 
-14. Double click the Fix_VBox icon on the Ubuntu desktop. Type yes and press enter when asked to continue.
+15. Double click the Fix_VBox icon on the Ubuntu desktop. Type yes and press enter when asked to continue.
 
-15. Once the step above finishes installing, the window will close itself automatically.
+16. Once the step above finishes installing, the window will close itself automatically.
 
-16. We are done installing.
+17. We are done installing.
 
-17. On your command prompt (i.e Windows/Mac, not the Ubuntu terminal), run this command: vagrant halt
+18. On your command prompt (i.e Windows/Mac, not the Ubuntu terminal), run this command: vagrant halt
 
 Running the Ortho4XP
 --------------------
