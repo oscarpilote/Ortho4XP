@@ -54,37 +54,34 @@ def source_num_to_source_num_string(source_num, total_sources):
     return str(source_num)
 
 # getting None from this function is a good way of seeing if there are no seasons to build...
-def get_seasons_inf_string(seasons_to_create, source_num, type, layer, source_dir, source_file, lon, lat, num_cells_line, num_lines, cell_x_dim, cell_y_dim, total_sources, should_mask):
+def get_seasons_inf_string(seasons_to_create, source_num, type, layer, source_dir, source_file, img_mask_folder_abs_path, img_mask_name, lon, lat, num_cells_line, num_lines, cell_x_dim, cell_y_dim, total_sources, should_mask):
     string = ""
     source_file_name, ext = os.path.splitext(source_file)
     if seasons_to_create["summer"]:
         string = create_INF_source_string(str(source_num), "Summer", "June,July,August", type, layer, source_dir, source_file_name + ext, lon, lat, num_cells_line, num_lines, cell_x_dim, cell_y_dim) + "\n\n"
         if should_mask:
-            string += "; pull the blend mask from Source2, band 0\nChannel_BlendMask = 2.0\n\n"
+            string += "; pull the blend mask from Source" + str(total_sources) + ", band 0\nChannel_BlendMask = " + str(total_sources) + ".0\n\n"
         source_num += 1
     if seasons_to_create["spring"]:
         string += create_INF_source_string(str(source_num), "Spring", "March,April,May", type, layer, source_dir, source_file_name + "_spring" + ext, lon, lat, num_cells_line, num_lines, cell_x_dim, cell_y_dim) + "\n\n"
         if should_mask:
-            string += "; pull the blend mask from Source2, band 0\nChannel_BlendMask = 2.0\n\n"
+            string += "; pull the blend mask from Source" + str(total_sources) + ", band 0\nChannel_BlendMask = " + str(total_sources) + ".0\n\n"
         source_num += 1
     if seasons_to_create["fall"]:
         string += create_INF_source_string(str(source_num), "Fall", "September,October", type, layer, source_dir, source_file_name + "_fall" + ext, lon, lat, num_cells_line, num_lines, cell_x_dim, cell_y_dim) + "\n\n"
         if should_mask:
-            string += "; pull the blend mask from Source2, band 0\nChannel_BlendMask = 2.0\n\n"
+            string += "; pull the blend mask from Source" + str(total_sources) + ", band 0\nChannel_BlendMask = " + str(total_sources) + ".0\n\n"
         source_num += 1
     if seasons_to_create["winter"]:
         string += create_INF_source_string(str(source_num), "Winter", "November", type, layer, source_dir, source_file_name + "_winter" + ext, lon, lat, num_cells_line, num_lines, cell_x_dim, cell_y_dim) + "\n\n"
         if should_mask:
-            string += "; pull the blend mask from Source2, band 0\nChannel_BlendMask = 2.0\n\n"
+            string += "; pull the blend mask from Source" + str(total_sources) + ", band 0\nChannel_BlendMask = " + str(total_sources) + ".0\n\n"
         source_num += 1
     if seasons_to_create["hard_winter"]:
         string += create_INF_source_string(str(source_num), "HardWinter", "December,January,February", type, layer, source_dir, source_file_name + "_hard_winter" + ext, lon, lat, num_cells_line, num_lines, cell_x_dim, cell_y_dim) + "\n\n"
         if should_mask:
-            string += "; pull the blend mask from Source2, band 0\nChannel_BlendMask = 2.0\n\n"
+            string += "; pull the blend mask from Source" + str(total_sources) + ", band 0\nChannel_BlendMask = " + str(total_sources) + ".0\n\n"
         source_num += 1
-    if string != "" and O4_ESP_Globals.do_build_masks:
-        string += create_INF_source_string(str(str(source_num)), None, None, "TIFF", "None", img_mask_folder_abs_path, img_mask_name, str(img_top_left_tile[1]),
-            str(img_top_left_tile[0]), str(IMG_X_Y_DIM), str(IMG_X_Y_DIM), str(img_cell_x_dimension_deg), str(img_cell_y_dimension_deg))
 
     return (string if string != "" else None, source_num - 1)
 
@@ -106,6 +103,9 @@ def make_ESP_inf_file(file_dir, file_name, til_x_left, til_x_right, til_y_top, t
 
         # make sure we have the mask tile created by Ortho4XP. even if do_build_masks is True, if tile not created
         # we don't tell resample to mask otherwise it will fail
+        print(str(O4_ESP_Globals.do_build_masks))
+        print(str(os.path.isfile(img_mask_abs_path)))
+        print(img_mask_abs_path)
         should_mask = (O4_ESP_Globals.do_build_masks and os.path.isfile(img_mask_abs_path))
         seasons_to_create = {
             "summer": O4_Config_Utils.create_ESP_summer,
@@ -120,8 +120,8 @@ def make_ESP_inf_file(file_dir, file_name, til_x_left, til_x_right, til_y_top, t
             contents = "[Source]\nType = MultiSource\nNumberOfSources = " + str(total_num_sources) + "\n\n"
 
         current_source_num = 1
-        seasons_string, num_seasons = get_seasons_inf_string(seasons_to_create, current_source_num, "BMP", "Imagery", os.path.abspath(file_dir), file_name, str(img_top_left_tile[1]),
-                str(img_top_left_tile[0]), str(IMG_X_Y_DIM), str(IMG_X_Y_DIM), str(img_cell_x_dimension_deg), str(img_cell_y_dimension_deg), total_num_sources, should_mask)
+        seasons_string, num_seasons = get_seasons_inf_string(seasons_to_create, current_source_num, "BMP", "Imagery", os.path.abspath(file_dir), file_name, img_mask_folder_abs_path, img_mask_abs_path,
+        str(img_top_left_tile[1]), str(img_top_left_tile[0]), str(IMG_X_Y_DIM), str(IMG_X_Y_DIM), str(img_cell_x_dimension_deg), str(img_cell_y_dimension_deg), total_num_sources, should_mask)
         # if seasons_strong is not None, there are seasons to build in Ortho4XP.cfg
         if seasons_string:
             current_source_num += num_seasons
@@ -131,15 +131,18 @@ def make_ESP_inf_file(file_dir, file_name, til_x_left, til_x_right, til_y_top, t
             source_num_str = source_num_to_source_num_string(current_source_num, total_num_sources)
             contents += create_INF_source_string(source_num_str, "LightMap", "LightMap", "BMP", "Imagery", os.path.abspath(file_dir), file_name, str(img_top_left_tile[1]),
                     str(img_top_left_tile[0]), str(IMG_X_Y_DIM), str(IMG_X_Y_DIM), str(img_cell_x_dimension_deg), str(img_cell_y_dimension_deg)) + "\n\n"
+            if should_mask:
+                contents += "; pull the blend mask from Source" + str(total_num_sources) + ", band 0\nChannel_BlendMask = " + str(total_num_sources) + ".0\n\n"
             current_source_num += 1
 
         source_num_str = source_num_to_source_num_string(current_source_num, total_num_sources)
         contents += create_INF_source_string(source_num_str, None, None, "BMP", "Imagery", os.path.abspath(file_dir), file_name, str(img_top_left_tile[1]),
                     str(img_top_left_tile[0]), str(IMG_X_Y_DIM), str(IMG_X_Y_DIM), str(img_cell_x_dimension_deg), str(img_cell_y_dimension_deg))
         current_source_num += 1
+        print(str(should_mask))
         if should_mask:
             source_num_str = source_num_to_source_num_string(current_source_num, total_num_sources)
-            contents += "; pull the blend mask from Source2, band 0\nChannel_BlendMask = 2.0\n\n"
+            contents += "\n\n; pull the blend mask from Source" + source_num_str + ", band 0\nChannel_BlendMask = " + source_num_str + ".0\n\n"
             contents += create_INF_source_string(source_num_str, None, None, "TIFF", "None", img_mask_folder_abs_path, img_mask_name, str(img_top_left_tile[1]),
                     str(img_top_left_tile[0]), str(IMG_X_Y_DIM), str(IMG_X_Y_DIM), str(img_cell_x_dimension_deg), str(img_cell_y_dimension_deg))
 
@@ -193,6 +196,7 @@ def run_ESP_resample(build_dir):
                     create_hard_winter(file_name + ".bmp", file_name + "_hard_winter.bmp")
 
                 subprocess.call([O4_Config_Utils.ESP_resample_loc, inf_abs_path])
+                # now remove the extra night/season bmps
                 for file in glob.glob(file_name + "_*.bmp"):
                     os.remove(file)
 
