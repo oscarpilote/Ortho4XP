@@ -85,6 +85,7 @@ def get_seasons_inf_string(seasons_to_create, source_num, type, layer, source_di
 
     return (string if string != "" else None, source_num - 1)
 
+# TODO: all this night/season mask code is kind of terrible... need to refactor
 def make_ESP_inf_file(file_dir, file_name, til_x_left, til_x_right, til_y_top, til_y_bot, zoomlevel):
     file_name_no_extension, extension = os.path.splitext(file_name)
     img_top_left_tile = gtile_to_wgs84(til_x_left, til_y_top, zoomlevel)
@@ -103,9 +104,6 @@ def make_ESP_inf_file(file_dir, file_name, til_x_left, til_x_right, til_y_top, t
 
         # make sure we have the mask tile created by Ortho4XP. even if do_build_masks is True, if tile not created
         # we don't tell resample to mask otherwise it will fail
-        print(str(O4_ESP_Globals.do_build_masks))
-        print(str(os.path.isfile(img_mask_abs_path)))
-        print(img_mask_abs_path)
         should_mask = (O4_ESP_Globals.do_build_masks and os.path.isfile(img_mask_abs_path))
         seasons_to_create = {
             "summer": O4_Config_Utils.create_ESP_summer,
@@ -120,7 +118,7 @@ def make_ESP_inf_file(file_dir, file_name, til_x_left, til_x_right, til_y_top, t
             contents = "[Source]\nType = MultiSource\nNumberOfSources = " + str(total_num_sources) + "\n\n"
 
         current_source_num = 1
-        seasons_string, num_seasons = get_seasons_inf_string(seasons_to_create, current_source_num, "BMP", "Imagery", os.path.abspath(file_dir), file_name, img_mask_folder_abs_path, img_mask_abs_path,
+        seasons_string, num_seasons = get_seasons_inf_string(seasons_to_create, current_source_num, "BMP", "Imagery", os.path.abspath(file_dir), file_name_no_extension + "_night.bmp", img_mask_folder_abs_path, img_mask_abs_path,
         str(img_top_left_tile[1]), str(img_top_left_tile[0]), str(IMG_X_Y_DIM), str(IMG_X_Y_DIM), str(img_cell_x_dimension_deg), str(img_cell_y_dimension_deg), total_num_sources, should_mask)
         # if seasons_strong is not None, there are seasons to build in Ortho4XP.cfg
         if seasons_string:
@@ -139,7 +137,7 @@ def make_ESP_inf_file(file_dir, file_name, til_x_left, til_x_right, til_y_top, t
         contents += create_INF_source_string(source_num_str, None, None, "BMP", "Imagery", os.path.abspath(file_dir), file_name, str(img_top_left_tile[1]),
                     str(img_top_left_tile[0]), str(IMG_X_Y_DIM), str(IMG_X_Y_DIM), str(img_cell_x_dimension_deg), str(img_cell_y_dimension_deg))
         current_source_num += 1
-        print(str(should_mask))
+
         if should_mask:
             source_num_str = source_num_to_source_num_string(current_source_num, total_num_sources)
             contents += "\n\n; pull the blend mask from Source" + source_num_str + ", band 0\nChannel_BlendMask = " + source_num_str + ".0\n\n"

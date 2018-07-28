@@ -26,6 +26,9 @@ void foreach_pixel(Image *img, void (*callback)(Quantum *)) {
     view.sync();
 }
 
+// I made this function determine if a pixel is close enough to pure blue. if it is close enough
+// I consider it water or water transition. Didn't decompile FSET function to see how it works, but the
+// below function gives me adequate results
 bool pixelIsWaterOrWaterTransition(Quantum *pixel) {
     const Quantum BLUE_DIFF_THRESHOLD = 50;
     Quantum redDiff = abs(0 - pixel[0]);   
@@ -39,6 +42,7 @@ bool pixelIsWaterOrWaterTransition(Quantum *pixel) {
     return false;
 }
 
+// the below functions are ports from FSET night/season creation scripts
 void c_create_night(string imgName, string outName) {
     try {
         Image img;
