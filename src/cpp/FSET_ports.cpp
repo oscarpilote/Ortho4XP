@@ -88,6 +88,7 @@ void c_create_night(string imgName, string outName) {
                 pixel[2] = vBlue;
             }
         );
+        outName = "BMP3:" + outName;
         img.write(outName);
     } catch(Exception &error_) {
         cout << "Caught exception: " << error_.what() << endl;
@@ -195,6 +196,7 @@ void c_create_hard_winter(string imgName, string outName) {
                 pixel[2] = vBlue;
             }
         );
+        outName = "BMP3:" + outName;
         img.write(outName);
     } catch(Exception &error_) {
         cout << "Caught exception: " << error_.what() << endl;
@@ -250,6 +252,7 @@ void c_create_autumn(string imgName, string outName) {
                 pixel[2] = vBlue;
             }
         );
+        outName = "BMP3:" + outName;
         img.write(outName);
     } catch(Exception &error_) {
         cout << "Caught exception: " << error_.what() << endl;
@@ -300,6 +303,7 @@ void c_create_spring(string imgName, string outName) {
                 pixel[2] = vBlue;
             }
         );
+        outName = "BMP3:" + outName;
         img.write(outName);
     } catch(Exception &error_) {
         cout << "Caught exception: " << error_.what() << endl;
@@ -368,9 +372,9 @@ void c_create_winter(string imgName, string outName) {
                 pixel[2] = vBlue;
             }
         );
+        outName = "BMP3:" + outName;
         img.write(outName);
     } catch(Exception &error_) {
         cout << "Caught exception: " << error_.what() << endl;
     }
 }
-
