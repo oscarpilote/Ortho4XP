@@ -78,7 +78,7 @@ def build_overlay(lat,lon):
             g.write(line)
         elif 'BEGIN_POLYGON' in line:
             pol_type = int(line.split()[1])
-            if pol_type not in ovl_exclude_pol:
+            if pol_type not in ovl_exclude_pol and ovl_exclude_pol!=['*']:
                 while line and ('END_POLYGON' not in line):
                     g.write(line)
                     line=f.readline()
@@ -88,7 +88,7 @@ def build_overlay(lat,lon):
                     line=f.readline()
         elif 'BEGIN_SEGMENT' in line:
             road_type = int(line.split()[2])
-            if road_type not in ovl_exclude_net:
+            if road_type not in ovl_exclude_net and ovl_exclude_net!=['*']:
                 while line and ('END_SEGMENT' not in line):
                     g.write(line)
                     line=f.readline()

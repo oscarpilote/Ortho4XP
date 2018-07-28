@@ -122,12 +122,14 @@ def sort_and_reconstruct_runways(tile,airport_layer,dico_airports):
         for wayid in dico_airports[airport]['runway']:
             if airport_layer.dicosmw[wayid][0]==airport_layer.dicosmw[wayid][-1]:
                 runway_pol=geometry.Polygon(numpy.round(numpy.array([airport_layer.dicosmn[nodeid] for nodeid in airport_layer.dicosmw[wayid]])-numpy.array([tile.lon,tile.lat]),7))
-                if not runway_pol.is_empty and runway_pol.is_valid:
+                if not runway_pol.is_empty and runway_pol.is_valid and runway_pol.area>1e-7:
                     runway_pol_rect=VECT.min_bounding_rectangle(runway_pol)
                     if wayid not in airport_layer.dicosmtags['w'] or 'custom' not in  airport_layer.dicosmtags['w'][wayid]:
                         discrep=runway_pol_rect.hausdorff_distance(runway_pol)
                         if discrep>0.0008:
-                            UI.lvprint(2,"Bad runway (geometry too far from a rectangle) close to",airport,"at",dico_airports[airport]['repr_node'])
+                            UI.logprint("Bad runway (geometry too far from a rectangle) close to",airport,"at",dico_airports[airport]['repr_node'])
+                            UI.vprint(1,"   !Bad runway (geometry too far from a rectangle) close to",airport,"at",dico_airports[airport]['repr_node'])
+                            UI.vprint(1,"   !You may correct it editing the file ",FNAMES.osm_cached(tile.lat, tile.lon, 'airports'),"in JOSM.")
                             continue    
                     rectangle=numpy.array(VECT.min_bounding_rectangle(runway_pol).exterior.coords)
                     if VECT.length_in_meters(rectangle[0:2])<VECT.length_in_meters(rectangle[1:3]):
@@ -139,6 +141,11 @@ def sort_and_reconstruct_runways(tile,airport_layer,dico_airports):
                         runway_end=(rectangle[0]+rectangle[3])/2
                         runway_width=VECT.length_in_meters(rectangle[1:3])
                     runways_as_area.append((runway_pol,runway_start,runway_end,runway_width))
+                else:
+                    UI.logprint(1,"Bad runway (geometry invalid or going back over itself) close to",airport,"at",dico_airports[airport]['repr_node'])
+                    UI.vprint(1,"   !Bad runway (geometry invalid or going back over itself) close to",airport,"at",dico_airports[airport]['repr_node'])
+                    UI.vprint(1,"   !You may correct it editing the file ",FNAMES.osm_cached(tile.lat, tile.lon, 'airports'),"in JOSM.")
+                    continue   
             else:
                 linear.append(airport_layer.dicosmw[wayid])
                 try: linear_width.append(float(airport_layer.dicosmtags['w'][wayid]['width']))

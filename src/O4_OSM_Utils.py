@@ -100,11 +100,7 @@ class OSM_layer():
                 self.dicosmw[osmid]=[]  
                 if not input_tags: self.dicosmfirst['w'].add(osmid)
             elif '<nd ref=' in items[0]:
-                try:
-                    self.dicosmw[osmid].append(dicosmn_id_map[items[1]])
-                except:
-                    print(dicosmn_id_map,self.dicosmw)
-                    self.dicosmw[osmid].append(dicosmn_id_map[items[1]])    
+                self.dicosmw[osmid].append(dicosmn_id_map[items[1]])
             elif '<relation id=' in items[0]:
                 osmtype='r'
                 osmid=items[1]
@@ -153,7 +149,7 @@ class OSM_layer():
                     if input_tags and (((items[1],'') in input_tags[osmtype]) or ((items[1],items[3]) in input_tags[osmtype])):
                         self.dicosmfirst[osmtype].add(osmid)                         
             elif '</way' in items[0]:
-                if not self.dicosmw[osmid]: 
+                if not self.dicosmw[osmid]:
                     del(self.dicosmw[osmid]) 
                     self.next_way_id+=1
                     if osmid in self.dicosmfirst['w']: self.dicosmfirst['w'].remove(osmid)
@@ -162,8 +158,6 @@ class OSM_layer():
                 bad_rel=False
                 for role,endpt in ((r,e) for r in ['outer','inner'] for e in dico_rel_check[r]):
                     if len(dico_rel_check[role][endpt])!=2:
-                        # HACK
-                        print(len(dico_rel_check[role][endpt]))
                         bad_rel=True
                         break
                 if bad_rel==True:
@@ -386,7 +380,7 @@ def get_overpass_data(query,bbox,server_code=None):
 ##############################################################################
 
 ##############################################################################
-def OSM_to_MultiLineString(osm_layer,lat,lon,tags_for_exclusion=set(),filter=None): #,limit_segs=None):
+def OSM_to_MultiLineString(osm_layer,lat,lon,tags_for_exclusion=set(),filter=None):
     multiline=[]
     multiline_reject=[]
     todo=len(osm_layer.dicosmfirst['w'])
@@ -409,14 +403,10 @@ def OSM_to_MultiLineString(osm_layer,lat,lon,tags_for_exclusion=set(),filter=Non
             continue
         try:
             multiline.append(geometry.LineString(way))
+            filtered_segs+=len(way)
         except:
             pass
         done+=1
-        filtered_segs+=len(way)
-        #if limit_segs and filtered_segs>=limit_segs: 
-        #    UI.vprint(1,"      (result was stripped due to user defined limit 'max_levelled_segs')")
-        #    UI.vprint(3,"      ",osm_layer.dicosmtags['w'][wayid])
-        #    break
     UI.progress_bar(1,100)
     if not filter:
         return geometry.MultiLineString(multiline)
