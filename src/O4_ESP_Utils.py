@@ -118,7 +118,7 @@ def make_ESP_inf_file(file_dir, file_name, til_x_left, til_x_right, til_y_top, t
             contents = "[Source]\nType = MultiSource\nNumberOfSources = " + str(total_num_sources) + "\n\n"
 
         current_source_num = 1
-        seasons_string, num_seasons = get_seasons_inf_string(seasons_to_create, current_source_num, "BMP", "Imagery", os.path.abspath(file_dir), file_name_no_extension + "_night.bmp", img_mask_folder_abs_path, img_mask_abs_path,
+        seasons_string, num_seasons = get_seasons_inf_string(seasons_to_create, current_source_num, "BMP", "Imagery", os.path.abspath(file_dir), file_name, img_mask_folder_abs_path, img_mask_abs_path,
         str(img_top_left_tile[1]), str(img_top_left_tile[0]), str(IMG_X_Y_DIM), str(IMG_X_Y_DIM), str(img_cell_x_dimension_deg), str(img_cell_y_dimension_deg), total_num_sources, should_mask)
         # if seasons_strong is not None, there are seasons to build in Ortho4XP.cfg
         if seasons_string:
@@ -127,7 +127,7 @@ def make_ESP_inf_file(file_dir, file_name, til_x_left, til_x_right, til_y_top, t
 
         if O4_Config_Utils.create_ESP_night:
             source_num_str = source_num_to_source_num_string(current_source_num, total_num_sources)
-            contents += create_INF_source_string(source_num_str, "LightMap", "LightMap", "BMP", "Imagery", os.path.abspath(file_dir), file_name, str(img_top_left_tile[1]),
+            contents += create_INF_source_string(source_num_str, "LightMap", "LightMap", "BMP", "Imagery", os.path.abspath(file_dir), file_name_no_extension + "_night.bmp", str(img_top_left_tile[1]),
                     str(img_top_left_tile[0]), str(IMG_X_Y_DIM), str(IMG_X_Y_DIM), str(img_cell_x_dimension_deg), str(img_cell_y_dimension_deg)) + "\n\n"
             if should_mask:
                 contents += "; pull the blend mask from Source" + str(total_num_sources) + ", band 0\nChannel_BlendMask = " + str(total_num_sources) + ".0\n\n"
