@@ -139,7 +139,7 @@ def include_airports(vector_map,tile):
     (patches_area,patches_list)=include_patches(vector_map,tile)
     runway_and_taxiway_area=APT.encode_runways_taxiways_and_aprons(tile,airport_layer,dico_airports,vector_map,patches_list)
     APT.encode_hangars(tile,dico_airports,vector_map,patches_list)
-    APT.flatten_helipads(airport_layer,vector_map,tile)
+    APT.flatten_helipads(airport_layer,vector_map,tile,patches_area)
     #APT.encode_aprons(tile,dico_airports,vector_map)
     apt_array=APT.build_airport_array(tile,dico_airports)
     return (apt_array,ops.cascaded_union([patches_area,runway_and_taxiway_area]))
@@ -362,7 +362,7 @@ def include_patches(vector_map,tile):
     patches_list=[]
     patches_area=geometry.Polygon()
     patch_dir     =  FNAMES.patch_dir(tile.lat,tile.lon)
-    if not os.path.exists(patch_dir): 
+    if not os.path.exists(patch_dir):
         return (patches_area,patches_list)
     for pfile_name in os.listdir(patch_dir):
         if pfile_name[-10:]!='.patch.osm':
@@ -463,6 +463,11 @@ def include_patches(vector_map,tile):
                             vector_map.seeds['INTERP_ALT'].append(seed)
                         else:
                             vector_map.seeds['INTERP_ALT']=[seed]
+                        if cplx_way and cuts_long:
+                            for i in range(1, cuts_long):
+                                id0=vector_map.dico_nodes[tuple(way[i])]
+                                id1=vector_map.dico_nodes[tuple(way[-2-i])]
+                                vector_map.insert_edge(id0, id1,vector_map.dico_attributes['DUMMY'])
                     else:
                         UI.vprint(2,"     Skipping invalid patch polygon.")
                 except:

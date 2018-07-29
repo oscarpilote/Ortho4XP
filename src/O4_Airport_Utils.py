@@ -497,24 +497,26 @@ def encode_hangars(tile,dico_airports,vector_map,patches_list):
 ####################################################################################################    
     
 ####################################################################################################    
-def flatten_helipads(airport_layer,vector_map,tile):
+def flatten_helipads(airport_layer,vector_map,tile, patches_area):
     multipol=[]
     seeds=[]
     total=0
+    # helipads whose boundary is encoded in OSM
     for wayid in (x for x in airport_layer.dicosmw if x in airport_layer.dicosmtags['w'] and 'aeroway' in airport_layer.dicosmtags['w'][x] and airport_layer.dicosmtags['w'][x]['aeroway']=='helipad'):
         if airport_layer.dicosmw[wayid][0]!=airport_layer.dicosmw[wayid][-1]: continue
         way=numpy.round(numpy.array([airport_layer.dicosmn[nodeid] for nodeid in airport_layer.dicosmw[wayid]])-numpy.array([[tile.lon,tile.lat]]),7)
         pol=geometry.Polygon(way)
-        if (pol.is_empty) or (not pol.is_valid) or (not pol.area): continue
+        if (pol.is_empty) or (not pol.is_valid) or (not pol.area) or (pol.intersects(patches_area)): continue
         multipol.append(pol)
         alti_way=numpy.ones((len(way),1))*numpy.mean(tile.dem.alt_vec(way))
         vector_map.insert_way(numpy.hstack([way,alti_way]),'INTERP_ALT',check=True) 
         seeds.append(numpy.array(pol.representative_point()))
         total+=1
     helipad_area=ops.cascaded_union(multipol)
+    # helipads that are only encoded as nodes, they will be grown into hexagons
     for nodeid in (x for x in airport_layer.dicosmn if x in airport_layer.dicosmtags['n'] and 'aeroway' in airport_layer.dicosmtags['n'][x] and airport_layer.dicosmtags['n'][x]['aeroway']=='helipad'):
         center=numpy.round(numpy.array(airport_layer.dicosmn[nodeid])-numpy.array([tile.lon,tile.lat]),7)
-        if geometry.Point(center).intersects(helipad_area): 
+        if geometry.Point(center).intersects(helipad_area) or geometry.Point(center).intersects(patches_area): 
             continue
         way=numpy.round(center+numpy.array([[cos(k*pi/3)*7*GEO.m_to_lon(tile.lat),sin(k*pi/3)*7*GEO.m_to_lat] for k in range(7)]),7)
         alti_way=numpy.ones((len(way),1))*numpy.mean(tile.dem.alt_vec(way))

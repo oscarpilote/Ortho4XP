@@ -599,7 +599,7 @@ def build_dsf(tile,download_queue):
             else:
                 size_of_cmds_atom+= 13+2*(len(textured_tris[terrain_idx][idx_dsfpool])+\
                         ceil(len(textured_tris[terrain_idx][idx_dsfpool])/510))
-    UI.vprint(2,"    Size of CMDS atom : "+str(size_of_cmds_atom)+" bytes.")
+    UI.vprint(2,"     Size of CMDS atom : "+str(size_of_cmds_atom)+" bytes.")
     f.write(b'SDMC')                               # CMDS header 
     f.write(struct.pack('<I',size_of_cmds_atom))   # CMDS length
     f.write(bCMDS)
