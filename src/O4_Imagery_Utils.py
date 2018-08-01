@@ -14,7 +14,8 @@ import O4_UI_Utils as UI
 try:
     import O4_Custom_URL as URL
     has_URL=True
-except:
+except Exception as e:
+    print("ERROR: Providers/O4_Custom_URL.py contains invalid code. The corresponding providers won't probably work.")
     has_URL=False
 import O4_Geo_Utils as GEO
 import O4_File_Names as FNAMES
@@ -636,8 +637,9 @@ def http_request_to_image(width,height,url,request_headers,http_session):
 
 ###############################################################################################################################
 def get_wms_image(bbox,width,height,provider,http_session):
+    request_headers=None 
     if has_URL and provider['code'] in URL.custom_url_list:
-        url=URL.custom_wms_request(bbox,width,height,provider)
+        (url,request_headers)=URL.custom_wms_request(bbox,width,height,provider)
     else:
         (minx,maxy,maxx,miny)=bbox
         if provider['wms_version'].split('.')[1]=="3":
@@ -650,10 +652,11 @@ def get_wms_image(bbox,width,height,provider,http_session):
                 "&REQUEST=GetMap&LAYERS="+provider['layers']+"&STYLES=&"+_RS+"=EPSG:"+str(provider['epsg_code'])+\
                 "&WIDTH="+str(width)+"&HEIGHT="+str(height)+\
                 "&BBOX="+bbox_string 
-    if 'fake_headers' in provider:
-        request_headers=provider['fake_headers']
-    else:
-        request_headers=request_headers_generic 
+    if not request_headers:
+        if 'fake_headers' in provider:
+            request_headers=provider['fake_headers']
+        else:
+            request_headers=request_headers_generic
     (success,data)=http_request_to_image(width,height,url,request_headers,http_session)
     if success: 
         return (1,data) 
@@ -1223,10 +1226,10 @@ def combine_textures(tile,til_x_left,til_y_top,zoomlevel,provider_code):
             true_im=true_im.crop((pixx0,pixy0,pixx1,pixy1)).resize((4096,4096),Image.BICUBIC)
         # in case the smoothing of the extent mask was too strong we remove the
         # the mask (where it is nor 0 nor 255) the pixels for which the true_im
-        # is all white
-        # true_arr=numpy.array(true_im).astype(numpy.uint16)
-        # mask[(numpy.sum(true_arr,axis=2)>=715)*(mask>=1)*(mask<=253)]=0
-        # mask[(numpy.sum(true_arr,axis=2)<=15)*(mask>=1)*(mask<=253)]=0
+        # is all white or all black
+        true_arr=numpy.array(true_im).astype(numpy.uint16)
+        #mask[(numpy.sum(true_arr,axis=2)>=735)*(mask>=1)*(mask<=253)]=0
+        mask[(numpy.sum(true_arr,axis=2)<=35)]=0 #*(mask>=1)*(mask<=253)]=0
         if rlayer['priority']=='low':
             # low priority layers, do not increase mask_weight_below
             wasnt_zero=(mask_weight_below+mask)!=0

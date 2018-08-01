@@ -440,9 +440,12 @@ def encode_runways_taxiways_and_aprons(tile,airport_layer,dico_airports,vector_m
             for subpol in VECT.ensure_MultiPolygon(pol.intersection(ops.cascaded_union([pol2 for pol2 in pols if pol2!=pol]))):
                 seeds['RUNWAY'].append(numpy.array(subpol.representative_point()))   
         ## Then taxiways
-        #cleaned_taxiway_area=VECT.improved_buffer(apt['taxiway'][0].difference(VECT.improved_buffer(apt['runway'][0],10,0,0).union(VECT.improved_buffer(apt['hangar'],20,0,0))),5,3,1)
-        cleaned_taxiway_area=VECT.improved_buffer(apt['taxiway'][0].difference(VECT.improved_buffer(apt['hangar'],20,0,0)),0,0,0.5)
+        ## Not sure if it is best to separate them from the runway or not...  
+        cleaned_taxiway_area=VECT.improved_buffer(apt['taxiway'][0].difference(VECT.improved_buffer(apt['runway'][0],5,0,0).union(VECT.improved_buffer(apt['hangar'],20,0,0))),3,2,0.5)
+        #cleaned_taxiway_area=VECT.improved_buffer(apt['taxiway'][0].difference(VECT.improved_buffer(apt['hangar'],20,0,0)),0,1,0.5)
         for pol in VECT.ensure_MultiPolygon(VECT.cut_to_tile(cleaned_taxiway_area)):
+            if not pol.is_valid or pol.is_empty or pol.area<1e-9: 
+                continue
             way=numpy.round(VECT.refine_way(numpy.array(pol.exterior),20),7)
             alti_way=numpy.array([VECT.weighted_alt(node,alt_idx,alt_dico,tile.dem) for node in way]).reshape((len(way),1))
             vector_map.insert_way(numpy.hstack([way,alti_way]),'TAXIWAY',check=True) 
@@ -451,7 +454,7 @@ def encode_runways_taxiways_and_aprons(tile,airport_layer,dico_airports,vector_m
                 alti_way=numpy.array([VECT.weighted_alt(node,alt_idx,alt_dico,tile.dem) for node in way]).reshape((len(way),1))
                 vector_map.insert_way(numpy.hstack([way,alti_way]),'TAXIWAY',check=True)
             seeds['TAXIWAY'].append(numpy.array(pol.representative_point()))
-        ## Try to bring some aprons with, we are looking for the small ones along runways
+        ## Try to bring some aprons with, we are looking for the small ones along runways, you just need to add the 'include' tag to that apron in JOSM (local copy)
         for wayid in apt['apron'][1]: 
             if wayid not in airport_layer.dicosmtags['w'] or 'include' not in airport_layer.dicosmtags['w'][wayid]: continue
             try:
