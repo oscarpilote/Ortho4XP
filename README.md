@@ -24,6 +24,7 @@ FINISHED:
 base satellite imagery creation for FSX and P3D  
 water masks for FSX and P3D  
 build binary  
+night/seasonal texture creation options
   
 TODO:  
 remove extra steps not needed for ESP scenery creation  
