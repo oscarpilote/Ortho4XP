@@ -432,19 +432,19 @@ def build_poly_file(lat0,lon0,option,build_dir,airport_website=default_website):
     tags=[]
     if option==2:  # Orthophoto only for inland water
         print("-> Downloading airport and water/ground boundary data on Openstreetmap")
-        tags.append('way["aeroway"="aerodrome"]')
-        tags.append('rel["aeroway"="aerodrome"]')
-        tags.append('way["aeroway"="heliport"]')
+        tags.append('way["aeroway"="aerodrome"]')                                         
+        tags.append('rel["aeroway"="aerodrome"]')                                         
+        tags.append('way["aeroway"="heliport"]')                                         
         tags.append('way["natural"="coastline"]')
     else:  # Mixed
         print("-> Downloading airport and water/ground boundary data from Openstreetmap :")
-        tags.append('way["aeroway"="aerodrome"]')
-        tags.append('rel["aeroway"="aerodrome"]')
-        tags.append('way["aeroway"="heliport"]')
-        tags.append('way["natural"="water"]["tidal"!="yes"]')
-        tags.append('rel["natural"="water"]["tidal"!="yes"]')
-        tags.append('way["waterway"="riverbank"]')
-        tags.append('rel["waterway"="riverbank"]')
+        tags.append('way["aeroway"="aerodrome"]')                                         
+        tags.append('rel["aeroway"="aerodrome"]')                                         
+        tags.append('way["aeroway"="heliport"]')                                         
+        tags.append('way["natural"="water"]["tidal"!="yes"]')                                         
+        tags.append('rel["natural"="water"]["tidal"!="yes"]')                                         
+        tags.append('way["waterway"="riverbank"]')                                    
+        tags.append('rel["waterway"="riverbank"]')                                    
         tags.append('way["natural"="coastline"]')
         tags.append('way["waterway"="dock"]')
     try:
@@ -2880,10 +2880,6 @@ def filename_from_attributes(strlat,strlon,til_x_left,til_y_top,\
     else:
         file_name=str(til_y_top)+"_"+str(til_x_left)+"_"+website+str(zoomlevel)   
     file_ext=".jpg"
-
-    if build_for_ESP:
-        file_ext = ".bmp"
-
     return [file_dir,file_name,file_ext]
 ##############################################################################
 
@@ -2997,7 +2993,8 @@ def attribute_texture(lat1,lon1,lat2,lon2,lat3,lon3,ortho_list,tri_type):
 #  The process depend on the provider.
 ##############################################################################
 
-def build_photo_ortho(strlat,strlon,til_x_left,til_y_top,zoomlevel,website):
+def build_jpeg_ortho(strlat,strlon,til_x_left,til_y_top,zoomlevel,website):
+    
     jobs=[]
     
     if website=='g2xpl_8': 
@@ -3008,13 +3005,13 @@ def build_photo_ortho(strlat,strlon,til_x_left,til_y_top,zoomlevel,website):
     if website=='g2xpl_8':
         for til_y in range(til_y_top,til_y_top+16):
             fargs=[til_x_left,til_y_top,til_y,zoomlevel,website,big_image]
-            connection_thread=threading.Thread(target=obtain_photo_row,\
+            connection_thread=threading.Thread(target=obtain_jpeg_row,\
                           args=fargs)
             jobs.append(connection_thread)
     elif website in px256_list:
         for til_y in range(til_y_top,til_y_top+16):
             fargs=[til_x_left,til_y_top,til_y,zoomlevel,website,big_image]
-            connection_thread=threading.Thread(target=obtain_photo_row,\
+            connection_thread=threading.Thread(target=obtain_jpeg_row,\
                           args=fargs)
             jobs.append(connection_thread)
     elif website in wms2048_list:
@@ -3037,84 +3034,10 @@ def build_photo_ortho(strlat,strlon,til_x_left,til_y_top,zoomlevel,website):
     if not os.path.exists(file_dir):
         os.makedirs(file_dir)
     big_image.save(file_dir+file_name+file_ext)
-
-    nbr = 16
-    if build_for_ESP:
-        make_ESP_inf_file(file_dir, file_name, til_x_left, (til_x_left + nbr), til_y_top, (til_y_top + nbr), zoomlevel)
     return
 
 
-def create_INF_source_string(source_num, type, layer, source_dir, source_file, lon, lat, num_cells_line, num_lines, cell_x_dim, cell_y_dim):
-    contents = "[Source" + source_num + "]\n"
-    contents += "Type          = " + type + "\n"
-    contents += "Layer          = " + layer + "\n"
-    contents += "SourceDir  = " + source_dir + "\n"
-    contents += "SourceFile = " + source_file + "\n"
-    contents += "Lon               = " + lon + "\n"
-    contents += "Lat               = " + lat + "\n"
-    contents += "NumOfCellsPerLine = " + num_cells_line + "       ;Pixel isn't FSX/P3D\n"
-    contents += "NumOfLines        = " + num_lines + "       ;Pixel isn't used in FSX/P3D\n"
-    contents += "CellXdimensionDeg = """ + cell_x_dim + "\n"
-    contents += "CellYdimensionDeg = """ + cell_y_dim + "\n"
-    contents += "PixelIsPoint      = 0\n"
-    contents += "SamplingMethod    = Point"
-
-    return contents
-
-def make_ESP_inf_file(file_dir, file_name, til_x_left, til_x_right, til_y_top, til_y_bot, zoomlevel):
-    global do_build_masks
-    img_top_left_tile = gtile_to_wgs84(til_x_left, til_y_top, zoomlevel)
-    img_bottom_right_tile = gtile_to_wgs84(til_x_right, til_y_bot, zoomlevel)
-    # TODO: add support for images of different sizes (I think different websites make different size images), but for now 4096x4096 support is good enough
-    IMG_X_Y_DIM = 4096
-    img_cell_x_dimension_deg = (img_bottom_right_tile[1] - img_top_left_tile[1]) / IMG_X_Y_DIM
-    img_cell_y_dimension_deg = (img_top_left_tile[0] - img_bottom_right_tile[0]) / IMG_X_Y_DIM
-
-    with open(file_dir + file_name + ".inf", "w") as inf_file:
-        if do_build_masks:
-            contents = create_INF_source_string("1", "BMP", "Imagery", os.path.abspath(file_dir), file_name + ".bmp", str(img_top_left_tile[1]),
-                    str(img_top_left_tile[0]), "4096", "4096", str(img_cell_x_dimension_deg), str(img_cell_y_dimension_deg))
-            build_dir_path_parts = os.path.abspath(file_dir).split(dir_sep)
-            str_lat_lon_folder_name = build_dir_path_parts[build_dir_path_parts.index("Orthophotos") + 1]
-            img_mask_folder_abs_path = os.path.abspath(Ortho4XP_dir + dir_sep + "Masks" + dir_sep + str_lat_lon_folder_name)
-            img_mask_abs_path = img_mask_folder_abs_path + dir_sep + "whole_tile.bmp"
-            img_width, img_height = Image.open(img_mask_abs_path).size
-
-            lat = application.lat.get()
-            lon = application.lon.get()
-            eps=0.000001
-            [til_x_min,til_y_min]=wgs84_to_texture(lat+1-eps,lon+eps,14,'BI')
-            [til_x_max,til_y_max]=wgs84_to_texture(lat+eps,lon+1-eps,14,'BI')
-            nx=(til_x_max-til_x_min)//16+1
-            ny=(til_y_max-til_y_min)//16+1
-            til_x_max = til_x_min + (16 * nx)
-            til_y_max = til_y_min + (16 * ny)
-            mask_top_left_tile = gtile_to_wgs84(til_x_min, til_y_min, 14)
-            mask_bottom_right_tile = gtile_to_wgs84(til_x_max, til_y_max, 14)
-
-            mask_cell_x_dimension_deg = (mask_bottom_right_tile[1] - mask_top_left_tile[1]) / img_width
-            mask_cell_y_dimension_deg = (mask_top_left_tile[0] - mask_bottom_right_tile[0]) / img_height
-
-            contents = "[Source]\nType = MultiSource\nNumberOfSources = 2\n\n" + contents + "\n"
-            contents += "; pull the blend mask from Source2, band 0\nChannel_BlendMask = 2.0\n\n"
-            contents += create_INF_source_string("2", "BMP", "None", img_mask_folder_abs_path, "whole_tile.bmp", str(mask_top_left_tile[1]),
-                    str(mask_top_left_tile[0]), str(img_width), str(img_height), str(mask_cell_x_dimension_deg), str(mask_cell_y_dimension_deg))
-        else:
-            contents = create_INF_source_string("", "BMP", "Imagery", os.path.abspath(file_dir), file_name + ".bmp", str(img_top_left_tile[1]),
-                    str(img_top_left_tile[0]), "4096", "4096", str(img_cell_x_dimension_deg), str(img_cell_y_dimension_deg))
-
-
-        contents += "\n\n[Destination]\n"
-        contents += "DestDir             = " + os.path.abspath(file_dir) + dir_sep + "ADDON_SCENERY" + dir_sep + "scenery\n"
-        contents += "DestBaseFileName     = " + file_name + "\n"
-        contents += "BuildSeasons        = 0\n"
-        contents += "UseSourceDimensions  = 1\n"
-        contents += "CompressionQuality   = 100\n"
-        contents += "LOD = Auto,13\n"
-
-        inf_file.write(contents)
-
-def obtain_photo_row(til_x_left,til_y_top,til_y,zoomlevel,website,big_image):
+def obtain_jpeg_row(til_x_left,til_y_top,til_y,zoomlevel,website,big_image):
     """
     Obtain 16 gtiles in a row, http transactions take time so better 
     stay in line for a few consecutive tiles. We shall thread these calls in 
@@ -3535,16 +3458,14 @@ def download_textures(strlat,strlon):
             except:
                 pass
         elif download_to_do_list[0] != 'finished':
-            global ESP_build_dir
             texture=download_to_do_list[0]
             [file_dir,file_name,file_ext]=filename_from_attributes(\
                                strlat,strlon,*texture)
-            ESP_build_dir = file_dir
             if os.path.isfile(file_dir+file_name+file_ext) != True:
                 if verbose_output==True:
                     print("   Downloading missing orthophoto "+\
                       file_name+file_ext)
-                build_photo_ortho(strlat,strlon,*texture)
+                build_jpeg_ortho(strlat,strlon,*texture)
                 nbr_done+=1
                 nbr_done_or_in+=1
                 convert_to_do_list.append(texture)
@@ -4568,7 +4489,7 @@ def build_tile(lat,lon,build_dir,mesh_filename,check_for_what_next=True):
             except:
                 pass
         download_thread.start()
-        if skip_converts != True and not build_for_ESP:
+        if skip_converts != True:
             convert_thread.start()
     build_dsf_thread.join()
     if skip_downloads != True:
@@ -4578,7 +4499,7 @@ def build_tile(lat,lon,build_dir,mesh_filename,check_for_what_next=True):
                 APL_stop()
             except:
                 pass
-        if skip_converts != True and not build_for_ESP:
+        if skip_converts != True:
             convert_thread.join()
     try:
         if application.red_flag.get()==1:
@@ -4607,11 +4528,6 @@ def build_tile(lat,lon,build_dir,mesh_filename,check_for_what_next=True):
         clean_temporary_files(build_dir,['POLY','ELE'])                                                 
     else:
         clean_temporary_files(build_dir,['ELE'])
-
-    if build_for_ESP:
-        global ESP_build_dir
-        run_ESP_resample(ESP_build_dir)
-
     print('\nCompleted in '+str('{:.2f}'.format(time.time()-t3))+\
               'sec.')
     print('_____________________________________________________________'+\
@@ -4650,25 +4566,8 @@ def build_tile(lat,lon,build_dir,mesh_filename,check_for_what_next=True):
         pass
     return
 ##############################################################################
-def run_ESP_resample(build_dir):
-    if ESP_resample_location is None:
-        print("No resample.exe is specified in Ortho4XP.cfg, quitting")
-        return
-    if not os.path.isfile(ESP_resample_location):
-        print("resample.exe doesn't exist at " + ESP_resample_location + ", quitting")
-        return
 
-    # call resample on each individual file, to avoid file name too long errors with subprocess
-    # https://stackoverflow.com/questions/2381241/what-is-the-subprocess-popen-max-length-of-the-args-parameter
-    # passing shell=True to subprocess didn't help with this error when there are a large amount of inf files to process
-    # another solution would be to create inf files with multiple sources, but the below is simpler to code...
-    for (dirpath, dir_names, file_names) in os.walk(build_dir):
-        for full_file_name in file_names:
-            file_name, file_extension = os.path.splitext(full_file_name)
-            if file_extension == ".inf":
-                inf_abs_path = os.path.abspath(Ortho4XP_dir + dir_sep + build_dir + dir_sep + full_file_name)
-                print(inf_abs_path)
-                subprocess.call([ESP_resample_location, inf_abs_path])
+
 ##############################################################################
 def build_overlay(lat,lon,file_to_sniff):
     strlat='{:+.0f}'.format(lat).zfill(3)
@@ -5115,15 +5014,10 @@ def build_masks(lat,lon,build_dir,mesh_filename_list,masks_zl=14):
             '____________________________________')
     return
 ##############################################################################
-def convert_BMP_to_24_bit(img_name, saveNewName=False):
-    img = Image.open(img_name).convert("RGB")
-    img.save(img_name)
 
 ##############################################################################
 def build_masks_legacy(lat,lon,build_dir,mesh_filename_list):
-    global do_build_masks
     t4=time.time()
-    do_build_masks = True
     try:
         application.red_flag.set(0)
     except:
@@ -5131,10 +5025,6 @@ def build_masks_legacy(lat,lon,build_dir,mesh_filename_list):
     strlat='{:+.0f}'.format(lat).zfill(3)
     strlon='{:+.0f}'.format(lon).zfill(4)
     eps=0.000001
-    masks_extension = ".png"
-    if build_for_ESP:
-        masks_extension = ".bmp"
-
     [til_x_min,til_y_min]=wgs84_to_texture(lat+1-eps,lon+eps,14,'BI')
     [til_x_max,til_y_max]=wgs84_to_texture(lat+eps,lon+1-eps,14,'BI')
     nx=(til_x_max-til_x_min)//16+1
@@ -5145,7 +5035,7 @@ def build_masks_legacy(lat,lon,build_dir,mesh_filename_list):
     masks_dir=Ortho4XP_dir+dir_sep+"Masks"+dir_sep+strlat+strlon
     if not os.path.exists(masks_dir):
         os.makedirs(masks_dir)
-    if not os.path.isfile(masks_dir+dir_sep+'whole_tile' + masks_extension) or keep_old_pre_mask==False:
+    if not os.path.isfile(masks_dir+dir_sep+'whole_tile.png') or keep_old_pre_mask==False:
         for mesh_filename in mesh_filename_list:
             try:
                 f_mesh=open(mesh_filename,"r")
@@ -5212,15 +5102,11 @@ def build_masks_legacy(lat,lon,build_dir,mesh_filename_list):
                 except:
                     pass
             f_mesh.close()
-
-        masks_im.save(masks_dir+dir_sep+'whole_tile' + masks_extension)
-        if build_for_ESP:
-            convert_BMP_to_24_bit(masks_dir+dir_sep+'whole_tile' + masks_extension)
-
+        masks_im.save(masks_dir+dir_sep+'whole_tile.png')
         del(masks_im)
     if not use_gimp:
         print(" Blur of size masks_width applied to the binary mask...")
-        masks_im=Image.open(masks_dir+dir_sep+'whole_tile' + masks_extension).convert("L")
+        masks_im=Image.open(masks_dir+dir_sep+'whole_tile.png').convert("L")
         img_array=numpy.array(masks_im,dtype=numpy.uint8)
         #kernel=numpy.ones(int(masks_width))/int(masks_width)
         kernel=numpy.array(range(1,2*masks_width))
@@ -5235,27 +5121,25 @@ def build_masks_legacy(lat,lon,build_dir,mesh_filename_list):
         img_array=2*numpy.minimum(img_array,127) #*numpy.ones(img_array.shape)) 
         img_array=numpy.array(img_array,dtype=numpy.uint8)
         masks_im=Image.fromarray(img_array)
-        masks_im.save(masks_dir+dir_sep+'whole_tile_blured' + masks_extension)
-        if build_for_ESP:
-            convert_BMP_to_24_bit(masks_dir+dir_sep+'whole_tile_blured' + masks_extension, True)
+        masks_im.save(masks_dir+dir_sep+'whole_tile_blured.png')
     else: #use_gimp
         print(" Gaussian blur and level adjustment applied to the binary mask with Gimp...")
         if ('dar' in sys.platform) or ('win' not in sys.platform):   # Mac and Linux
             os.system(gimp_cmd+" -i -c -b '(blurX "+' "'+masks_dir+dir_sep+\
-                'whole_tile' + masks_extension + '" '+str(masks_width)+' "'+masks_dir+dir_sep+\
-                'whole_tile_blured' + masks_extension + '")'+"' -b '(gimp-quit 0)' ")
+                'whole_tile.png" '+str(masks_width)+' "'+masks_dir+dir_sep+\
+                'whole_tile_blured.png")'+"' -b '(gimp-quit 0)' ")
         else: # Windows specific
             tmpf=open('batchgimp.bat','w')
             tmpcmd='"'+gimp_cmd+'" '+\
-                   '-i -c -b "(blurX \\\"'+Ortho4XP_dir+'\\\\Masks\\\\'+strlat+strlon+'\\\\whole_tile' + masks_extension + '\\\" '+\
-                   str(masks_width)+' \\\"'+Ortho4XP_dir+'\\\\Masks\\\\'+strlat+strlon+'\\\\whole_tile_blured' + masks_extension + '\\\")"'+\
+                   '-i -c -b "(blurX \\\"'+Ortho4XP_dir+'\\\\Masks\\\\'+strlat+strlon+'\\\\whole_tile.png\\\" '+\
+                   str(masks_width)+' \\\"'+Ortho4XP_dir+'\\\\Masks\\\\'+strlat+strlon+'\\\\whole_tile_blured.png\\\")"'+\
                    ' -b "(gimp-quit 0)"'
             tmpf.write(tmpcmd)
             tmpf.close()
             os.system('batchgimp.bat')
             os.system(delete_cmd+' batchgimp.bat')
         try:
-            masks_im=Image.open(masks_dir+dir_sep+'whole_tile_blured' + masks_extension)
+            masks_im=Image.open(masks_dir+dir_sep+'whole_tile_blured.png')
         except:
             print("\nGimp is either not present on your system, or didn't configure its")
             print("access command correctly, or it has no access to the blurX script-fu.")
@@ -5289,8 +5173,8 @@ def build_masks_legacy(lat,lon,build_dir,mesh_filename_list):
             box=(nxloc*4096,nyloc*4096,(nxloc+1)*4096,(nyloc+1)*4096)
             tex_im=masks_im.crop(box)
             if tex_im.getextrema()[1]>=10:
-                tex_im.save(masks_dir+dir_sep+str(til_y_min+nyloc*16)+'_'+str(til_x_min+nxloc*16)+masks_extension)
-                tex_im.save(build_dir+dir_sep+"textures"+dir_sep+str(til_y_min+nyloc*16)+'_'+str(til_x_min+nxloc*16)+masks_extension)
+                tex_im.save(masks_dir+dir_sep+str(til_y_min+nyloc*16)+'_'+str(til_x_min+nxloc*16)+'.png')
+                tex_im.save(build_dir+dir_sep+"textures"+dir_sep+str(til_y_min+nyloc*16)+'_'+str(til_x_min+nxloc*16)+'.png')
     try:
         application.progress_attr.set(100)
         if application.red_flag.get()==1:
@@ -5419,7 +5303,6 @@ def build_tile_list(tile_list,build_dir_option,read_config,use_existing_mesh,bbm
         print("\nStep 3 : Building Tile "+strlat+strlon+" : ")
         print("--------\n")
         build_tile(lat,lon,build_dir,mesh_filename,False)
-
         if application.red_flag.get()==1:
             print("\nBatch build process interrupted.")
             print('_____________________________________________________________'+\
@@ -6013,10 +5896,6 @@ class Earth_Preview_window(Toplevel):
         return
 
     def batch_build(self):
-        # reset for next round
-        global do_build_masks
-        do_build_masks = False
-
         tile_list=[]
         if self.ptc.get()==1:
             read_config=True
@@ -6653,7 +6532,7 @@ class Expert_config(Toplevel):
     
 
 ##############################################################################
-do_build_masks = False
+
 ############################################################################################
 class Ortho4XP_Graphical(Tk):
 
@@ -6714,8 +6593,6 @@ class Ortho4XP_Graphical(Tk):
         self.complexmasks.set(0)
         self.masksinland     = IntVar()
         self.masksinland.set(0)
-        self.build_for_ESP     = IntVar()
-        self.build_for_ESP.set(0)
         self.verbose         = IntVar()
         self.verbose.set(1)
         self.sniff           = IntVar()
@@ -6854,9 +6731,6 @@ class Ortho4XP_Graphical(Tk):
         self.masksinland_check=  Checkbutton(self.frame_left,text="Use masks for inland",\
                                     anchor=W,variable=self.masksinland,command=self.set_masksinland,bg="light green",\
                                     activebackground="light green",highlightthickness=0)                    
-        self.build_ESP_check=  Checkbutton(self.frame_left,text="Build tiles for ESP",\
-                                    anchor=W,variable=self.build_for_ESP,command=self.set_build_for_ESP,bg="light green",\
-                                    activebackground="light green",highlightthickness=0)
         self.label_overlay        =  Label(self.frame_left,justify=RIGHT,anchor=W,text="Build Overlays",\
                                     fg = "light green",bg = "dark green",font = "Helvetica 16 bold italic")
         self.sniff_check      =  Checkbutton(self.frame_left,text="Custom overlay dir :",\
@@ -6934,7 +6808,6 @@ class Ortho4XP_Graphical(Tk):
         self.cleanddster_check.grid(row=14,column=3,columnspan=2, pady=5,sticky=N+S+W)
         self.complexmasks_check.grid(row=15,column=0,columnspan=2, pady=5,sticky=N+S+W)
         self.masksinland_check.grid(row=15,column=2,columnspan=1, pady=5,sticky=N+S+W)
-        self.build_ESP_check.grid(row=15,column=3,columnspan=1, pady=5,sticky=N+S+W)
         self.title_masks_width.grid(row=16,column=0, padx=5, pady=5,sticky=W+E) 
         self.masks_width_e.grid(row=16,column=1, padx=5, pady=5,sticky=W)
         self.title_ratio_water.grid(row=16,column=2,columnspan=1, padx=5, pady=5,sticky=W) 
@@ -6990,7 +6863,6 @@ class Ortho4XP_Graphical(Tk):
             self.sniff_dir.set(default_sniff_dir)
             self.complexmasks.set(complex_masks)
             self.masksinland.set(use_masks_for_inland)
-            self.build_for_ESP.set(build_for_ESP)
         except:
             print("\nWARNING : the config variables are incomplete or do not follow the syntax,")
             print("I could not initialize all the parameters to your wish.")
@@ -7119,16 +6991,11 @@ class Ortho4XP_Graphical(Tk):
             globals()['use_masks_for_inland']=False
         else:
             globals()['use_masks_for_inland']=True
-        if self.build_for_ESP.get()==0:
-            globals()['build_for_ESP']=False
-        else:
-            globals()['build_for_ESP']=True
         if self.sniff.get()==1:
             globals()['default_sniff_dir']=self.sniff_dir_entry.get()
         return 'success' 
            
     def write(self,text):
-        sys.__stdout__.write(str(text))
         if text=='' or text[-1]!='\r':
             self.std_out.insert(END,str(text))
             self.std_out.see(END)
@@ -7674,14 +7541,6 @@ class Ortho4XP_Graphical(Tk):
             use_masks_for_inland=True
         return
     
-    def set_build_for_ESP(self):
-        global build_for_ESP
-        if self.build_for_ESP.get()==0:
-            build_for_ESP=False
-        else:
-            build_for_ESP=True
-        return
-
     def kill_process(self):
         return
 
