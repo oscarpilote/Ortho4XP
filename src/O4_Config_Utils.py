@@ -78,12 +78,12 @@ cfg_vars={
     'custom_dem':          {'type':str,'default':'','hint':'Path to an elevation data file to be used instead of the default Viewfinderpanoramas.org ones (J. de Ferranti). The raster must be in geopgraphical coordinates (EPSG:4326) but the extent need not match the tile boundary (requires Gdal). Regions of the tile that are not covered by the raster are mapped to zero altitude (can be useful for high resolution data over islands in particular).     '},
     'fill_nodata':         {'type':bool,'default':True,'hint':'When set, the no_data values in the raster will be filled by a nearest neighbour algorithm. If unset, they are turned into zero (can be useful for rasters with no_data over the whole oceanic part or partial LIDAR data).'},
     'ESP_resample_loc':    {'type':str,'default':'','hint':'Enter the location to your resample.exe'},
-    'create_ESP_night':    {'type':str,'default': False,'hint':'Whether to create night textures for ESP'},
-    'create_ESP_summer':    {'type':str,'default': False,'hint':'Whether to create summer textures for ESP'},
-    'create_ESP_spring':    {'type':str,'default': False,'hint':'Whether to create spring textures for ESP'},
-    'create_ESP_fall':    {'type':str,'default': False,'hint':'Whether to create fall textures for ESP'},
-    'create_ESP_winter':    {'type':str,'default': False,'hint':'Whether to create winter textures for ESP'},
-    'create_ESP_hard_winter':    {'type':str,'default': False,'hint':'Whether to create hard_winter textures for ESP'}
+    'create_ESP_night':    {'type':bool,'default': False,'hint':'Whether to create night textures for ESP'},
+    'create_ESP_summer':    {'type':bool,'default': False,'hint':'Whether to create summer textures for ESP'},
+    'create_ESP_spring':    {'type':bool,'default': False,'hint':'Whether to create spring textures for ESP'},
+    'create_ESP_fall':    {'type':bool,'default': False,'hint':'Whether to create fall textures for ESP'},
+    'create_ESP_winter':    {'type':bool,'default': False,'hint':'Whether to create winter textures for ESP'},
+    'create_ESP_hard_winter':    {'type':bool,'default': False,'hint':'Whether to create hard_winter textures for ESP'}
 }
 
 list_app_vars=['verbosity','cleaning_level','overpass_server_choice',

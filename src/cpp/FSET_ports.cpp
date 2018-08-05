@@ -218,7 +218,7 @@ void c_create_autumn(string imgName, string outName) {
 
                 bool vIsWater = pixelIsWaterOrWaterTransition(pixel);
                 ssize_t vSum = vRed + vGreen + vBlue;
-				bool vDontAlterColor = MasksConfig::mSpareOutWaterForSeasonsGeneration && pixelIsWaterOrWaterTransition(pixel);
+                bool vDontAlterColor = MasksConfig::mSpareOutWaterForSeasonsGeneration && pixelIsWaterOrWaterTransition(pixel);
 
                 if (!vDontAlterColor) {
                     vSum = vRed + vGreen + vBlue;

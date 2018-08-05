@@ -33,8 +33,7 @@ def create_INF_source_string(source_num, season, variation, type, layer, source_
     return contents
 
 def get_total_num_sources(seasons_to_create, build_night, build_water_mask):
-    # there will at minimum always be 1 source...
-    total = 1;
+    total = 0;
     if seasons_to_create:
         for season, should_build in seasons_to_create.items():
             if should_build:
@@ -43,7 +42,14 @@ def get_total_num_sources(seasons_to_create, build_night, build_water_mask):
     if build_night:
         total += 1
     if build_water_mask:
-        total += 1
+        if total == 0:
+            total += 2
+        else:
+            total += 1
+
+    # there will at minimum always be 1 source...
+    if total == 0:
+        total = 1
 
     return total
 
@@ -58,27 +64,27 @@ def get_seasons_inf_string(seasons_to_create, source_num, type, layer, source_di
     string = ""
     source_file_name, ext = os.path.splitext(source_file)
     if seasons_to_create["summer"]:
-        string = create_INF_source_string(str(source_num), "Summer", "June,July,August", type, layer, source_dir, source_file_name + ext, lon, lat, num_cells_line, num_lines, cell_x_dim, cell_y_dim) + "\n\n"
+        string = create_INF_source_string(source_num_to_source_num_string(source_num, total_sources), "Summer", "June,July,August", type, layer, source_dir, source_file_name + ext, lon, lat, num_cells_line, num_lines, cell_x_dim, cell_y_dim) + "\n\n"
         if should_mask:
             string += "; pull the blend mask from Source" + str(total_sources) + ", band 0\nChannel_BlendMask = " + str(total_sources) + ".0\n\n"
         source_num += 1
     if seasons_to_create["spring"]:
-        string += create_INF_source_string(str(source_num), "Spring", "March,April,May", type, layer, source_dir, source_file_name + "_spring" + ext, lon, lat, num_cells_line, num_lines, cell_x_dim, cell_y_dim) + "\n\n"
+        string += create_INF_source_string(source_num_to_source_num_string(source_num, total_sources), "Spring", "March,April,May", type, layer, source_dir, source_file_name + "_spring" + ext, lon, lat, num_cells_line, num_lines, cell_x_dim, cell_y_dim) + "\n\n"
         if should_mask:
             string += "; pull the blend mask from Source" + str(total_sources) + ", band 0\nChannel_BlendMask = " + str(total_sources) + ".0\n\n"
         source_num += 1
     if seasons_to_create["fall"]:
-        string += create_INF_source_string(str(source_num), "Fall", "September,October", type, layer, source_dir, source_file_name + "_fall" + ext, lon, lat, num_cells_line, num_lines, cell_x_dim, cell_y_dim) + "\n\n"
+        string += create_INF_source_string(source_num_to_source_num_string(source_num, total_sources), "Fall", "September,October", type, layer, source_dir, source_file_name + "_fall" + ext, lon, lat, num_cells_line, num_lines, cell_x_dim, cell_y_dim) + "\n\n"
         if should_mask:
             string += "; pull the blend mask from Source" + str(total_sources) + ", band 0\nChannel_BlendMask = " + str(total_sources) + ".0\n\n"
         source_num += 1
     if seasons_to_create["winter"]:
-        string += create_INF_source_string(str(source_num), "Winter", "November", type, layer, source_dir, source_file_name + "_winter" + ext, lon, lat, num_cells_line, num_lines, cell_x_dim, cell_y_dim) + "\n\n"
+        string += create_INF_source_string(source_num_to_source_num_string(source_num, total_sources), "Winter", "November", type, layer, source_dir, source_file_name + "_winter" + ext, lon, lat, num_cells_line, num_lines, cell_x_dim, cell_y_dim) + "\n\n"
         if should_mask:
             string += "; pull the blend mask from Source" + str(total_sources) + ", band 0\nChannel_BlendMask = " + str(total_sources) + ".0\n\n"
         source_num += 1
     if seasons_to_create["hard_winter"]:
-        string += create_INF_source_string(str(source_num), "HardWinter", "December,January,February", type, layer, source_dir, source_file_name + "_hard_winter" + ext, lon, lat, num_cells_line, num_lines, cell_x_dim, cell_y_dim) + "\n\n"
+        string += create_INF_source_string(source_num_to_source_num_string(source_num, total_sources), "HardWinter", "December,January,February", type, layer, source_dir, source_file_name + "_hard_winter" + ext, lon, lat, num_cells_line, num_lines, cell_x_dim, cell_y_dim) + "\n\n"
         if should_mask:
             string += "; pull the blend mask from Source" + str(total_sources) + ", band 0\nChannel_BlendMask = " + str(total_sources) + ".0\n\n"
         source_num += 1
@@ -133,18 +139,21 @@ def make_ESP_inf_file(file_dir, file_name, til_x_left, til_x_right, til_y_top, t
                 contents += "; pull the blend mask from Source" + str(total_num_sources) + ", band 0\nChannel_BlendMask = " + str(total_num_sources) + ".0\n\n"
             current_source_num += 1
 
-        source_num_str = source_num_to_source_num_string(current_source_num, total_num_sources)
-        contents += create_INF_source_string(source_num_str, None, None, "BMP", "Imagery", os.path.abspath(file_dir), file_name, str(img_top_left_tile[1]),
-                    str(img_top_left_tile[0]), str(IMG_X_Y_DIM), str(IMG_X_Y_DIM), str(img_cell_x_dimension_deg), str(img_cell_y_dimension_deg))
-        current_source_num += 1
+        if seasons_string is None:
+            source_num_str = source_num_to_source_num_string(current_source_num, total_num_sources)
+            contents += create_INF_source_string(source_num_str, None, None, "BMP", "Imagery", os.path.abspath(file_dir), file_name, str(img_top_left_tile[1]),
+                        str(img_top_left_tile[0]), str(IMG_X_Y_DIM), str(IMG_X_Y_DIM), str(img_cell_x_dimension_deg), str(img_cell_y_dimension_deg)) + "\n\n"
+            if should_mask:
+                contents += "; pull the blend mask from Source" + source_num_str + ", band 0\nChannel_BlendMask = " + source_num_str + ".0\n\n"
+
+            current_source_num += 1
 
         if should_mask:
             source_num_str = source_num_to_source_num_string(current_source_num, total_num_sources)
-            contents += "\n\n; pull the blend mask from Source" + source_num_str + ", band 0\nChannel_BlendMask = " + source_num_str + ".0\n\n"
             contents += create_INF_source_string(source_num_str, None, None, "TIFF", "None", img_mask_folder_abs_path, img_mask_name, str(img_top_left_tile[1]),
-                    str(img_top_left_tile[0]), str(IMG_X_Y_DIM), str(IMG_X_Y_DIM), str(img_cell_x_dimension_deg), str(img_cell_y_dimension_deg))
+                    str(img_top_left_tile[0]), str(IMG_X_Y_DIM), str(IMG_X_Y_DIM), str(img_cell_x_dimension_deg), str(img_cell_y_dimension_deg)) + "\n\n"
 
-        contents += "\n\n[Destination]\n"
+        contents += "[Destination]\n"
         contents += "DestDir             = " + os.path.abspath(file_dir) + os.sep + "ADDON_SCENERY" + os.sep + "scenery\n"
         contents += "DestBaseFileName     = " + file_name_no_extension + "\n"
         contents += "BuildSeasons        = 0\n"
