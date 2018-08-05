@@ -1,0 +1,8 @@
+request_type=tms
+epsg_code=23032
+top_left_corner=-5121200 9998400
+resolutions=132.2919312505292 66.1459656252646 26.458386250105836 13.229193125052918 6.614596562526459 2.6458386250105836 1.3229193125052918 0.5291677250021167 0.26458386250105836 0.13229193125052918
+tile_size=512
+url_template=http://cachesct.partout.it/arcgis/rest/services/Foundation/Ortofoto/MapServer/tile/{zoom}/{y}/{x}
+max_threads=16
+extent=ValleAosta

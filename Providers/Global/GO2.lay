@@ -1,0 +1,4 @@
+grid_type=webmercator
+url_template=http://mt{switch:0,1,2,3}.google.com/vt/lyrs=s&x={x}&y={y}&z={zoom}
+max_threads=16
+imagery_dir=grouped
