@@ -7,6 +7,34 @@
 using namespace Magick;
 using namespace std;
 
+static double nextDouble(double min, double max) {
+    double f = (double) rand() / RAND_MAX;
+
+    return min + f * (max - min);
+}
+
+static void limitRGBValues(int32_t *xRed, int32_t *xGreen, int32_t *xBlue) {
+    if (*xRed > (int) UCHAR_MAX) {
+        *xRed = (int) UCHAR_MAX;
+    } else if (*xRed < 0) {
+        *xRed = 0;
+    }
+    if (*xGreen > (int) UCHAR_MAX) {
+        *xGreen = (int) UCHAR_MAX;
+    } else if (*xGreen < 0) {
+        *xGreen = 0;
+    }
+    if (*xBlue > (int) UCHAR_MAX) {
+        *xBlue = (int) UCHAR_MAX;
+    }
+    else {
+        if (*xBlue >= 0) {
+          return;
+        }
+      *xBlue = 0;
+    }
+}
+
 void foreach_pixel(Image *img, void (*callback)(Quantum *)) {
     img->modifyImage();
     // Allocate pixel view
@@ -49,9 +77,9 @@ void c_create_night(string imgName, string outName) {
         img.read(imgName);
         foreach_pixel(&img,
             [](Quantum *pixel) {
-                Quantum vRed = pixel[0];
-                Quantum vGreen = pixel[1];
-                Quantum vBlue = pixel[2];
+                int32_t vRed = (int32_t) pixel[0];
+                int32_t vGreen = (int32_t) pixel[1];
+                int32_t vBlue = (int32_t) pixel[2];
 
                 bool vIsWater = pixelIsWaterOrWaterTransition(pixel);
                 ssize_t vSum = vRed + vGreen + vBlue;
@@ -63,15 +91,15 @@ void c_create_night(string imgName, string outName) {
                     (vSum  > MasksConfig::mNightStreetConditionRGBSumLargerThanValue) &&
                     (vSum <= MasksConfig::mNightStreetConditionRGBSumLessEqualThanValue)) {
                     //Stree random dither lights
-                    if (rand() < MasksConfig::mNightStreetLightDots1DitherProbabily) {
+                    if (nextDouble(0.0, 1.0) < MasksConfig::mNightStreetLightDots1DitherProbabily) {
                         vRed   = MasksConfig::mNightStreetLightDot1Red;
                         vGreen = MasksConfig::mNightStreetLightDot1Green;
                         vBlue  = MasksConfig::mNightStreetLightDot1Blue;
-                    } else if (rand() < MasksConfig::mNightStreetLightDots2DitherProbabily) {
+                    } else if (nextDouble(0.0, 1.0) < MasksConfig::mNightStreetLightDots2DitherProbabily) {
                         vRed   = MasksConfig::mNightStreetLightDot2Red;
                         vGreen = MasksConfig::mNightStreetLightDot2Green;
                         vBlue  = MasksConfig::mNightStreetLightDot2Blue;
-                    } else if (rand() < MasksConfig::mNightStreetLightDots3DitherProbabily) {
+                    } else if (nextDouble(0.0, 1.0) < MasksConfig::mNightStreetLightDots3DitherProbabily) {
                         vRed   = MasksConfig::mNightStreetLightDot3Red;
                         vGreen = MasksConfig::mNightStreetLightDot3Green;
                         vBlue  = MasksConfig::mNightStreetLightDot3Blue;
@@ -83,10 +111,12 @@ void c_create_night(string imgName, string outName) {
                     }
                 } else {
                     //Normal Land/Water...make factor 2 darker
-                    vRed   = (Quantum) MasksConfig::mNightNonStreetLightness * vRed;
-                    vGreen = (Quantum) MasksConfig::mNightNonStreetLightness * vGreen;
-                    vBlue  = (Quantum) MasksConfig::mNightNonStreetLightness * vBlue;
+                    vRed   = (int32_t) (MasksConfig::mNightNonStreetLightness * ((float) vRed));
+                    vGreen = (int32_t) (MasksConfig::mNightNonStreetLightness * ((float) vGreen));
+                    vBlue  = (int32_t) (MasksConfig::mNightNonStreetLightness * ((float) vBlue));
                 }
+                limitRGBValues(&vRed, &vGreen, &vBlue);
+
                 pixel[0] = vRed;
                 pixel[1] = vGreen;
                 pixel[2] = vBlue;
@@ -104,9 +134,9 @@ void c_create_hard_winter(string imgName, string outName) {
         img.read(imgName);
         foreach_pixel(&img,
             [](Quantum *pixel) {
-                Quantum vRed = pixel[0];
-                Quantum vGreen = pixel[1];
-                Quantum vBlue = pixel[2];
+                int32_t vRed = (int32_t) pixel[0];
+                int32_t vGreen = (int32_t) pixel[1];
+                int32_t vBlue = (int32_t) pixel[2];
 
                 bool vIsWater = pixelIsWaterOrWaterTransition(pixel);
                 bool vStreets = true;
@@ -123,10 +153,10 @@ void c_create_hard_winter(string imgName, string outName) {
                          ((vGreen - vBlue) < MasksConfig::mHardWinterStreetConditionGreyToleranceValue) && ((vGreen - vBlue) > -MasksConfig::mHardWinterStreetConditionGreyToleranceValue) &&
                          (vSum > MasksConfig::mHardWinterStreetConditionRGBSumLargerThanValue) &&
                          (vSum < MasksConfig::mHardWinterStreetConditionRGBSumLessThanValue)) {
-                        Quantum vAverage = ((Quantum)(vSum)) / 3.0f;
-                        vRed   = (Quantum)(MasksConfig::mHardWinterStreetAverageFactor * (vAverage + ((Quantum)(rand()) * MasksConfig::mHardWinterStreetAverageAdditionRandomFactor + MasksConfig::mHardWinterStreetAverageAdditionRandomOffset)) + MasksConfig::mHardWinterStreetAverageRedOffset);
-                        vGreen = (Quantum)(MasksConfig::mHardWinterStreetAverageFactor * (vAverage + ((Quantum)(rand()) * MasksConfig::mHardWinterStreetAverageAdditionRandomFactor + MasksConfig::mHardWinterStreetAverageAdditionRandomOffset)) + MasksConfig::mHardWinterStreetAverageGreenOffset);
-                        vBlue  = (Quantum)(MasksConfig::mHardWinterStreetAverageFactor * (vAverage + ((Quantum)(rand()) * MasksConfig::mHardWinterStreetAverageAdditionRandomFactor + MasksConfig::mHardWinterStreetAverageAdditionRandomOffset)) + MasksConfig::mHardWinterStreetAverageBlueOffset);
+                        float vAverage = ((Quantum)(vSum)) / 3.0f;
+                        vRed   = (int32_t) (MasksConfig::mHardWinterStreetAverageFactor * (vAverage + ((float) (nextDouble(0.0, 1.0)) * MasksConfig::mHardWinterStreetAverageAdditionRandomFactor + MasksConfig::mHardWinterStreetAverageAdditionRandomOffset)) + MasksConfig::mHardWinterStreetAverageRedOffset);
+                        vGreen = (int32_t) (MasksConfig::mHardWinterStreetAverageFactor * (vAverage + ((float) (nextDouble(0.0, 1.0)) * MasksConfig::mHardWinterStreetAverageAdditionRandomFactor + MasksConfig::mHardWinterStreetAverageAdditionRandomOffset)) + MasksConfig::mHardWinterStreetAverageGreenOffset);
+                        vBlue  = (int32_t) (MasksConfig::mHardWinterStreetAverageFactor * (vAverage + ((float) (nextDouble(0.0, 1.0)) * MasksConfig::mHardWinterStreetAverageAdditionRandomFactor + MasksConfig::mHardWinterStreetAverageAdditionRandomOffset)) + MasksConfig::mHardWinterStreetAverageBlueOffset);
                     } else if (vSum < MasksConfig::mHardWinterDarkConditionRGBSumLessThanValue) {
                         // If it is very dark(-green), it might be forest or very steep rock.
                         // In this case, we might want to sprinkle some more white pixels
@@ -134,28 +164,28 @@ void c_create_hard_winter(string imgName, string outName) {
                         if ( vSnowAllowed &&
                             (vGreen > (vRed - MasksConfig::mHardWinterDarkConditionRGDiffValue)) &&
                             (vGreen > vBlue) &&
-                            (rand() < MasksConfig::mHardWinterDarkConditionRandomLessThanValue)) {
-                            vRed   = MasksConfig::mHardWinterDarkRedOffset   + (Quantum)(((Quantum)(rand()) * MasksConfig::mHardWinterDarkRandomFactor));
-                            vGreen = MasksConfig::mHardWinterDarkGreenOffset + (Quantum)(((Quantum)(rand()) * MasksConfig::mHardWinterDarkRandomFactor));
-                            vBlue  = MasksConfig::mHardWinterDarkBlueOffset  + (Quantum)(((Quantum)(rand()) * MasksConfig::mHardWinterDarkRandomFactor));
+                            (nextDouble(0.0, 1.0) < MasksConfig::mHardWinterDarkConditionRandomLessThanValue)) {
+                            vRed   = MasksConfig::mHardWinterDarkRedOffset   + (int32_t) (((float) (nextDouble(0.0, 1.0)) * MasksConfig::mHardWinterDarkRandomFactor));
+                            vGreen = MasksConfig::mHardWinterDarkGreenOffset + (int32_t) (((float) (nextDouble(0.0, 1.0)) * MasksConfig::mHardWinterDarkRandomFactor));
+                            vBlue  = MasksConfig::mHardWinterDarkBlueOffset  + (int32_t) (((float) (nextDouble(0.0, 1.0)) * MasksConfig::mHardWinterDarkRandomFactor));
                         } else {
                             // leave very dark pixel (basically) unchanged:
                             if (vStreets) {
-                                vRed   = (Quantum)(MasksConfig::mHardWinterVeryDarkStreetFactor * (Quantum)(vRed));
-                                vGreen = (Quantum)(MasksConfig::mHardWinterVeryDarkStreetFactor * (Quantum)(vGreen));
-                                vBlue  = (Quantum)(MasksConfig::mHardWinterVeryDarkStreetFactor * (Quantum)(vBlue));
+                                vRed   = (int32_t) (MasksConfig::mHardWinterVeryDarkStreetFactor * (float) (vRed));
+                                vGreen = (int32_t) (MasksConfig::mHardWinterVeryDarkStreetFactor * (float) (vGreen));
+                                vBlue  = (int32_t) (MasksConfig::mHardWinterVeryDarkStreetFactor * (float) (vBlue));
                             } else {
-                                vRed   = (Quantum)(MasksConfig::mHardWinterVeryDarkNormalFactor * (Quantum)(vRed));
-                                vGreen = (Quantum)(MasksConfig::mHardWinterVeryDarkNormalFactor * (Quantum)(vGreen));
-                                vBlue  = (Quantum)(MasksConfig::mHardWinterVeryDarkNormalFactor * (Quantum)(vBlue));
+                                vRed   = (int32_t) (MasksConfig::mHardWinterVeryDarkNormalFactor * (float) (vRed));
+                                vGreen = (int32_t) (MasksConfig::mHardWinterVeryDarkNormalFactor * (float) (vGreen));
+                                vBlue  = (int32_t) (MasksConfig::mHardWinterVeryDarkNormalFactor * (float) (vBlue));
                             }
                         }
                     } else if (vSum >= MasksConfig::mHardWinterAlmostWhiteConditionRGBSumLargerEqualThanValue) {
                         // Almost white already, make it still whiter with a touch of blue:
                         if (vSum <= MasksConfig::mHardWinterAlmostWhiteConditionRGBSumLessEqualThanValue) {
-                            vRed = (Quantum)(MasksConfig::mHardWinterAlmostWhiteRedFactor * (Quantum)(vRed));
-                            vGreen = (Quantum)(MasksConfig::mHardWinterAlmostWhiteGreenFactor * (Quantum)(vGreen));
-                            vBlue = (Quantum)(MasksConfig::mHardWinterAlmostWhiteBlueFactor * (Quantum)(vBlue));
+                            vRed = (int32_t) (MasksConfig::mHardWinterAlmostWhiteRedFactor * (float) (vRed));
+                            vGreen = (int32_t) (MasksConfig::mHardWinterAlmostWhiteGreenFactor * (float) (vGreen));
+                            vBlue = (int32_t) (MasksConfig::mHardWinterAlmostWhiteBlueFactor * (float) (vBlue));
                         }
                     } else {
                         // Let the dominating color shine through
@@ -195,6 +225,8 @@ void c_create_hard_winter(string imgName, string outName) {
 
                     }
                 }
+                limitRGBValues(&vRed, &vGreen, &vBlue);
+
                 pixel[0] = vRed;
                 pixel[1] = vGreen;
                 pixel[2] = vBlue;
@@ -212,9 +244,9 @@ void c_create_autumn(string imgName, string outName) {
         img.read(imgName);
         foreach_pixel(&img,
             [](Quantum *pixel) {
-                Quantum vRed = pixel[0];
-                Quantum vGreen = pixel[1];
-                Quantum vBlue = pixel[2];
+                int32_t vRed = (int32_t) pixel[0];
+                int32_t vGreen = (int32_t) pixel[1];
+                int32_t vBlue = (int32_t) pixel[2];
 
                 bool vIsWater = pixelIsWaterOrWaterTransition(pixel);
                 ssize_t vSum = vRed + vGreen + vBlue;
@@ -251,6 +283,8 @@ void c_create_autumn(string imgName, string outName) {
                         vBlue  += MasksConfig::mAutumnRestBlueAddition;
                     }
                 }
+                limitRGBValues(&vRed, &vGreen, &vBlue);
+
                 pixel[0] = vRed;
                 pixel[1] = vGreen;
                 pixel[2] = vBlue;
@@ -268,9 +302,9 @@ void c_create_spring(string imgName, string outName) {
         img.read(imgName);
         foreach_pixel(&img,
             [](Quantum *pixel) {
-                Quantum vRed = pixel[0];
-                Quantum vGreen = pixel[1];
-                Quantum vBlue = pixel[2];
+                int32_t vRed = (int32_t) pixel[0];
+                int32_t vGreen = (int32_t) pixel[1];
+                int32_t vBlue = (int32_t) pixel[2];
 
                 ssize_t vSum = vRed + vGreen + vBlue;
 
@@ -302,6 +336,8 @@ void c_create_spring(string imgName, string outName) {
                         vBlue  += MasksConfig::mSpringRestBlueAddition;
                     }
                 }
+                limitRGBValues(&vRed, &vGreen, &vBlue);
+
                 pixel[0] = vRed;
                 pixel[1] = vGreen;
                 pixel[2] = vBlue;
@@ -319,9 +355,9 @@ void c_create_winter(string imgName, string outName) {
         img.read(imgName);
         foreach_pixel(&img,
             [](Quantum *pixel) {
-                Quantum vRed = pixel[0];
-                Quantum vGreen = pixel[1];
-                Quantum vBlue = pixel[2];
+                int32_t vRed = (int32_t) pixel[0];
+                int32_t vGreen = (int32_t) pixel[1];
+                int32_t vBlue = (int32_t) pixel[2];
 
                 ssize_t vSum = vRed + vGreen + vBlue;
 
@@ -337,17 +373,17 @@ void c_create_winter(string imgName, string outName) {
                         ((vRed - vGreen)  < MasksConfig::mWinterStreetGreyConditionGreyToleranceValue) && ((vRed - vGreen)  > -MasksConfig::mWinterStreetGreyConditionGreyToleranceValue) &&
                         ((vGreen - vBlue) < MasksConfig::mWinterStreetGreyConditionGreyToleranceValue) && ((vGreen - vBlue) > -MasksConfig::mWinterStreetGreyConditionGreyToleranceValue) &&
                          (vSum > MasksConfig::mWinterStreetGreyConditionRGBSumLargerThanValue)) {
-                        Quantum vMax = vRed;
+                        int32_t vMax = vRed;
                         if (vGreen > vMax) {
                             vMax = vGreen;
                         }
                         if (vBlue > vMax) {
                             vMax = vBlue;
                         }
-                        Quantum vMaxDouble = MasksConfig::mWinterStreetGreyMaxFactor * (Quantum)(vMax);
-                        vRed   = (Quantum)(((Quantum)(rand()) * MasksConfig::mWinterStreetGreyRandomFactor + vMax));
-                        vGreen = (Quantum)(((Quantum)(rand()) * MasksConfig::mWinterStreetGreyRandomFactor + vMax));
-                        vBlue  = (Quantum)(((Quantum)(rand()) * MasksConfig::mWinterStreetGreyRandomFactor + vMax));
+                        float vMaxDouble = MasksConfig::mWinterStreetGreyMaxFactor * (float) (vMax);
+                        vRed   = (int32_t) (((float) (nextDouble(0.0, 1.0)) * MasksConfig::mWinterStreetGreyRandomFactor + vMax));
+                        vGreen = (int32_t) (((float) (nextDouble(0.0, 1.0)) * MasksConfig::mWinterStreetGreyRandomFactor + vMax));
+                        vBlue  = (int32_t) (((float) (nextDouble(0.0, 1.0)) * MasksConfig::mWinterStreetGreyRandomFactor + vMax));
                     } else if ((vSum < MasksConfig::mWinterDarkConditionRGBSumLessThanValue) &&
                              (vSum > MasksConfig::mWinterDarkConditionRGBSumLargerThanValue)) {
                         // Rather dark pixel, but not black
@@ -371,6 +407,8 @@ void c_create_winter(string imgName, string outName) {
                         vBlue  += MasksConfig::mWinterRestBlueAddition;
                     }
                 }
+                limitRGBValues(&vRed, &vGreen, &vBlue);
+
                 pixel[0] = vRed;
                 pixel[1] = vGreen;
                 pixel[2] = vBlue;
