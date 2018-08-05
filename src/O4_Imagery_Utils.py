@@ -14,7 +14,8 @@ import O4_UI_Utils as UI
 try:
     import O4_Custom_URL as URL
     has_URL=True
-except:
+except Exception as e:
+    print("ERROR: Providers/O4_Custom_URL.py contains invalid code. The corresponding providers won't probably work.")
     has_URL=False
 import O4_Geo_Utils as GEO
 import O4_File_Names as FNAMES
@@ -104,6 +105,18 @@ def initialize_extents_dict():
                         extent[key]=[float(x) for x in value.split(",")]
                     except:
                         print("Error in reading mask bounds for extent",extent_code)
+                        valid_extent=False
+                elif key=='buffer_width':
+                    try:
+                        extent[key]=float(value)
+                    except:
+                        print("Error in reading mask buffer width for extent",extent_code)
+                        valid_extent=False
+                elif key=='mask_width':
+                    try:
+                        extent[key]=float(value)
+                    except:
+                        print("Error in reading mask width for extent",extent_code)
                         valid_extent=False
             if valid_extent:
                 extent['code']=extent_code
@@ -363,8 +376,14 @@ def initialize_local_combined_providers_dict(tile):
                             os.makedirs(os.path.join(FNAMES.Extent_dir,'tmp'))
                         cached_file_name=os.path.join(FNAMES.Extent_dir,'LowRes',name+'.osm.bz2')
                         pixel_size=10
-                        buffer_width=float(0)/pixel_size
-                        mask_width=int(300/pixel_size)
+                        try:
+                            buffer_width=extents_dict[name]['buffer_width']/pixel_size
+                        except:
+                            buffer_width=0.0
+                        try:
+                            mask_width=int(extents_dict[name]['mask_width']/pixel_size)
+                        except:
+                            mask_width=int(100/pixel_size)
                         pixel_size = pixel_size/111120 
                         vector_map=VECT.Vector_Map()
                         osm_layer=OSM.OSM_layer()
@@ -374,19 +393,15 @@ def initialize_local_combined_providers_dict(tile):
                             return 0
                         UI.vprint(1,"    Building layer mask for ",name)
                         osm_layer.update_dicosm(cached_file_name,None)
-                        print("top")
                         multipolygon_area=OSM.OSM_to_MultiPolygon(osm_layer,0,0)
                         del(osm_layer)
                         if not multipolygon_area.area:
                             UI.vprint(0,"Error, erroneous OSM data for extent code",name,", skipped.") 
                             continue
-                        print("encode")
                         vector_map.encode_MultiPolygon(multipolygon_area,VECT.dummy_alt,'DUMMY',check=False,cut=False)
                         vector_map.write_node_file(name+'.node')
                         vector_map.write_poly_file(name+'.poly')
-                        print("triangulate")
                         MESH.triangulate(name,'.')
-                        print("make image")
                         ((xmin,ymin,xmax,ymax),mask_im)=MASK.triangulation_to_image(name,pixel_size,(tile.lon-0.1,tile.lat-0.1,tile.lon+1.1,tile.lat+1.1))
                         if buffer_width:
                             mask_im=mask_im.filter(ImageFilter.GaussianBlur(buffer_width/4))
@@ -394,7 +409,6 @@ def initialize_local_combined_providers_dict(tile):
                                 mask_im=Image.fromarray((numpy.array(mask_im,dtype=numpy.uint8)>0).astype(numpy.uint8)*255)
                             else: # buffer width can be negative
                                 mask_im=Image.fromarray((numpy.array(mask_im,dtype=numpy.uint8)==255).astype(numpy.uint8)*255)
-                        print("blur")
                         if mask_width:
                             mask_width+=1
                             img_array=numpy.array(mask_im,dtype=numpy.uint8)
@@ -483,7 +497,7 @@ def has_data(bbox,extent_code,return_mask=False,mask_size=(4096,4096),is_sharp_r
         (xmin,ymin,xmax,ymax)=extents_dict[extent_code]['mask_bounds'] if extent_code!='global' else (-180,-90,180,90)
         if x0>xmax or x1<xmin or y0<ymin or y1>ymax:
             return negative
-        if not is_mask_layer:
+        if (not is_mask_layer) or (x1-x0)==1:
             mask_im=Image.open(os.path.join(FNAMES.Extent_dir,extents_dict[extent_code]['dir'],extents_dict[extent_code]['code']+".png")).convert("L")
             (sizex,sizey)=mask_im.size
             pxx0=int((x0-xmin)/(xmax-xmin)*sizex)
@@ -502,7 +516,7 @@ def has_data(bbox,extent_code,return_mask=False,mask_size=(4096,4096),is_sharp_r
                 return mask_im.resize(mask_size,Image.BICUBIC)
         else:
             # following code only visited when is_mask_layer is True
-            # in which case it is passed as (lat,lon)
+            # in which case it is passed as (lat,lon,mask_zl)
             # check if sea mask file exists
             (lat,lon, mask_zl)=is_mask_layer
             (m_tilx,m_tily)=GEO.wgs84_to_orthogrid((y0+y1)/2,(x0+x1)/2,mask_zl)
@@ -563,7 +577,7 @@ def has_data(bbox,extent_code,return_mask=False,mask_size=(4096,4096),is_sharp_r
 
 ###############################################################################################################################
 def http_request_to_image(width,height,url,request_headers,http_session):
-    UI.vprint(3,"HTTP request issued :",url)
+    UI.vprint(3,"HTTP request issued :",url,"\nRequest headers :",request_headers)
     tentative_request=0
     tentative_image=0
     r=False
@@ -625,8 +639,9 @@ def http_request_to_image(width,height,url,request_headers,http_session):
 
 ###############################################################################################################################
 def get_wms_image(bbox,width,height,provider,http_session):
+    request_headers=None 
     if has_URL and provider['code'] in URL.custom_url_list:
-        url=URL.custom_wms_request(bbox,width,height,provider)
+        (url,request_headers)=URL.custom_wms_request(bbox,width,height,provider)
     else:
         (minx,maxy,maxx,miny)=bbox
         if provider['wms_version'].split('.')[1]=="3":
@@ -639,10 +654,11 @@ def get_wms_image(bbox,width,height,provider,http_session):
                 "&REQUEST=GetMap&LAYERS="+provider['layers']+"&STYLES=&"+_RS+"=EPSG:"+str(provider['epsg_code'])+\
                 "&WIDTH="+str(width)+"&HEIGHT="+str(height)+\
                 "&BBOX="+bbox_string 
-    if 'fake_headers' in provider:
-        request_headers=provider['fake_headers']
-    else:
-        request_headers=request_headers_generic 
+    if not request_headers:
+        if 'fake_headers' in provider:
+            request_headers=provider['fake_headers']
+        else:
+            request_headers=request_headers_generic
     (success,data)=http_request_to_image(width,height,url,request_headers,http_session)
     if success: 
         return (1,data) 
@@ -655,8 +671,9 @@ def get_wmts_image(tilematrix,til_x,til_y,provider,http_session):
   til_x_orig,til_y_orig=til_x,til_y
   down_sample=0
   while True:
+    request_headers=None  
     if has_URL and provider['code'] in URL.custom_url_list:
-        url=URL.custom_tms_request(tilematrix,til_x,til_y,provider)     
+        (url,request_headers)=URL.custom_tms_request(tilematrix,til_x,til_y,provider)     
     elif provider['request_type']=='tms': # TMS
         url=provider['url_template'].replace('{zoom}',str(tilematrix))
         url=url.replace('{x}',str(til_x)) 
@@ -685,10 +702,11 @@ def get_wmts_image(tilematrix,til_x,til_y,provider,http_session):
         else:
             UI.vprint(2,"! File ",url_local,"absent, using white texture instead !")
             return (0,Image.new('RGB',(provider['tile_size'],provider['tile_size']),'white'))
-    if 'fake_headers' in provider:
-        request_headers=provider['fake_headers']
-    else:
-        request_headers=request_headers_generic
+    if not request_headers:
+        if 'fake_headers' in provider:
+            request_headers=provider['fake_headers']
+        else:
+            request_headers=request_headers_generic
     width=height=provider['tile_size'] 
     (success,data)=http_request_to_image(width,height,url,request_headers,http_session)
     if success and not down_sample: 
@@ -1231,10 +1249,10 @@ def combine_textures(tile,til_x_left,til_y_top,zoomlevel,provider_code):
             true_im=true_im.crop((pixx0,pixy0,pixx1,pixy1)).resize((4096,4096),Image.BICUBIC)
         # in case the smoothing of the extent mask was too strong we remove the
         # the mask (where it is nor 0 nor 255) the pixels for which the true_im
-        # is all white
-        # true_arr=numpy.array(true_im).astype(numpy.uint16)
-        # mask[(numpy.sum(true_arr,axis=2)>=715)*(mask>=1)*(mask<=253)]=0
-        # mask[(numpy.sum(true_arr,axis=2)<=15)*(mask>=1)*(mask<=253)]=0
+        # is all white or all black
+        true_arr=numpy.array(true_im).astype(numpy.uint16)
+        #mask[(numpy.sum(true_arr,axis=2)>=735)*(mask>=1)*(mask<=253)]=0
+        mask[(numpy.sum(true_arr,axis=2)<=35)]=0 #*(mask>=1)*(mask<=253)]=0
         if rlayer['priority']=='low':
             # low priority layers, do not increase mask_weight_below
             wasnt_zero=(mask_weight_below+mask)!=0

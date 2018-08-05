@@ -153,7 +153,7 @@ class DEM():
     def alt_strict(self,node):
         x=node[0]
         y=node[1]
-        return self.nodata if ((x>self.x1) or (x<self.x0) or (y<self.y0) or (y>self.y1)) else self.alt_dem[round((self.y1-y)/(self.y1-self.y0)*(self.nydem-1)),round((x-self.x0)/(self.x1-self.x0)*(self.nxdem-1))]
+        return self.nodata if ((x>self.x1) or (x<self.x0) or (y<self.y0) or (y>self.y1)) else self.alt_dem[int(round((self.y1-y)/(self.y1-self.y0)*(self.nydem-1))),int(round((x-self.x0)/(self.x1-self.x0)*(self.nxdem-1)))]
         
     def alt_composite(self,node):
         for subdem in self.subdems[::-1]:

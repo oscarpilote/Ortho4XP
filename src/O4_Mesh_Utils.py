@@ -16,12 +16,16 @@ import O4_Version
 if 'dar' in sys.platform:
     Triangle4XP_cmd = os.path.join(FNAMES.Utils_dir,"Triangle4XP.app ")
     triangle_cmd    = os.path.join(FNAMES.Utils_dir,"triangle.app ")
+    sort_mesh_cmd   = os.path.join(FNAMES.Utils_dir,"moulinette.app ")
 elif 'win' in sys.platform: 
     Triangle4XP_cmd = os.path.join(FNAMES.Utils_dir,"Triangle4XP.exe ")
     triangle_cmd    = os.path.join(FNAMES.Utils_dir,"triangle.exe ")
+    sort_mesh_cmd   = os.path.join(FNAMES.Utils_dir,"moulinette.exe ")
 else:
     Triangle4XP_cmd = os.path.join(FNAMES.Utils_dir,"Triangle4XP ")
     triangle_cmd    = os.path.join(FNAMES.Utils_dir,"triangle ")
+    sort_mesh_cmd   = os.path.join(FNAMES.Utils_dir,"moulinette ")
+
 
 ##############################################################################
 def is_in_region(lat,lon,latmin,latmax,lonmin,lonmax):
@@ -399,6 +403,30 @@ def build_mesh(tile):
     
     UI.timings_and_bottom_line(timer)
     UI.logprint("Step 2 for tile lat=",tile.lat,", lon=",tile.lon,": normal exit.")
+    return 1
+##############################################################################
+
+##############################################################################
+def sort_mesh(tile):
+    if UI.is_working: return 0
+    UI.is_working=1
+    UI.red_flag=False  
+    mesh_file = FNAMES.mesh_file(tile.build_dir,tile.lat,tile.lon)
+    if not os.path.isfile(mesh_file):
+        UI.exit_message_and_bottom_line("\nERROR: Could not find ",mesh_file)
+        return 0
+    sort_mesh_cmd_list=[sort_mesh_cmd.strip(),str(tile.default_zl),mesh_file]
+    UI.vprint(1,"-> Reorganizing mesh triangles.")
+    timer=time.time()
+    moulinette=subprocess.Popen(sort_mesh_cmd_list,stdout=subprocess.PIPE,bufsize=0)
+    while True:
+        line = moulinette.stdout.readline()
+        if not line: 
+            break
+        else:
+            print(line.decode("utf-8")[:-1])
+    UI.timings_and_bottom_line(timer)
+    UI.logprint("Moulinette applied for tile lat=",tile.lat,", lon=",tile.lon," and ZL",tile.default_zl)
     return 1
 ##############################################################################
 

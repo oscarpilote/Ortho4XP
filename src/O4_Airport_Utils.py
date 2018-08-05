@@ -440,9 +440,12 @@ def encode_runways_taxiways_and_aprons(tile,airport_layer,dico_airports,vector_m
             for subpol in VECT.ensure_MultiPolygon(pol.intersection(ops.cascaded_union([pol2 for pol2 in pols if pol2!=pol]))):
                 seeds['RUNWAY'].append(numpy.array(subpol.representative_point()))   
         ## Then taxiways
-        #cleaned_taxiway_area=VECT.improved_buffer(apt['taxiway'][0].difference(VECT.improved_buffer(apt['runway'][0],10,0,0).union(VECT.improved_buffer(apt['hangar'],20,0,0))),5,3,1)
-        cleaned_taxiway_area=VECT.improved_buffer(apt['taxiway'][0].difference(VECT.improved_buffer(apt['hangar'],20,0,0)),0,0,0.5)
+        ## Not sure if it is best to separate them from the runway or not...  
+        cleaned_taxiway_area=VECT.improved_buffer(apt['taxiway'][0].difference(VECT.improved_buffer(apt['runway'][0],5,0,0).union(VECT.improved_buffer(apt['hangar'],20,0,0))),3,2,0.5)
+        #cleaned_taxiway_area=VECT.improved_buffer(apt['taxiway'][0].difference(VECT.improved_buffer(apt['hangar'],20,0,0)),0,1,0.5)
         for pol in VECT.ensure_MultiPolygon(VECT.cut_to_tile(cleaned_taxiway_area)):
+            if not pol.is_valid or pol.is_empty or pol.area<1e-9: 
+                continue
             way=numpy.round(VECT.refine_way(numpy.array(pol.exterior),20),7)
             alti_way=numpy.array([VECT.weighted_alt(node,alt_idx,alt_dico,tile.dem) for node in way]).reshape((len(way),1))
             vector_map.insert_way(numpy.hstack([way,alti_way]),'TAXIWAY',check=True) 
@@ -451,7 +454,7 @@ def encode_runways_taxiways_and_aprons(tile,airport_layer,dico_airports,vector_m
                 alti_way=numpy.array([VECT.weighted_alt(node,alt_idx,alt_dico,tile.dem) for node in way]).reshape((len(way),1))
                 vector_map.insert_way(numpy.hstack([way,alti_way]),'TAXIWAY',check=True)
             seeds['TAXIWAY'].append(numpy.array(pol.representative_point()))
-        ## Try to bring some aprons with, we are looking for the small ones along runways
+        ## Try to bring some aprons with, we are looking for the small ones along runways, you just need to add the 'include' tag to that apron in JOSM (local copy)
         for wayid in apt['apron'][1]: 
             if wayid not in airport_layer.dicosmtags['w'] or 'include' not in airport_layer.dicosmtags['w'][wayid]: continue
             try:
@@ -497,24 +500,26 @@ def encode_hangars(tile,dico_airports,vector_map,patches_list):
 ####################################################################################################    
     
 ####################################################################################################    
-def flatten_helipads(airport_layer,vector_map,tile):
+def flatten_helipads(airport_layer,vector_map,tile, patches_area):
     multipol=[]
     seeds=[]
     total=0
+    # helipads whose boundary is encoded in OSM
     for wayid in (x for x in airport_layer.dicosmw if x in airport_layer.dicosmtags['w'] and 'aeroway' in airport_layer.dicosmtags['w'][x] and airport_layer.dicosmtags['w'][x]['aeroway']=='helipad'):
         if airport_layer.dicosmw[wayid][0]!=airport_layer.dicosmw[wayid][-1]: continue
         way=numpy.round(numpy.array([airport_layer.dicosmn[nodeid] for nodeid in airport_layer.dicosmw[wayid]])-numpy.array([[tile.lon,tile.lat]]),7)
         pol=geometry.Polygon(way)
-        if (pol.is_empty) or (not pol.is_valid) or (not pol.area): continue
+        if (pol.is_empty) or (not pol.is_valid) or (not pol.area) or (pol.intersects(patches_area)): continue
         multipol.append(pol)
         alti_way=numpy.ones((len(way),1))*numpy.mean(tile.dem.alt_vec(way))
         vector_map.insert_way(numpy.hstack([way,alti_way]),'INTERP_ALT',check=True) 
         seeds.append(numpy.array(pol.representative_point()))
         total+=1
     helipad_area=ops.cascaded_union(multipol)
+    # helipads that are only encoded as nodes, they will be grown into hexagons
     for nodeid in (x for x in airport_layer.dicosmn if x in airport_layer.dicosmtags['n'] and 'aeroway' in airport_layer.dicosmtags['n'][x] and airport_layer.dicosmtags['n'][x]['aeroway']=='helipad'):
         center=numpy.round(numpy.array(airport_layer.dicosmn[nodeid])-numpy.array([tile.lon,tile.lat]),7)
-        if geometry.Point(center).intersects(helipad_area): 
+        if geometry.Point(center).intersects(helipad_area) or geometry.Point(center).intersects(patches_area): 
             continue
         way=numpy.round(center+numpy.array([[cos(k*pi/3)*7*GEO.m_to_lon(tile.lat),sin(k*pi/3)*7*GEO.m_to_lat] for k in range(7)]),7)
         alti_way=numpy.ones((len(way),1))*numpy.mean(tile.dem.alt_vec(way))
