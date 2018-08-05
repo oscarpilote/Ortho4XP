@@ -78,13 +78,15 @@ def build_masks(tile):
     ####################
     [til_x_min,til_y_min]=GEO.wgs84_to_orthogrid(tile.lat+1,tile.lon,tile.mask_zl)
     [til_x_max,til_y_max]=GEO.wgs84_to_orthogrid(tile.lat,tile.lon+1,tile.mask_zl)
-    UI.vprint(1,"-> Deleting existing masks")
-    for til_x in range(til_x_min,til_x_max+1,16):
-        for til_y in range(til_y_min,til_y_max+1,16):
-            try:
-                os.remove(os.path.join(FNAMES.mask_dir(tile.lat,tile.lon), FNAMES.legacy_mask(til_x, til_y)))
-            except:
-                pass
+    # only delete masks for xplane... might ask Oscar why he does this and doesnt make this an option
+    if not O4_ESP_Globals.build_for_ESP:
+        UI.vprint(1,"-> Deleting existing masks")
+        for til_x in range(til_x_min,til_x_max+1,16):
+            for til_y in range(til_y_min,til_y_max+1,16):
+                try:
+                    os.remove(os.path.join(FNAMES.mask_dir(tile.lat,tile.lon), FNAMES.legacy_mask(til_x, til_y)))
+                except:
+                    pass
     UI.vprint(1,"-> Reading mesh data")
     for mesh_file_name in mesh_file_name_list:
         try:
@@ -305,6 +307,11 @@ def build_masks(tile):
             continue
         else:
             UI.vprint(1,"   Creating", mask_name)
+
+            mask_img_name = os.path.join(FNAMES.mask_dir(tile.lat, tile.lon), mask_name)
+            if O4_ESP_Globals.build_for_ESP and os.path.isfile(mask_img_name):
+                UI.vprint(1,"   The mask file "+ mask_img_name +" is already present, so don't have to build it")
+                continue
 
         # Blur of the mask
         pxscal=GEO.webmercator_pixel_size(tile.lat+0.5,tile.mask_zl)
