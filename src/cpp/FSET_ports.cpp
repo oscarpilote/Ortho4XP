@@ -26,8 +26,7 @@ static void limitRGBValues(int32_t *xRed, int32_t *xGreen, int32_t *xBlue) {
     }
     if (*xBlue > (int) UCHAR_MAX) {
         *xBlue = (int) UCHAR_MAX;
-    }
-    else {
+    } else {
         if (*xBlue >= 0) {
           return;
         }
