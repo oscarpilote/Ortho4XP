@@ -1,7 +1,7 @@
-https://download.lfd.uci.edu/pythonlibs/l8ulg3xw/pyproj‑1.9.5.1‑cp37‑cp37m‑win_amd64.whl
-https://download.lfd.uci.edu/pythonlibs/l8ulg3xw/numpy‑1.15.0+mkl‑cp37‑cp37m‑win_amd64.whl
-https://download.lfd.uci.edu/pythonlibs/l8ulg3xw/GDAL‑2.2.4‑cp37‑cp37m‑win_amd64.whl
-https://download.lfd.uci.edu/pythonlibs/l8ulg3xw/Shapely‑1.6.4.post1‑cp37‑cp37m‑win_amd64.whl
-https://download.lfd.uci.edu/pythonlibs/l8ulg3xw/Rtree‑0.8.3‑cp37‑cp37m‑win_amd64.whl
+﻿https://download.lfd.uci.edu/pythonlibs/l8ulg3xw/pyproj-1.9.5.1-cp37-cp37m-win_amd64.whl
+https://download.lfd.uci.edu/pythonlibs/l8ulg3xw/numpy-1.15.0+mkl-cp37-cp37m-win_amd64.whl
+https://download.lfd.uci.edu/pythonlibs/l8ulg3xw/GDAL-2.2.4-cp37-cp37m-win_amd64.whl
+https://download.lfd.uci.edu/pythonlibs/l8ulg3xw/Shapely-1.6.4.post1-cp37-cp37m-win_amd64.whl
+https://download.lfd.uci.edu/pythonlibs/l8ulg3xw/Rtree-0.8.3-cp37-cp37m-win_amd64.whl
 https://download.lfd.uci.edu/pythonlibs/l8ulg3xw/Pillow-5.2.0-cp37-cp37m-win_amd64.whl
 requests
