@@ -3,7 +3,6 @@
 
 #include <Magick++.h>
 #include <climits>
-#include <string>
 
 using namespace Magick;
 using namespace std;
@@ -126,13 +125,30 @@ class MasksConfig {
         static const bool mHardWinterStreetsConditionOn = true;
 };
 
-void foreach_pixel(Image *img, void (*callback)(Quantum *));
-bool pixelIsWaterOrWaterTransition(Quantum *pixel);
-void c_create_night(string imgName, string outName);
-void c_create_hard_winter(string imgName, string outName);
-void c_create_autumn(string imgName, string outName);
-void c_create_spring(string imgName, string outName);
-void c_create_winter(string imgName, string outName);
+class WaterPixelChecker {
+private:
+    ssize_t imgColumns;
+    ssize_t imgChannels;
+    char *mask_img_path = NULL;
+    bool maskFileExists = false;
+    Pixels *pixelsView = NULL;
+    Quantum *pixels = NULL;
+public:
+    WaterPixelChecker(char *mask_img_path);
+    ~WaterPixelChecker();
+    bool pixelIsWaterOrWaterTransition(ssize_t x, ssize_t y);
+    void setMaskAndGetGetPixels(char *mask_img_path);
+    Quantum * getPixels(Image *img);
+};
+
+bool fileExists(char *fileName);
+void foreach_pixel(Image *img, std::function<void(Quantum *)> callback);
+bool pixelIsWaterOrWaterTransition(Quantum *pixel, char *mask_img_path);
+void c_create_night(char *imgName, char *outName, char *mask_img_path);
+void c_create_hard_winter(char *imgName, char *outName, char *mask_img_path);
+void c_create_autumn(char *imgName, char *outName, char *mask_img_path);
+void c_create_spring(char *imgName, char *outName, char *mask_img_path);
+void c_create_winter(char *imgName, char *outName, char *mask_img_path);
 
 #endif
 

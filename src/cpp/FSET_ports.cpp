@@ -34,18 +34,18 @@ static void limitRGBValues(int32_t *xRed, int32_t *xGreen, int32_t *xBlue) {
     }
 }
 
-void foreach_pixel(Image *img, void (*callback)(Quantum *)) {
+void foreach_pixel(Image *img, std::function<void(Quantum *, ssize_t, ssize_t)> callback) {
     img->modifyImage();
     // Allocate pixel view
     Pixels view(*img);
-    // Set all pixels in region anchored at 38x36, with size 160x230 to green.
+    // Set all pixels in region anchored at 0x0, with size rowsxcolumns to green.
     size_t columns = img->columns();
     size_t rows = img->rows();
     Quantum *pixels = view.get(0, 0, columns, rows);
     for (ssize_t row = 0; row < rows; row++) {
         for (ssize_t column = 0; column < columns; column++) {
             unsigned int offset = img->channels() * (columns * row + column);
-            (*callback)(pixels + offset);
+            callback(pixels + offset, column, row);
         }
     }
 
@@ -53,16 +53,83 @@ void foreach_pixel(Image *img, void (*callback)(Quantum *)) {
     view.sync();
 }
 
-// I made this function determine if a pixel is close enough to pure blue. if it is close enough
-// I consider it water or water transition. Didn't decompile FSET function to see how it works, but the
-// below function gives me adequate results
-bool pixelIsWaterOrWaterTransition(Quantum *pixel) {
-    const Quantum BLUE_DIFF_THRESHOLD = 50;
-    Quantum redDiff = abs(0 - pixel[0]);   
-    Quantum greenDiff = abs(1 - pixel[1]);   
-    Quantum blueDiff = abs(2 - pixel[2]);   
+static Quantum * getPixel(Image *img, Quantum *pixels, ssize_t x, ssize_t y) {
+    size_t columns = img->columns();
+    unsigned int offset = img->channels() * (columns * y + x);
 
-    if (((redDiff + greenDiff + blueDiff) / 3.0) <= BLUE_DIFF_THRESHOLD) {
+    return (pixels + offset);
+}
+
+bool fileExists(char *fileName) {
+    if (!fileName) {
+        return false;
+    }
+
+    FILE *file = fopen(fileName, "r");
+    bool exists = false;
+    if (file) {
+        exists = true;
+        fclose(file);
+    }
+
+    return exists;
+}
+
+WaterPixelChecker::WaterPixelChecker(char *mask_img_path) {
+    this->setMaskAndGetGetPixels(mask_img_path);
+}
+
+WaterPixelChecker::~WaterPixelChecker() {
+    if (pixelsView) {
+        delete pixelsView;
+        pixelsView = NULL;
+    }
+}
+
+Quantum * WaterPixelChecker::getPixels(Image *img) {
+    if (pixelsView) {
+        delete pixelsView;
+        pixelsView = NULL;
+    }
+    // Allocate pixel view
+    pixelsView = new Pixels(*img);
+    // Set all pixels in region anchored at 0x0, with size rowsxcolumns to green.
+    size_t columns = img->columns();
+    size_t rows = img->rows();
+    // these pixels are handled by view and won't be dealloced until view is...
+    Quantum *pixels = pixelsView->get(0, 0, columns, rows);
+
+    return pixels;
+}
+
+void WaterPixelChecker::setMaskAndGetGetPixels(char *mask_img_path) {
+    this->mask_img_path = mask_img_path;
+    maskFileExists = fileExists(mask_img_path);
+    if (maskFileExists) {
+        Image img;
+        img.read(mask_img_path);
+        imgColumns = img.columns();
+        imgChannels = img.channels();
+        pixels = getPixels(&img);
+    }
+}
+
+// FSET uses Area.kml, we use water mask tiff file
+bool WaterPixelChecker::pixelIsWaterOrWaterTransition(ssize_t x, ssize_t y) {
+    if (!mask_img_path) {
+        return false;
+    }
+    if (!maskFileExists) {
+        return false;
+    }
+    unsigned int offset = imgChannels * (imgColumns * y + x);
+    Quantum *pixel = (pixels + offset);
+    int32_t red = pixel[0];
+    int32_t green = pixel[1];
+    int32_t blue = pixel[2];
+
+    // all black pixel == water
+    if (red == 0 && green == 0 && blue == 0) {
         return true;
     }
 
@@ -70,17 +137,19 @@ bool pixelIsWaterOrWaterTransition(Quantum *pixel) {
 }
 
 // the below functions are ports from FSET night/season creation scripts
-void c_create_night(string imgName, string outName) {
+void c_create_night(char *imgName, char *outName, char *mask_img_path) {
     try {
         Image img;
         img.read(imgName);
+        WaterPixelChecker pixelChecker(mask_img_path);
+
         foreach_pixel(&img,
-            [](Quantum *pixel) {
+            [&pixelChecker](Quantum *pixel, ssize_t x, ssize_t y) {
                 int32_t vRed = (int32_t) pixel[0];
                 int32_t vGreen = (int32_t) pixel[1];
                 int32_t vBlue = (int32_t) pixel[2];
 
-                bool vIsWater = pixelIsWaterOrWaterTransition(pixel);
+                bool vIsWater = pixelChecker.pixelIsWaterOrWaterTransition(x, y);
                 ssize_t vSum = vRed + vGreen + vBlue;
 
                 if ((!vIsWater) &&
@@ -121,23 +190,26 @@ void c_create_night(string imgName, string outName) {
                 pixel[2] = vBlue;
             }
         );
-        outName = "BMP3:" + outName;
-        img.write(outName);
+        string outString(outName);
+        outString = "BMP3:" + outString;
+        img.write(outString);
     } catch(Exception &error_) {
         cout << "Caught exception: " << error_.what() << endl;
     }
 }
-void c_create_hard_winter(string imgName, string outName) {
+void c_create_hard_winter(char *imgName, char *outName, char *mask_img_path) {
     try {
         Image img;
         img.read(imgName);
+        WaterPixelChecker pixelChecker(mask_img_path);
+
         foreach_pixel(&img,
-            [](Quantum *pixel) {
+            [&pixelChecker](Quantum *pixel, ssize_t x, ssize_t y) {
                 int32_t vRed = (int32_t) pixel[0];
                 int32_t vGreen = (int32_t) pixel[1];
                 int32_t vBlue = (int32_t) pixel[2];
 
-                bool vIsWater = pixelIsWaterOrWaterTransition(pixel);
+                bool vIsWater = pixelChecker.pixelIsWaterOrWaterTransition(x, y);
                 bool vStreets = true;
                 ssize_t vSum = vRed + vGreen + vBlue;
                 bool vDontAlterColor = MasksConfig::mSpareOutWaterForSeasonsGeneration && vIsWater;
@@ -231,25 +303,27 @@ void c_create_hard_winter(string imgName, string outName) {
                 pixel[2] = vBlue;
             }
         );
-        outName = "BMP3:" + outName;
-        img.write(outName);
+        string outString(outName);
+        outString = "BMP3:" + outString;
+        img.write(outString);
     } catch(Exception &error_) {
         cout << "Caught exception: " << error_.what() << endl;
     }
 }
-void c_create_autumn(string imgName, string outName) {
+void c_create_autumn(char *imgName, char *outName, char *mask_img_path) {
     try {
         Image img;
         img.read(imgName);
+        WaterPixelChecker pixelChecker(mask_img_path);
+
         foreach_pixel(&img,
-            [](Quantum *pixel) {
+            [&pixelChecker](Quantum *pixel, ssize_t x, ssize_t y) {
                 int32_t vRed = (int32_t) pixel[0];
                 int32_t vGreen = (int32_t) pixel[1];
                 int32_t vBlue = (int32_t) pixel[2];
 
-                bool vIsWater = pixelIsWaterOrWaterTransition(pixel);
                 ssize_t vSum = vRed + vGreen + vBlue;
-                bool vDontAlterColor = MasksConfig::mSpareOutWaterForSeasonsGeneration && pixelIsWaterOrWaterTransition(pixel);
+                bool vDontAlterColor = MasksConfig::mSpareOutWaterForSeasonsGeneration && pixelChecker.pixelIsWaterOrWaterTransition(x, y);
 
                 if (!vDontAlterColor) {
                     vSum = vRed + vGreen + vBlue;
@@ -289,25 +363,28 @@ void c_create_autumn(string imgName, string outName) {
                 pixel[2] = vBlue;
             }
         );
-        outName = "BMP3:" + outName;
-        img.write(outName);
+        string outString(outName);
+        outString = "BMP3:" + outString;
+        img.write(outString);
     } catch(Exception &error_) {
         cout << "Caught exception: " << error_.what() << endl;
     }
 }
-void c_create_spring(string imgName, string outName) {
+void c_create_spring(char *imgName, char *outName, char *mask_img_path) {
     try {
         Image img;
         img.read(imgName);
+        WaterPixelChecker pixelChecker(mask_img_path);
+
         foreach_pixel(&img,
-            [](Quantum *pixel) {
+            [&pixelChecker](Quantum *pixel, ssize_t x, ssize_t y) {
                 int32_t vRed = (int32_t) pixel[0];
                 int32_t vGreen = (int32_t) pixel[1];
                 int32_t vBlue = (int32_t) pixel[2];
 
                 ssize_t vSum = vRed + vGreen + vBlue;
 
-                bool vDontAlterColor = MasksConfig::mSpareOutWaterForSeasonsGeneration && pixelIsWaterOrWaterTransition(pixel);
+                bool vDontAlterColor = MasksConfig::mSpareOutWaterForSeasonsGeneration && pixelChecker.pixelIsWaterOrWaterTransition(x, y);
 
                 if (!vDontAlterColor) {
                     vSum = vRed + vGreen + vBlue;
@@ -342,25 +419,28 @@ void c_create_spring(string imgName, string outName) {
                 pixel[2] = vBlue;
             }
         );
-        outName = "BMP3:" + outName;
-        img.write(outName);
+        string outString(outName);
+        outString = "BMP3:" + outString;
+        img.write(outString);
     } catch(Exception &error_) {
         cout << "Caught exception: " << error_.what() << endl;
     }
 }
-void c_create_winter(string imgName, string outName) {
+void c_create_winter(char *imgName, char *outName, char *mask_img_path) {
     try {
         Image img;
         img.read(imgName);
+        WaterPixelChecker pixelChecker(mask_img_path);
+
         foreach_pixel(&img,
-            [](Quantum *pixel) {
+            [&pixelChecker](Quantum *pixel, ssize_t x, ssize_t y) {
                 int32_t vRed = (int32_t) pixel[0];
                 int32_t vGreen = (int32_t) pixel[1];
                 int32_t vBlue = (int32_t) pixel[2];
 
                 ssize_t vSum = vRed + vGreen + vBlue;
 
-                bool vIsWater = pixelIsWaterOrWaterTransition(pixel);
+                bool vIsWater = pixelChecker.pixelIsWaterOrWaterTransition(x, y);
                 bool vDontAlterColor = MasksConfig::mSpareOutWaterForSeasonsGeneration && vIsWater;
                 //bool vSnowAllowed    = !(MasksConfig::mNoSnowInWaterForWinterAndHardWinter && vIsWater);
 
@@ -413,8 +493,9 @@ void c_create_winter(string imgName, string outName) {
                 pixel[2] = vBlue;
             }
         );
-        outName = "BMP3:" + outName;
-        img.write(outName);
+        string outString(outName);
+        outString = "BMP3:" + outString;
+        img.write(outString);
     } catch(Exception &error_) {
         cout << "Caught exception: " << error_.what() << endl;
     }

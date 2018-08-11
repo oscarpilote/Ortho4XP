@@ -213,7 +213,6 @@ def run_ESP_resample(build_dir):
         print("resample.exe doesn't exist at " + O4_Config_Utils.ESP_resample_loc + ", quitting")
         return
 
-
     # call resample on each individual file, to avoid file name too long errors with subprocess
     # https://stackoverflow.com/questions/2381241/what-is-the-subprocess-popen-max-length-of-the-args-parameter
     # passing shell=True to subprocess didn't help with this error when there are a large amount of inf files to process
@@ -223,18 +222,28 @@ def run_ESP_resample(build_dir):
             file_name, file_extension = os.path.splitext(os.path.abspath(build_dir + os.sep + full_file_name))
             if file_extension == ".inf":
                 inf_abs_path = file_name + file_extension
+
+                # TODO: refactor below code into function as you've repeated it above...
+                build_dir_path_parts = os.path.abspath(build_dir + os.sep + full_file_name).split(os.sep)
+                str_lat_lon_folder_name = build_dir_path_parts[build_dir_path_parts.index("Orthophotos") + 1] + os.sep + build_dir_path_parts[build_dir_path_parts.index("Orthophotos") + 2]
+                img_mask_folder_abs_path = os.path.abspath(FNAMES.Ortho4XP_dir + os.sep + "Masks" + os.sep + str_lat_lon_folder_name)
+                img_mask_name = "_".join(full_file_name.split(".inf")[0].split("_")[0:2]) + ".tif"
+                img_mask_abs_path = os.path.abspath(img_mask_folder_abs_path + os.sep + img_mask_name)
+                should_mask = (O4_ESP_Globals.do_build_masks and os.path.isfile(img_mask_abs_path))
+                if not should_mask:
+                    img_mask_abs_path = None
                 # we create the night and seasonal textures at resample time, and delete them right after...
                 # why? to not require a ridiculously large amount of storage space...
                 if O4_Config_Utils.create_ESP_night:
-                    create_night(file_name + ".bmp", file_name + "_night.bmp")
+                    create_night(file_name + ".bmp", file_name + "_night.bmp", img_mask_abs_path)
                 if O4_Config_Utils.create_ESP_spring:
-                    create_spring(file_name + ".bmp", file_name + "_spring.bmp")
+                    create_spring(file_name + ".bmp", file_name + "_spring.bmp", img_mask_abs_path)
                 if O4_Config_Utils.create_ESP_fall:
-                    create_autumn(file_name + ".bmp", file_name + "_fall.bmp")
+                    create_autumn(file_name + ".bmp", file_name + "_fall.bmp", img_mask_abs_path)
                 if O4_Config_Utils.create_ESP_winter:
-                    create_winter(file_name + ".bmp", file_name + "_winter.bmp")
+                    create_winter(file_name + ".bmp", file_name + "_winter.bmp", img_mask_abs_path)
                 if O4_Config_Utils.create_ESP_hard_winter:
-                    create_hard_winter(file_name + ".bmp", file_name + "_hard_winter.bmp")
+                    create_hard_winter(file_name + ".bmp", file_name + "_hard_winter.bmp", img_mask_abs_path)
 
                 subprocess.call([O4_Config_Utils.ESP_resample_loc, inf_abs_path])
                 # now remove the extra night/season bmps

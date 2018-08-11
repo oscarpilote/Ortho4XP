@@ -12,60 +12,60 @@ using namespace Magick;
 // hello_module.print_hello_world
 static PyObject * create_night(PyObject *self, PyObject *args) {
     InitializeMagick("");
-    const char *imgName, *outName;
-    if (!PyArg_ParseTuple(args, "ss", &imgName, &outName)) {
+    char *imgName, *outName, *maskName;
+    if (!PyArg_ParseTuple(args, "zzz", &imgName, &outName, &maskName)) {
         return NULL;
     }
 
-    c_create_night(imgName, outName);
+    c_create_night(imgName, outName, maskName);
 
     Py_RETURN_NONE;
 }
 
 static PyObject * create_hard_winter(PyObject *self, PyObject *args) {
     InitializeMagick("");
-    const char *imgName, *outName;
-    if (!PyArg_ParseTuple(args, "ss", &imgName, &outName)) {
+    char *imgName, *outName, *maskName;
+    if (!PyArg_ParseTuple(args, "zzz", &imgName, &outName, &maskName)) {
         return NULL;
     }
 
-    c_create_hard_winter(imgName, outName);
+    c_create_hard_winter(imgName, outName, maskName);
 
     Py_RETURN_NONE;
 }
 
 static PyObject * create_autumn(PyObject *self, PyObject *args) {
     InitializeMagick("");
-    const char *imgName, *outName;
-    if (!PyArg_ParseTuple(args, "ss", &imgName, &outName)) {
+    char *imgName, *outName, *maskName;
+    if (!PyArg_ParseTuple(args, "zzz", &imgName, &outName, &maskName)) {
         return NULL;
     }
 
-    c_create_autumn(imgName, outName);
+    c_create_autumn(imgName, outName, maskName);
 
     Py_RETURN_NONE;
 }
 
 static PyObject * create_spring(PyObject *self, PyObject *args) {
     InitializeMagick("");
-    const char *imgName, *outName;
-    if (!PyArg_ParseTuple(args, "ss", &imgName, &outName)) {
+    char *imgName, *outName, *maskName;
+    if (!PyArg_ParseTuple(args, "zzz", &imgName, &outName, &maskName)) {
         return NULL;
     }
 
-    c_create_spring(imgName, outName);
+    c_create_spring(imgName, outName, maskName);
 
     Py_RETURN_NONE;
 }
 
 static PyObject * create_winter(PyObject *self, PyObject *args) {
     InitializeMagick("");
-    const char *imgName, *outName;
-    if (!PyArg_ParseTuple(args, "ss", &imgName, &outName)) {
+    char *imgName, *outName, *maskName;
+    if (!PyArg_ParseTuple(args, "zzz", &imgName, &outName, &maskName)) {
         return NULL;
     }
 
-    c_create_winter(imgName, outName);
+    c_create_winter(imgName, outName, maskName);
 
     Py_RETURN_NONE;
 }
