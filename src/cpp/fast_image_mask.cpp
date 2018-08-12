@@ -3,6 +3,7 @@
 #include <Magick++.h>
 #include "FSET_ports.h"
 #include <string>
+#include <stdlib.h>
 
 using namespace std;
 using namespace Magick;
@@ -132,6 +133,9 @@ static struct PyModuleDef fast_image_mask_definition = {
 // the name keyword argument in setup.py's setup() call.
 PyMODINIT_FUNC PyInit_fast_image_mask(void) {
     Py_Initialize();
+#ifdef _WIN32
+    _putenv_s("MAGICK_CODER_MODULE_PATH", "./");
+#endif
 
     return PyModule_Create(&fast_image_mask_definition);
 }
