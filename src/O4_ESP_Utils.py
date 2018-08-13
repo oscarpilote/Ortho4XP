@@ -206,6 +206,10 @@ def make_ESP_inf_file(file_dir, file_name, til_x_left, til_x_right, til_y_top, t
 
 
 def run_ESP_resample(build_dir):
+    if not build_dir:
+        print("ESP_build_dir is None inside of resample... something went wrong, so can't run resample")
+        return
+
     if O4_Config_Utils.ESP_resample_loc is '':
         print("No resample.exe is specified in Ortho4XP.cfg, quitting")
         return
