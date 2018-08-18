@@ -2,6 +2,9 @@
 
 # Use at your own risk
 
+Please install ImageMagick before attempting to run, otherwise the night/seasonal creation won't work. An installer has been provided inside the dist/ directory.
+The same installer can also be found here: https://www.imagemagick.org/download/binaries/ImageMagick-7.0.8-10-Q8-x64-dll.exe
+
 A scenery generator for the X-Plane flight simulator
 Work in progress at adding FSX/P3D (ESP support)
 
