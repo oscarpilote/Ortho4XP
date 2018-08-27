@@ -7,6 +7,7 @@ import O4_Config_Utils
 import subprocess
 from fast_image_mask import *
 import glob
+import sys
 from queue import Queue
 from threading import Thread
 
@@ -207,9 +208,11 @@ def make_ESP_inf_file(file_dir, file_name, til_x_left, til_x_right, til_y_top, t
         inf_file.write(contents)
 
 def run_ESP(filename):
-    #print("Running resample.exe on " + filename)
-    subprocess.check_call([O4_Config_Utils.ESP_resample_loc, filename])
+    process = subprocess.Popen([O4_Config_Utils.ESP_resample_loc, filename], creationflags=subprocess.CREATE_NEW_CONSOLE)
+    # wait until done
+    process.communicate()
 
+# TODO: cleanup processes when main program quits
 def worker(queue):
     # """Process files from the queue."""
     for args in iter(queue.get, None):
@@ -239,9 +242,9 @@ def run_ESP_resample(build_dir):
     # passing shell=True to subprocess didn't help with this error when there are a large amount of inf files to process
     # another solution would be to create inf files with multiple sources, but the below is simpler to code...
 	# start threads
-    print("Starting ESP queue")
+    print("Starting ESP queue with a max of " + str(O4_Config_Utils.max_resample_processes) + " processes")
     q = Queue()
-    threads = [Thread(target=worker, args=(q,)) for _ in range(8)]
+    threads = [Thread(target=worker, args=(q,)) for _ in range(O4_Config_Utils.max_resample_processes)]
     for t in threads:
         t.daemon = True # threads die if the program dies
         t.start()
