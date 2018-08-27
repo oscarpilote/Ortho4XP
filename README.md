@@ -12,7 +12,9 @@ The same installer can also be found here: https://www.imagemagick.org/download/
 
 NOTE: Need to provide the location of your resample.exe from the P3D or FSX SDK in Ortho4XP.cfg, like this:
 
-`ESP_resample_loc=C:\LOCATION\TO\resample.exe`
+`ESP_resample_loc=C:\\LOCATION\\TO\\resample.exe`
+
+Notice the double backslashes `\\` instead of single `\`.
 
 You can obtain the P3D resample.exe by installing the P3D SDK provided by Lockheed Martin on their site where you download P3D.
 The FSX resample.exe can be found by installing the FSX SDK found in the FSX Deluxe Disc 2 or in FSX Acceleration Pack (or FSX Gold which includes the Acceleration pack)
