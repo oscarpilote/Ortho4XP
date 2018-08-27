@@ -7,6 +7,9 @@ import O4_Config_Utils
 import subprocess
 from fast_image_mask import *
 import glob
+import sys
+from queue import Queue
+from threading import Thread
 
 #TODO: use os.path.join instead of os.sep and concatenation
 
@@ -204,6 +207,23 @@ def make_ESP_inf_file(file_dir, file_name, til_x_left, til_x_right, til_y_top, t
 
         inf_file.write(contents)
 
+def run_ESP(filename):
+    process = subprocess.Popen([O4_Config_Utils.ESP_resample_loc, filename], creationflags=subprocess.CREATE_NEW_CONSOLE)
+    # wait until done
+    process.communicate()
+
+# TODO: cleanup processes when main program quits
+def worker(queue):
+    # """Process files from the queue."""
+    for args in iter(queue.get, None):
+        try:
+            run_ESP(args)
+            # now remove the extra night/season bmps
+            for file in glob.glob(args[:-4] + "_*.bmp"):
+                os.remove(file)
+        except Exception as e: # catch exceptions to avoid exiting the
+                               # thread prematurely
+            print('%r failed: %s' % (args, e,))
 
 def run_ESP_resample(build_dir):
     if not build_dir:
@@ -221,6 +241,14 @@ def run_ESP_resample(build_dir):
     # https://stackoverflow.com/questions/2381241/what-is-the-subprocess-popen-max-length-of-the-args-parameter
     # passing shell=True to subprocess didn't help with this error when there are a large amount of inf files to process
     # another solution would be to create inf files with multiple sources, but the below is simpler to code...
+	# start threads
+    print("Starting ESP queue with a max of " + str(O4_Config_Utils.max_resample_processes) + " processes")
+    q = Queue()
+    threads = [Thread(target=worker, args=(q,)) for _ in range(O4_Config_Utils.max_resample_processes)]
+    for t in threads:
+        t.daemon = True # threads die if the program dies
+        t.start()
+        
     for (dirpath, dir_names, file_names) in os.walk(build_dir):
         for full_file_name in file_names:
             file_name, file_extension = os.path.splitext(os.path.abspath(build_dir + os.sep + full_file_name))
@@ -249,10 +277,12 @@ def run_ESP_resample(build_dir):
                 if O4_Config_Utils.create_ESP_hard_winter:
                     create_hard_winter(file_name + ".bmp", file_name + "_hard_winter.bmp", img_mask_abs_path)
 
-                subprocess.call([O4_Config_Utils.ESP_resample_loc, inf_abs_path])
-                # now remove the extra night/season bmps
-                for file in glob.glob(file_name + "_*.bmp"):
-                    os.remove(file)
+                # subprocess.call([O4_Config_Utils.ESP_resample_loc, inf_abs_path])
+                q.put_nowait(inf_abs_path)
+    
+    for _ in threads: q.put_nowait(None) # signal no more files
+    for t in threads: t.join() # wait for completion
+
 
 def convert_BMP_to_8_bit_grayscale_tif(img_name, saveNewName=False):
     img = Image.open(img_name).convert("RGB")
