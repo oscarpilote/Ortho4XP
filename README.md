@@ -5,7 +5,7 @@ Work in progress at adding FSX/P3D (ESP support)
 
 # Use at your own risk
 
-# Prerequesities
+# Prerequisites
 
 Please install ImageMagick before attempting to run, otherwise the night/season creation won't work. An installer has been provided inside the dist/ directory.
 The same installer can also be found here: https://www.imagemagick.org/download/binaries/ImageMagick-7.0.8-10-Q8-x64-dll.exe

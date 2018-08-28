@@ -7,7 +7,6 @@ import O4_Config_Utils
 import subprocess
 from fast_image_mask import *
 import glob
-import sys
 from queue import Queue
 from threading import Thread
 
@@ -163,7 +162,7 @@ def make_ESP_inf_file(file_dir, file_name, til_x_left, til_x_right, til_y_top, t
         current_source_num = 1
         seasons_string, num_seasons = get_seasons_inf_string(seasons_to_create, current_source_num, "BMP", "Imagery", os.path.abspath(file_dir), file_name, img_mask_folder_abs_path, img_mask_abs_path,
         str(img_top_left_tile[1]), str(img_top_left_tile[0]), str(IMG_X_Y_DIM), str(IMG_X_Y_DIM), str(img_cell_x_dimension_deg), str(img_cell_y_dimension_deg), total_num_sources, should_mask)
-        # if seasons_strong is not None, there are seasons to build in Ortho4XP.cfg
+        # if seasons_string is not None, there are seasons to build in Ortho4XP.cfg
         if seasons_string:
             current_source_num += num_seasons
             contents += seasons_string
@@ -212,6 +211,12 @@ def run_ESP(filename):
     # wait until done
     process.communicate()
 
+def remove_file_if_exists(filename):
+    try:
+        os.remove(filename)
+    except OSError:
+        pass
+
 # TODO: cleanup processes when main program quits
 def worker(queue):
     # """Process files from the queue."""
@@ -219,8 +224,11 @@ def worker(queue):
         try:
             run_ESP(args)
             # now remove the extra night/season bmps
-            for file in glob.glob(args[:-4] + "_*.bmp"):
-                os.remove(file)
+            remove_file_if_exists(args[:-4] + "_night.bmp")
+            remove_file_if_exists(args[:-4] + "_spring.bmp")
+            remove_file_if_exists(args[:-4] + "_fall.bmp")
+            remove_file_if_exists(args[:-4] + "_winter.bmp")
+            remove_file_if_exists(args[:-4] + "_hard_winter.bmp")
         except Exception as e: # catch exceptions to avoid exiting the
                                # thread prematurely
             print('%r failed: %s' % (args, e,))
@@ -278,12 +286,7 @@ def run_ESP_resample(build_dir):
                     create_hard_winter(file_name + ".bmp", file_name + "_hard_winter.bmp", img_mask_abs_path)
 
                 # subprocess.call([O4_Config_Utils.ESP_resample_loc, inf_abs_path])
-                q.put_nowait(inf_abs_path)
+                q.put(inf_abs_path)
     
     for _ in threads: q.put_nowait(None) # signal no more files
     for t in threads: t.join() # wait for completion
-
-
-def convert_BMP_to_8_bit_grayscale_tif(img_name, saveNewName=False):
-    img = Image.open(img_name).convert("RGB")
-    img.save(img_name)
