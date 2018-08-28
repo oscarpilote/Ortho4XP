@@ -206,7 +206,7 @@ def make_ESP_inf_file(file_dir, file_name, til_x_left, til_x_right, til_y_top, t
 
         inf_file.write(contents)
 
-def run_ESP(filename):
+def spaw_resample_process(filename):
     process = subprocess.Popen([O4_Config_Utils.ESP_resample_loc, filename], creationflags=subprocess.CREATE_NEW_CONSOLE)
     # wait until done
     process.communicate()
@@ -222,13 +222,31 @@ def worker(queue):
     # """Process files from the queue."""
     for args in iter(queue.get, None):
         try:
-            run_ESP(args)
+            file_name = args[0]
+            inf_abs_path = args[1]
+            img_mask_abs_path = args[2]
+
+            # we create the night and seasonal textures at resample time, and delete them right after...
+            # why? to not require a ridiculously large amount of storage space...
+            if O4_Config_Utils.create_ESP_night:
+                create_night(file_name + ".bmp", file_name + "_night.bmp", img_mask_abs_path)
+            if O4_Config_Utils.create_ESP_spring:
+                create_spring(file_name + ".bmp", file_name + "_spring.bmp", img_mask_abs_path)
+            if O4_Config_Utils.create_ESP_fall:
+                create_autumn(file_name + ".bmp", file_name + "_fall.bmp", img_mask_abs_path)
+            if O4_Config_Utils.create_ESP_winter:
+                create_winter(file_name + ".bmp", file_name + "_winter.bmp", img_mask_abs_path)
+            if O4_Config_Utils.create_ESP_hard_winter:
+                create_hard_winter(file_name + ".bmp", file_name + "_hard_winter.bmp", img_mask_abs_path)
+
+            spaw_resample_process(inf_abs_path)
             # now remove the extra night/season bmps
-            remove_file_if_exists(args[:-4] + "_night.bmp")
-            remove_file_if_exists(args[:-4] + "_spring.bmp")
-            remove_file_if_exists(args[:-4] + "_fall.bmp")
-            remove_file_if_exists(args[:-4] + "_winter.bmp")
-            remove_file_if_exists(args[:-4] + "_hard_winter.bmp")
+            # could check if we created night, season, etc but let's be lazy and use remove_file_if_exists
+            remove_file_if_exists(file_name + "_night.bmp")
+            remove_file_if_exists(file_name + "_spring.bmp")
+            remove_file_if_exists(file_name + "_fall.bmp")
+            remove_file_if_exists(file_name + "_winter.bmp")
+            remove_file_if_exists(file_name + "_hard_winter.bmp")
         except Exception as e: # catch exceptions to avoid exiting the
                                # thread prematurely
             print('%r failed: %s' % (args, e,))
@@ -251,7 +269,7 @@ def run_ESP_resample(build_dir):
     # another solution would be to create inf files with multiple sources, but the below is simpler to code...
 	# start threads
     print("Starting ESP queue with a max of " + str(O4_Config_Utils.max_resample_processes) + " processes")
-    q = Queue(O4_Config_Utils.max_resample_processes)
+    q = Queue()
     threads = [Thread(target=worker, args=(q,)) for _ in range(O4_Config_Utils.max_resample_processes)]
     for t in threads:
         t.daemon = True # threads die if the program dies
@@ -272,21 +290,9 @@ def run_ESP_resample(build_dir):
                 should_mask = (O4_ESP_Globals.do_build_masks and os.path.isfile(img_mask_abs_path))
                 if not should_mask:
                     img_mask_abs_path = None
-                # we create the night and seasonal textures at resample time, and delete them right after...
-                # why? to not require a ridiculously large amount of storage space...
-                if O4_Config_Utils.create_ESP_night:
-                    create_night(file_name + ".bmp", file_name + "_night.bmp", img_mask_abs_path)
-                if O4_Config_Utils.create_ESP_spring:
-                    create_spring(file_name + ".bmp", file_name + "_spring.bmp", img_mask_abs_path)
-                if O4_Config_Utils.create_ESP_fall:
-                    create_autumn(file_name + ".bmp", file_name + "_fall.bmp", img_mask_abs_path)
-                if O4_Config_Utils.create_ESP_winter:
-                    create_winter(file_name + ".bmp", file_name + "_winter.bmp", img_mask_abs_path)
-                if O4_Config_Utils.create_ESP_hard_winter:
-                    create_hard_winter(file_name + ".bmp", file_name + "_hard_winter.bmp", img_mask_abs_path)
 
                 # subprocess.call([O4_Config_Utils.ESP_resample_loc, inf_abs_path])
-                q.put(inf_abs_path)
+                q.put_nowait([file_name, inf_abs_path, img_mask_abs_path])
     
-    for _ in threads: q.put(None) # signal no more files
+    for _ in threads: q.put_nowait(None) # signal no more files
     for t in threads: t.join() # wait for completion
