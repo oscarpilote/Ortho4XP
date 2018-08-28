@@ -251,7 +251,7 @@ def run_ESP_resample(build_dir):
     # another solution would be to create inf files with multiple sources, but the below is simpler to code...
 	# start threads
     print("Starting ESP queue with a max of " + str(O4_Config_Utils.max_resample_processes) + " processes")
-    q = Queue()
+    q = Queue(O4_Config_Utils.max_resample_processes)
     threads = [Thread(target=worker, args=(q,)) for _ in range(O4_Config_Utils.max_resample_processes)]
     for t in threads:
         t.daemon = True # threads die if the program dies
@@ -288,5 +288,5 @@ def run_ESP_resample(build_dir):
                 # subprocess.call([O4_Config_Utils.ESP_resample_loc, inf_abs_path])
                 q.put(inf_abs_path)
     
-    for _ in threads: q.put_nowait(None) # signal no more files
+    for _ in threads: q.put(None) # signal no more files
     for t in threads: t.join() # wait for completion
