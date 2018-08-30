@@ -312,6 +312,11 @@ def initialize_combined_providers_dict():
                     continue
                 if extent_code=='default':
                     extent_code=providers_dict[layer_code]['extent']
+                if extent_code[0]=='!': 
+                    extent_code_stripped=extent_code[1:]
+                    if extent_code_stripped not in extents_dict:
+                       print("Unknown extent complement in combined provider",provider_code,":",extent_code_stripped)
+                       continue
                 if extent_code not in extents_dict:
                     print("Unknown extent in combined provider",provider_code,":",extent_code)
                     continue
