@@ -297,7 +297,11 @@ class Ortho4XP_Config(tk.Toplevel):
         dem_button_ttp = TTP.ToolTip(dem_button, cfg_vars[item]['hint'], 30, 30, 500)
 
         item='fill_nodata'
-        ttk.Button(self.frame_cfg,text=item,takefocus=False,command=lambda item=item: self.popup(item,cfg_vars[item]['hint'])).grid(row=row,column=6,padx=2,pady=2,sticky=E+W)
+        btn = None
+        btn = ttk.Button(self.frame_cfg,text=item,takefocus=False)
+        btn.grid(row=row,column=6,padx=2,pady=2,sticky=E+W)
+        btn_ttp = TTP.ToolTip(btn, cfg_vars[item]['hint'], 30, 30, 500)
+
         values=[True,False] 
         self.entry_[item]=ttk.Combobox(self.frame_cfg,values=values,textvariable=self.v_[item],width=6,state='readonly',style='O4.TCombobox')
         self.entry_[item].grid(row=row,column=7,padx=2,pady=2,sticky=W)
