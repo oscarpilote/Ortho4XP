@@ -38,17 +38,3 @@ class ToolTip(object):
     def mousedown(self, event=None):
         if self.tw:
             self.tw.destroy()
-
-
-# testing ...
-#if __name__ == '__main__':
-#    root = tk.Tk()
-#    btn1 = tk.Button(root, text="Test Button 1")
-#    btn1.pack(padx=10, pady=5)
-#    button1_ttp = ToolTip(btn1, "[NOT WORTH TRYING UNTIL SOME RENDERING BUG (submitted 11/2017) IN X-PLANE CODE IS CORRECTED - BORDER_TEX mistakenly affects the normal map in addition to the albedo, which yields crazy roughness values]\n\n Replaces X-Plane water by a custom normal map over ortho-imagery (requires XP11). A low res imagery is used for the sea, and masking textures are unaffected. The value 0 corresponds to legacy X-Plane water, 1 replaces it for inland water only, 2 over sea water only, and 3 over both.  This experimental feature has two strong downsides: 1) the waves are static rather dynamical (would require a plugin to update the normal_map as X-Plane does) and 2) the wave height is no longer weather dependent. On the other hand, waves might have less repetitive patterns and some blinking in water reflections might be improved too; users are welcome to improve the provided water_normal_map.dds (Gimp can be used to edit the mipmaps individually).")
-
-#    btn2 = tk.Button(root, text="Test button 2")
-#    btn2.pack(padx=10, pady=5)
-#    button2_ttp = ToolTip(btn2, "This is button 2")
-
-#    root.mainloop()
