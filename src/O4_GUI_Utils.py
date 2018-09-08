@@ -123,7 +123,6 @@ class Ortho4XP_GUI(tk.Tk):
         btn2.grid(row=0,column=10,rowspan=2, padx=5, pady=0)
         btn2_ttp = TTP.ToolTip(btn2, "Custom Zoomlevel", -20, 75)
 
-
         btn3 = ttk.Button(self.frame_tile,takefocus=False, image=self.earth_icon,command=self.open_earth_window,style='Flat.TButton')
         btn3.grid(row=0,column=11,rowspan=2, padx=5, pady=0)
         btn3_ttp = TTP.ToolTip(btn3, "Tile Collection and Management", -60, 75)
