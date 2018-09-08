@@ -19,6 +19,7 @@ import O4_Mask_Utils as MASK
 import O4_Tile_Utils as TILE
 import O4_UI_Utils as UI
 import O4_Config_Utils as CFG
+import O4_Tooltip as TTP
 
 
 ############################################################################################
@@ -114,11 +115,26 @@ class Ortho4XP_GUI(tk.Tk):
         ttk.Button(self.frame_folder,takefocus=False, image=self.folder_icon,command=self.choose_custom_build_dir,style='Flat.TButton').grid(row=0,column=2, padx=0, pady=0,sticky=N+S+E+W)
         
         # Button Icons on top right
-        ttk.Button(self.frame_tile,takefocus=False, image=self.config_icon,command=self.open_config_window,style='Flat.TButton').grid(row=0,column=9,rowspan=2, padx=5, pady=0)
-        ttk.Button(self.frame_tile,takefocus=False, image=self.loupe_icon,command=self.open_custom_zl_window,style='Flat.TButton').grid(row=0,column=10,rowspan=2, padx=5, pady=0)
-        ttk.Button(self.frame_tile,takefocus=False, image=self.earth_icon,command=self.open_earth_window,style='Flat.TButton').grid(row=0,column=11,rowspan=2, padx=5, pady=0)
-        ttk.Button(self.frame_tile,takefocus=False, image=self.stop_icon,command=self.set_red_flag,style='Flat.TButton').grid(row=0,column=12,rowspan=2, padx=5, pady=0)
-        ttk.Button(self.frame_tile,takefocus=False, image=self.exit_icon,command=self.exit_prg,style='Flat.TButton').grid(row=0,column=13,rowspan=2, padx=5, pady=0)
+        btn1 = ttk.Button(self.frame_tile,takefocus=False, image=self.config_icon,command=self.open_config_window,style='Flat.TButton')
+        btn1.grid(row=0,column=9,rowspan=2, padx=5, pady=0)
+        btn1_ttp = TTP.ToolTip(btn1, "Config", 15, 75)
+
+        btn2 = ttk.Button(self.frame_tile,takefocus=False, image=self.loupe_icon,command=self.open_custom_zl_window,style='Flat.TButton')
+        btn2.grid(row=0,column=10,rowspan=2, padx=5, pady=0)
+        btn2_ttp = TTP.ToolTip(btn2, "Custom Zoomlevel", -20, 75)
+
+
+        btn3 = ttk.Button(self.frame_tile,takefocus=False, image=self.earth_icon,command=self.open_earth_window,style='Flat.TButton')
+        btn3.grid(row=0,column=11,rowspan=2, padx=5, pady=0)
+        btn3_ttp = TTP.ToolTip(btn3, "Tile Collection and Management", -60, 75)
+
+        btn4 = ttk.Button(self.frame_tile,takefocus=False, image=self.stop_icon,command=self.set_red_flag,style='Flat.TButton')
+        btn4.grid(row=0,column=12,rowspan=2, padx=5, pady=0)
+        btn4_ttp = TTP.ToolTip(btn4, "Stop Processing", -15, 75)
+
+        btn5 = ttk.Button(self.frame_tile,takefocus=False, image=self.exit_icon,command=self.exit_prg,style='Flat.TButton')
+        btn5.grid(row=0,column=13,rowspan=2, padx=5, pady=0)
+        btn5_ttp = TTP.ToolTip(btn5, "Exit", 20, 75)
 
         # Third row (Steps)
         for i in range(5):
