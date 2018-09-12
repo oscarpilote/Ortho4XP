@@ -682,6 +682,9 @@ def get_wmts_image(tilematrix,til_x,til_y,provider,http_session):
         url=url.replace('{xcenter}',str((til_x+0.5)*provider['resolutions'][tilematrix]*provider['tile_size']+provider['top_left_corner'][tilematrix][0]))
         url=url.replace('{ycenter}',str(-1*(til_y+0.5)*provider['resolutions'][tilematrix]*provider['tile_size']+provider['top_left_corner'][tilematrix][1]))
         url=url.replace('{size}',str(int(provider['resolutions'][tilematrix]*provider['tile_size'])))
+        url=url.replace('{zoom_gov}','L{:02d}'.format(tilematrix))
+        url=url.replace('{x_gov}','C{:08x}'.format(til_x))
+        url=url.replace('{y_gov}','R{:08x}'.format(til_y))
         if '{switch:' in url:
             (url_0,tmp)=url.split('{switch:')
             (tmp,url_2)=tmp.split('}')
