@@ -808,7 +808,7 @@ def build_texture_from_bbox_and_size(t_bbox,t_epsg,t_size,provider):
         height=wms_size
     elif provider['request_type'] in ('wmts','tms','local_tms'):
         asked_resol=max(x_range/t_sizex,y_range/t_sizey)
-        wmts_tilematrix=numpy.argmax(provider['resolutions']<=asked_resol*1.1)
+        wmts_tilematrix = (numpy.abs(provider['resolutions'] - asked_resol*1.1)).argmin()
         wmts_resol=provider['resolutions'][wmts_tilematrix]   # in s_epsg unit per pix !
         UI.vprint(3,"Asked resol:",asked_resol,"WMTS resol:",wmts_resol)
         width=height=provider['tile_size']
