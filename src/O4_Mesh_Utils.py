@@ -55,10 +55,22 @@ def build_curv_tol_weight_map(tile,weight_array):
     if tile.coast_curv_tol!=tile.curvature_tol:
         UI.vprint(1,"-> Modifying curv_tol weight map according to coastline location.")
         sea_layer=OSM.OSM_layer()
-        queries=['way["natural"="coastline"]']    
-        tags_of_interest=[]
-        if not OSM.OSM_queries_to_OSM_layer(queries,sea_layer,tile.lat,tile.lon,tags_of_interest,cached_suffix='coastline'):
-            return 0
+        custom_coastline=FNAMES.custom_coastline(tile.lat, tile.lon)
+        custom_coastline_dir=FNAMES.custom_coastline_dir(tile.lat, tile.lon)
+        if os.path.isfile(custom_coastline):
+            UI.vprint(1,"    * User defined custom coastline data detected.")
+            sea_layer.update_dicosm(custom_coastline,input_tags=None,target_tags=None)
+        elif os.path.isdir(custom_coastline_dir):
+            UI.vprint(1,"    * User defined custom coastline data detected (multiple files).")
+            for osm_file in os.listdir(custom_coastline_dir):
+                UI.vprint(2,"      ",osm_file)
+                sea_layer.update_dicosm(os.path.join(custom_coastline_dir,osm_file),input_tags=None,target_tags=None)
+                sea_layer.write_to_file(custom_coastline)
+        else:
+            queries=['way["natural"="coastline"]']    
+            tags_of_interest=[]
+            if not OSM.OSM_queries_to_OSM_layer(queries,sea_layer,tile.lat,tile.lon,tags_of_interest,cached_suffix='coastline'):
+                return 0
         for nodeid in sea_layer.dicosmn:
             (lonp,latp)=[float(x) for x in sea_layer.dicosmn[nodeid]]
             if lonp<tile.lon or lonp>tile.lon+1 or latp<tile.lat or latp>tile.lat+1: continue

@@ -137,12 +137,13 @@ def include_airports(vector_map,tile):
     tile.dem=DEM.DEM(tile.lat,tile.lon,tile.custom_dem,tile.fill_nodata or "to zero",info_only=False)
     APT.smooth_raster_over_airports(tile,dico_airports)
     (patches_area,patches_list)=include_patches(vector_map,tile)
-    runway_and_taxiway_area=APT.encode_runways_taxiways_and_aprons(tile,airport_layer,dico_airports,vector_map,patches_list)
+    runway_taxiway_apron_area=APT.encode_runways_taxiways_and_aprons(tile,airport_layer,dico_airports,vector_map,patches_list)
+    treated_area=ops.cascaded_union([patches_area,runway_taxiway_apron_area])
     APT.encode_hangars(tile,dico_airports,vector_map,patches_list)
-    APT.flatten_helipads(airport_layer,vector_map,tile,patches_area)
+    APT.flatten_helipads(airport_layer,vector_map,tile,treated_area)
     #APT.encode_aprons(tile,dico_airports,vector_map)
     apt_array=APT.build_airport_array(tile,dico_airports)
-    return (apt_array,ops.cascaded_union([patches_area,runway_and_taxiway_area]))
+    return (apt_array,treated_area)
     
 ##############################################################################
 ##############################################################################
