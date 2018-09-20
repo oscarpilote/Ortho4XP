@@ -314,7 +314,7 @@ def initialize_combined_providers_dict():
                     continue
                 if extent_code=='default':
                     extent_code=providers_dict[layer_code]['extent']
-                if extent_code not in extents_dict:
+                if (extent_code not in extents_dict) or (extent_code[0]=='!' and extent_code[1:] not in extents_dict):
                     print("Unknown extent in combined provider",provider_code,":",extent_code)
                     continue
                 if color_code=='default':
@@ -360,8 +360,9 @@ def initialize_local_combined_providers_dict(tile):
     for provider_code in test_set.intersection(combined_providers_dict):
             comb_list=[]
             for rlayer in combined_providers_dict[provider_code]:
-                name=rlayer['extent_code']
-                if has_data((tile.lon,tile.lat+1,tile.lon+1,tile.lat),name,is_mask_layer=(tile.lat,tile.lon,tile.mask_zl) if rlayer['priority']=='mask' else False):
+                if has_data((tile.lon,tile.lat+1,tile.lon+1,tile.lat),rlayer['extent_code'],is_mask_layer=(tile.lat,tile.lon,tile.mask_zl) if rlayer['priority']=='mask' else False):
+                    name=rlayer['extent_code']
+                    if name[0]=='!': name=name[1:]
                     if extents_dict[name]['dir']=='LowRes':
                         new_rlayer=dict(rlayer)
                         new_extent_code=name+"_"+FNAMES.short_latlon(tile.lat,tile.lon)
@@ -432,7 +433,6 @@ def initialize_local_combined_providers_dict(tile):
                                 os.remove(f)
                             except:
                                 pass
-                               
                     else:    
                         comb_list.append(rlayer)
             if comb_list:
@@ -883,6 +883,10 @@ def build_texture_from_bbox_and_size(t_bbox,t_epsg,t_size,provider):
 def download_photo_ortho(file_dir,file_name,til_x_left,til_y_top,zoomlevel,provider_code,super_resol_factor=1):
     provider=providers_dict[provider_code]
     if 'super_resol_factor' in provider and super_resol_factor==1: super_resol_factor=int(provider['super_resol_factor'])
+    if 'max_zl' in provider: 
+        max_zl=int(provider['max_zl'])
+        if zoomlevel>max_zl:
+            super_resol_factor=2**(max_zl-zoomlevel)
     width=height=int(4096*super_resol_factor)
     # we treat first the case of webmercator grid type servers
     if 'grid_type' in provider and provider['grid_type']=='webmercator':

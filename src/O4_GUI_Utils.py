@@ -409,7 +409,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
 
         self.zlpol=tk.IntVar()
         try: # default_zl might still be empty 
-            self.zlpol.set(max(min(int(self.parent.default_zl.get())+1,19),12))
+            self.zlpol.set(max(min(int(self.parent.default_zl.get())+1,19),15))
         except:
             self.zlpol.set(17)
         self.gb = tk.StringVar()
@@ -460,9 +460,10 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         ttk.Button(self.frame_left,text='Delete ZL zone',command=self.delete_zone_cmd).grid(row=row,column=0,padx=5,pady=3,sticky=N+S+E+W); row+=1
         ttk.Button(self.frame_left,text='Make GeoTiffs',command=self.build_geotiffs_ifc).grid(row=row,column=0,padx=5,pady=3,sticky=N+S+E+W); row+=1 
         ttk.Button(self.frame_left,text='Extract Mesh ',command=self.extract_mesh_ifc).grid(row=row,column=0,padx=5,pady=3,sticky=N+S+E+W); row+=1 
-        tk.Label(self.frame_left,text="Ctrl+B1 : add texture\nShift+B1: add zone point\nCtrl+B2 : delete zone\nCtrl+Del: delete all",bg="light green",justify=LEFT).grid(row=row,column=0,padx=5,pady=20,sticky=N+S+E+W); row+=1
-        ttk.Button(self.frame_left,text='   Abandon   ',command=self.destroy).grid(row=row,column=0,padx=5,pady=3,sticky=N+S+E+W); row+=1
-        ttk.Button(self.frame_left,text='Save and Exit',command=self.save_zone_list).grid(row=row,column=0,padx=5,pady=3,sticky=N+S+E+W); row+=1
+        tk.Label(self.frame_left,text="Ctrl+B1 : add texture\nShift+B1: add zone point\nCtrl+B2 : delete zone",bg="light green",justify=LEFT).grid(row=row,column=0,padx=5,pady=20,sticky=N+S+E+W); row+=1
+        ttk.Button(self.frame_left,text='    Apply    ',command=self.save_zone_list).grid(row=row,column=0,padx=5,pady=3,sticky=N+S+E+W); row+=1
+        ttk.Button(self.frame_left,text='    Reset    ',command=self.delAll).grid(row=row,column=0,padx=5,pady=3,sticky=N+S+E+W); row+=1
+        ttk.Button(self.frame_left,text='    Exit     ',command=self.destroy).grid(row=row,column=0,padx=5,pady=3,sticky=N+S+E+W); row+=1
         self.canvas = tk.Canvas(self.frame_right,bd=0,height=750,width=750)
         self.canvas.grid(row=0,column=0,sticky=N+S+E+W)     
 
@@ -517,7 +518,6 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         self.canvas.bind("<Shift-ButtonPress-1>",self.newPoint)
         self.canvas.bind("<Control-Shift-ButtonPress-1>",self.newPointGrid)
         self.canvas.bind("<Control-ButtonPress-1>",self.newPol)
-        self.canvas.bind("<Control-Delete>",self.delAll)
         self.canvas.focus_set()
         self.canvas.bind('p', self.newPoint)
         self.canvas.bind('d', self.delete_zone_cmd)
@@ -625,7 +625,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
                 self.polyobj_list.pop(idx)
         return        
         
-    def delAll(self,event):
+    def delAll(self):
         copy=self.polygon_list[:]
         for poly in copy:
             idx=self.polygon_list.index(poly)
@@ -752,7 +752,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
                 tmp.append(pt) 
             zone_list.append([tmp,item[2],item[3]])
         CFG.zone_list=zone_list
-        self.destroy()    
+        #self.destroy()    
         return
 ############################################################################################
 

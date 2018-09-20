@@ -528,17 +528,21 @@ def indexed_difference(idx_pol1,dico_pol1,idx_pol2,dico_pol2):
 def coastline_to_MultiPolygon(coastline,lat,lon,custom_source=False):
     ######################################################################
     def encode_to_next(coord,new_way,remove_coords):
+        UI.vprint(3,"Computing next  coord for",coord)
         if coord in inits:
+            UI.vprint(3,"    This is an init one")
             idx=inits.index(coord)
             new_way+=segments[idx][2]
-            UI.vprint(3,segments[idx][2][0],segments[idx][2][-1])
             next_coord=segments[idx][1]
+            UI.vprint(3,"    End one is",next_coord)
             remove_coords.append(coord)
             remove_coords.append(next_coord)
         else:
+            UI.vprint(3,"    This is and end one")
             idx=bdcoords.index(coord)                
             if idx<len(bdcoords)-1: 
                next_coord=bdcoords[idx+1] 
+               UI.vprint(3,"    The following one is",next_coord) 
                next_coord_loop=next_coord
             else:
                next_coord=bdcoords[0]
@@ -546,7 +550,7 @@ def coastline_to_MultiPolygon(coastline,lat,lon,custom_source=False):
             interp_coord=ceil(coord)
             while interp_coord<next_coord_loop:
                 new_way+=bd_point(interp_coord) 
-                UI.vprint(3,bd_point(interp_coord))
+                UI.vprint(3,"Interp coord",bd_point(interp_coord))
                 interp_coord+=1
         return next_coord               
     ######################################################################
@@ -581,7 +585,9 @@ def coastline_to_MultiPolygon(coastline,lat,lon,custom_source=False):
         UI.lvprint(1,"ERROR in OSM coastline data. Coastline abruptly stops at",osm_badpoints)
         return geometry.MultiPolygon()
     bdcoords=sorted(ends+inits)
-    UI.vprint(3,bdcoords)
+    UI.vprint(3,"bdcoords=",bdcoords)
+    UI.vprint(3,"inits=",ends)
+    UI.vprint(3,"ends=",inits)
     while bdcoords:
         UI.vprint(3,"new loop")
         new_way=[]
@@ -591,12 +597,12 @@ def coastline_to_MultiPolygon(coastline,lat,lon,custom_source=False):
         count=0
         while next_coord!=first_coord:
            count+=1
+           UI.vprint(3,next_coord)
            next_coord=encode_to_next(next_coord,new_way,remove_coords)  
            if count==1000: # dead loop caused by faulty osm coastline data   
                UI.lvprint(1,"ERROR is OSM coastline data, probably caused by a coastline way with wrong orientation.")
                return geometry.MultiPolygon()
         bdpolys.append(new_way)
-        UI.vprint(3,new_way)
         for coord in remove_coords:
             try:
                 bdcoords.remove(coord)

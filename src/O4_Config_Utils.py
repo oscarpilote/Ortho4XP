@@ -407,6 +407,7 @@ class Ortho4XP_Config(tk.Toplevel):
         except:
             self.popup("ERROR","Cannot write into "+str(build_dir))
             return 0
+        self.v_['zone_list'].set(str(eval('zone_list')))    
         for var in list_tile_vars:
             f.write(var+"="+self.v_[var].get()+'\n')
         f.close()
