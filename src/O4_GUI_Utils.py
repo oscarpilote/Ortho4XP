@@ -42,7 +42,7 @@ class Ortho4XP_GUI(tk.Tk):
         # Initialize providers combobox entries
         self.map_list= sorted([provider_code for provider_code in list(IMG.providers_dict) if IMG.providers_dict[provider_code]['directory']=='Global'])+\
                        sorted(list(IMG.combined_providers_dict))+\
-                       sorted([provider_code for provider_code in list(IMG.providers_dict) if IMG.providers_dict[provider_code]['directory']!='Global'])
+                       sorted([provider_code for provider_code in list(IMG.providers_dict) if IMG.providers_dict[provider_code]['directory']=='Local'])
         try: self.map_list.remove('OSM')
         except: pass
         try: self.map_list.remove('SEA')
@@ -372,21 +372,13 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         self.lon=lon 
         self.map_list= sorted([provider_code for provider_code in list(IMG.providers_dict) if IMG.providers_dict[provider_code]['directory']=='Global'])+\
                        sorted(list(IMG.combined_providers_dict))+\
-                       sorted([provider_code for provider_code in list(IMG.providers_dict) if IMG.providers_dict[provider_code]['directory']!='Global'])
-        try: self.map_list.remove('SEA')
-        except: pass
-        self.reduce_map_list=self.map_list[:]
-        try: self.reduced_map_list.remove('OSM')
-        except: pass
-        
+                       sorted([provider_code for provider_code in list(IMG.providers_dict) if IMG.providers_dict[provider_code]['directory']!='Local'])
         self.map_list=[provider_code for provider_code in self.map_list if provider_code!='SEA']
         self.reduced_map_list=[provider_code for provider_code in self.map_list if provider_code!='OSM']
         self.points=[]
         self.coords=[]
         self.polygon_list=[]
         self.polyobj_list=[]
-        
-        
         
         tk.Toplevel.__init__(self)
         self.title('Preview / Custom zoomlevels')
@@ -721,7 +713,6 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         extract_mesh_thread.start()
         return
     
-    
     def delete_zone_cmd(self):
         try:
             self.canvas.delete(self.poly_curr)
@@ -784,7 +775,6 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
             self.v_[item]=tk.IntVar()
         self.latlon = tk.StringVar()
         
-    
         # Frames
         self.frame_left   =  tk.Frame(self, border=4, relief=RIDGE,bg='light green')
         self.frame_left.grid(row=0,column=0,sticky=N+S+W+E)
@@ -792,7 +782,6 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
         self.frame_right.grid(row=0,rowspan=60,column=1,sticky=N+S+W+E)
         self.frame_right.rowconfigure(0,weight=1,minsize=self.canvas_min_y)
         self.frame_right.columnconfigure(0,weight=1,minsize=self.canvas_min_x)
-
 
         # Widgets
         row=0
@@ -823,9 +812,9 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
         # Exit
         ttk.Button(self.frame_left,text='      Exit      ',command=self.exit).grid(row=row,column=0,padx=5,pady=5,sticky=N+S+E+W)
         row+=1
-        #tk.Label(self.frame_left,text="Shortcuts :\n-------------------\nB2-press+hold=move map\nB1-double-click=select active lat/lon\nShift+B1=add for batch build\nCtrl+B1= link in Custom Scenery\n\nActive lat/lon\n---------------------",
-        #         bg="light green").grid(row=row,column=0,padx=5,pady=5,sticky=N+S+E+W)
-        #row+=1
+        tk.Label(self.frame_left,text="Shortcuts :\n-----------------\nB2-press+hold=move map\nB1-double-click=select active\nShift+B1=add to batch build\nCtrl+B1=link in Custom Scenery",
+                 bg="light green").grid(row=row,column=0,padx=0,pady=5,sticky=N+S+E+W)
+        row+=1
 
         self.canvas  =  tk.Canvas(self.frame_right,bd=0)
         self.canvas.grid(row=0,column=0,sticky=N+S+E+W)     
@@ -1049,7 +1038,6 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
             for (lat0,lon0) in self.dico_tiles_done:
                 self.canvas.itemconfig(self.dico_tiles_done[(lat0,lon0)][0],stipple='gray50')    
         return 
-
 
     def add_tile(self,event):
         x=self.canvas.canvasx(event.x)
