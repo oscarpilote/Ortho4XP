@@ -40,9 +40,15 @@ and launch "python Ortho4XP_v130.py".
 
 OS X
 ----
-1) Install homebrew (a package manager which will NEVER put any mess on your system since it is sandboxed)
+
+1) In a Terminal window, install Homebrew (brew.sh), a package manager
 /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 
-2) Instructions will follow as soon as I get access to a Mac. 
+2) Go to the Ortho4XP folder
+cd /path/to/Ortho4XP
 
+3) Execute the install script (you may have to run "chmod +x ./install_mac.sh" first)
+./install_mac.sh
 
+4) Launch Ortho4XP
+python3 Ortho4XP_v130.py
