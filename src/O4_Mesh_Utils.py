@@ -380,7 +380,10 @@ def build_mesh(tile):
         if not line: 
             break
         else:
-            print(line.decode("utf-8")[:-1])
+            try:
+                print(line.decode("utf-8")[:-1])
+            except:
+                pass
     time.sleep(0.3)
     fingers_crossed.poll()        
     if fingers_crossed.returncode:
