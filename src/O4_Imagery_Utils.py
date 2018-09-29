@@ -200,6 +200,15 @@ def initialize_providers_dict():
                         else:
                             UI.vprint(0,"Error in epsg code for provider",provider_code)
                             valid_provider=False
+                elif key=='in_GUI':
+                    try:
+                        provider['in_GUI']=eval(value)
+                        if not isinstance(provider['in_GUI'],bool):
+                            UI.vprint(0,"Error in GUI status for provider",provider_code)
+                            provider['in_GUI']=True
+                    except:
+                        UI.vprint(0,"Error in GUI status for provider",provider_code)
+                        provider['in_GUI']=True
                 elif key=='image_type':
                     pass
                 elif key=='url_prefix':
@@ -255,24 +264,35 @@ def initialize_providers_dict():
                    pass
             if 'request_type' in provider and provider['request_type']=='wmts':
                 try: 
-                    tilematrixsets=read_tilematrixsets(os.path.join(FNAMES.Provider_dir,dir_name,'capabilities.xml'))
-                    tms_found=False
-                    for tilematrixset in tilematrixsets:
-                        if tilematrixset['identifier']==provider['tilematrixset']:
-                            provider['tilematrixset']=tilematrixset
-                            tms_found=True
-                            break
-                    if tms_found: 
-                        provider['scaledenominator']=numpy.array([float(x['ScaleDenominator']) for x in provider['tilematrixset']['tilematrices']]) 
-                        provider['top_left_corner']=[[float(x) for x in y['TopLeftCorner'].split()] for y in provider['tilematrixset']['tilematrices']] 
-                    else:
-                        print("no tilematrixset found")  
-                        valid_provider=False
+                    tilematrixsets=read_tilematrixsets(os.path.join(FNAMES.Provider_dir,dir_name,'capabilities_'+provider_code+'.xml'))
                 except:
-                    print("Error in reading capabilities for provider",provider_code) 
+                    try:
+                        tilematrixsets=read_tilematrixsets(os.path.join(FNAMES.Provider_dir,dir_name,'capabilities.xml'))
+                    except:
+                        print("Error in reading capabilities for provider",provider_code) 
+                        valid_provider=False
+                if valid_provider:
+                    try:
+                        tms_found=False
+                        for tilematrixset in tilematrixsets:
+                            if tilematrixset['identifier']==provider['tilematrixset']:
+                                provider['tilematrixset']=tilematrixset
+                                tms_found=True
+                                break
+                        if tms_found: 
+                            provider['scaledenominator']=numpy.array([float(x['ScaleDenominator']) for x in provider['tilematrixset']['tilematrices']]) 
+                            provider['top_left_corner']=[[float(x) for x in y['TopLeftCorner'].split()] for y in provider['tilematrixset']['tilematrices']] 
+                        else:
+                            print("no tilematrixset found")  
+                            valid_provider=False
+                    except:
+                        print("Error in reading capabilities for provider",provider_code) 
+                        valid_provider=False
             if valid_provider:
                 provider['code']=provider_code
                 provider['directory']=dir_name
+                if 'in_GUI' not in provider:
+                    provider['in_GUI']=True
                 if 'image_type' not in provider: 
                     provider['image_type']='jpeg'
                 if 'extent' not in provider: 
@@ -290,10 +310,12 @@ def initialize_providers_dict():
                     provider['epsg_code']='3857'
                     provider['top_left_corner']=[[-20037508.34, 20037508.34] for i in range(0,21)]
                     provider['resolutions']=numpy.array([20037508.34/(128*2**i) for i in range(0,21)])
-                providers_dict[provider_code]=provider
+                if 'request_type' not in provider:
+                    UI.vprint(0,"Error in reading provider definition file for",file_name)
+                else:
+                    providers_dict[provider_code]=provider
             else:
-                UI.vprint("Error in reading provider definition file for",file_name)
-                pass
+                UI.print("Error in reading provider definition file for",file_name)
             f.close()
 
 def initialize_combined_providers_dict():   

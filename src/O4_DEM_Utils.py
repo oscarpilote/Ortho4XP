@@ -215,12 +215,12 @@ def build_combined_raster(source,lat,lon,info_only):
     alt_dem=numpy.zeros((nydem,nxdem),dtype=numpy.float32)
     for (lat0,lon0) in itertools.product((lat,lat-1,lat+1),(lon,lon-1,lon+1)):
         verbose=True if (lat0==lat and lon0==lon) else False
-        x=180+lon0
+        x=(180+lon0)%360
         y=89-lat0
         if not world_tiles[y,x]:
             tmparray=numpy.zeros((base,base),dtype=numpy.float32)
-        elif ensure_elevation(source,lat0,lon0,verbose):
-            tmparray=read_elevation_from_file(FNAMES.elevation_data(source,lat0,lon0),lat0,lon0,info_only,base)[-1]
+        elif ensure_elevation(source,lat0,(lon0+180)%360-180,verbose):
+            tmparray=read_elevation_from_file(FNAMES.elevation_data(source,lat0,(lon0+180)%360-180),lat0,(lon0+180)%360-180,info_only,base)[-1]
         else:
             tmparray=numpy.zeros((base,base),dtype=numpy.float32)
         by=beyond

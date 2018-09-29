@@ -40,9 +40,7 @@ class Ortho4XP_GUI(tk.Tk):
         # Let UI know ourself
         UI.gui=self
         # Initialize providers combobox entries
-        self.map_list= sorted([provider_code for provider_code in list(IMG.providers_dict) if IMG.providers_dict[provider_code]['directory']=='Global'])+\
-                       sorted(list(IMG.combined_providers_dict))+\
-                       sorted([provider_code for provider_code in list(IMG.providers_dict) if IMG.providers_dict[provider_code]['directory']=='Local'])
+        self.map_list= sorted([provider_code for provider_code in set(IMG.providers_dict) if IMG.providers_dict[provider_code]['in_GUI']]+sorted(set(IMG.combined_providers_dict)))
         try: self.map_list.remove('OSM')
         except: pass
         try: self.map_list.remove('SEA')
@@ -370,9 +368,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         self.parent=parent
         self.lat=lat
         self.lon=lon 
-        self.map_list= sorted([provider_code for provider_code in list(IMG.providers_dict) if IMG.providers_dict[provider_code]['directory']=='Global'])+\
-                       sorted(list(IMG.combined_providers_dict))+\
-                       sorted([provider_code for provider_code in list(IMG.providers_dict) if IMG.providers_dict[provider_code]['directory']!='Local'])
+        self.map_list= sorted([provider_code for provider_code in set(IMG.providers_dict) if IMG.providers_dict[provider_code]['in_GUI']]+sorted(set(IMG.combined_providers_dict)))
         self.map_list=[provider_code for provider_code in self.map_list if provider_code!='SEA']
         self.reduced_map_list=[provider_code for provider_code in self.map_list if provider_code!='OSM']
         self.points=[]
