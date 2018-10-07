@@ -6,3 +6,4 @@ tile_size=512
 url_template=http://www.pcn.minambiente.it/arcgis/rest/services/base_new/MapServer/tile/{zoom}/{y}/{x}
 max_threads=16
 imagery_dir=grouped
+in_GUI=False

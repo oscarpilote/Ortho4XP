@@ -20,6 +20,9 @@ quad_capacity_low=35000
 experimental_water_zl=14
 experimental_water_provider_code='SEA'
 
+# For Laminar test suite
+use_test_texture=False  
+
 ##############################################################################
 def float2qquad(x):
     if x>=1: return '111111111111111111111111'
@@ -98,7 +101,7 @@ def zone_list_to_ortho_dico(tile):
         masks_im=Image.new("L",(4096,4096),'black')
         masks_draw=ImageDraw.Draw(masks_im)
         airport_array=numpy.zeros((4096,4096),dtype=numpy.bool)
-        if tile.cover_airports_with_highres:
+        if tile.cover_airports_with_highres in ['True','ICAO']:
             UI.vprint(1,"-> Checking airport locations for upgraded zoomlevel.")
             try:
                 f=open(FNAMES.apt_file(tile),'rb')
@@ -107,7 +110,11 @@ def zone_list_to_ortho_dico(tile):
             except:
                 UI.vprint(1,"   WARNING: File",FNAMES.apt_file(tile),"is missing (erased after Step 1?), cannot check airport info for upgraded zoomlevel.")
                 dico_airports={}
-            for airport in dico_airports:
+            if tile.cover_airports_with_highres=='ICAO':
+                airports_list=[airport for airport in dico_airports if dico_airports[airport]['key_type']=='icao']
+            else:
+                airports_list=dico_airports.keys()
+            for airport in airports_list:
                 (xmin,ymin,xmax,ymax)=dico_airports[airport]['boundary'].bounds
                 # extension
                 xmin-=1000*tile.cover_extent*GEO.m_to_lon(tile.lat)
@@ -162,6 +169,7 @@ def create_terrain_file(tile,texture_file_name,til_x_left,til_y_top,zoomlevel,pr
     suffix='_water' if tri_type==1 else '_sea' if tri_type==2 else ''
     if is_overlay: suffix+='_overlay'
     ter_file_name=texture_file_name[:-4]+suffix+'.ter'
+    if use_test_texture: texture_file_name='test_texture.dds'
     with open(os.path.join(tile.build_dir,'terrain',ter_file_name),'w') as f:
         f.write('A\n800\nTERRAIN\n\n')
         [lat_med,lon_med]=GEO.gtile_to_wgs84(til_x_left+8,til_y_top+8,zoomlevel)

@@ -1,0 +1,5 @@
+grid_type=webmercator
+url_template=http://maps{switch:1,2,3,4}.wien.gv.at/basemap/bmaporthofoto30cm/normal/google3857/{zoom}/{y}/{x}.jpeg
+max_threads=16
+imagery_dir=grouped
+in_GUI=False

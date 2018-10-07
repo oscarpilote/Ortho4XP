@@ -1,7 +1,7 @@
 Linux (Debian derived, names might slightly differ for other distros)
 -----
 
-sudo apt-get install python3 python3-pip python3-requests python3-numpy python3-pyproj python3-gdal python3-shapely python3-rtree python3-pil python3-pil.imagetk p7zip-full
+sudo apt-get install python3 python3-pip python3-requests python3-numpy python3-pyproj python3-gdal python3-shapely python3-rtree python3-pil python3-pil.imagetk p7zip-full libnvtt-bin
 
 (if some of them were note packaged for your distro you can use pip instead, like say, pip install pyproj)
 

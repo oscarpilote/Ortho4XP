@@ -11,14 +11,20 @@ import numpy
 from PIL import Image, ImageFilter, ImageEnhance,  ImageOps
 Image.MAX_IMAGE_PIXELS = 1000000000 # Not a decompression bomb attack!
 import O4_UI_Utils as UI
+import O4_Geo_Utils as GEO
+import O4_File_Names as FNAMES
 try:
     import O4_Custom_URL as URL
     has_URL=True
-except Exception as e:
-    print("ERROR: Providers/O4_Custom_URL.py contains invalid code. The corresponding providers won't probably work.")
-    has_URL=False
-import O4_Geo_Utils as GEO
-import O4_File_Names as FNAMES
+except:
+    try:
+        # module loaded from a subdirectory of Extent for extent creation
+        sys.path.append(os.path.join('../../Providers'))
+        import O4_Custom_URL as URL
+        has_URL=True
+    except:
+        print("ERROR: Providers/O4_Custom_URL.py contains invalid code. The corresponding providers won't probably work.")
+        has_URL=False
 import O4_Vector_Utils as VECT
 import O4_Mesh_Utils as MESH
 import O4_OSM_Utils as OSM
@@ -315,7 +321,7 @@ def initialize_providers_dict():
                 else:
                     providers_dict[provider_code]=provider
             else:
-                UI.print("Error in reading provider definition file for",file_name)
+                UI.vprint(0,"Error in reading provider definition file for",file_name)
             f.close()
 
 def initialize_combined_providers_dict():   
@@ -381,82 +387,88 @@ def initialize_local_combined_providers_dict(tile):
             comb_list=[]
             for rlayer in combined_providers_dict[provider_code]:
                 if has_data((tile.lon,tile.lat+1,tile.lon+1,tile.lat),rlayer['extent_code'],is_mask_layer=(tile.lat,tile.lon,tile.mask_zl) if rlayer['priority']=='mask' else False):
-                    name=rlayer['extent_code']
-                    if name[0]=='!': name=name[1:]
-                    if extents_dict[name]['dir']=='LowRes':
-                        new_rlayer=dict(rlayer)
-                        new_extent_code=name+"_"+FNAMES.short_latlon(tile.lat,tile.lon)
-                        new_rlayer['extent_code']=new_extent_code
-                        comb_list.append(new_rlayer) 
-                        extents_dict[new_extent_code]={'dir':'tmp','code':new_extent_code,'mask_bounds':[tile.lon-0.1,tile.lat-0.1,tile.lon+1.1,tile.lat+1.1]}
-                        if os.path.exists(os.path.join(FNAMES.Extent_dir,'tmp',new_extent_code+".png")):
-                            UI.vprint(1,"    Recycling layer mask for ",name)
-                            continue
-                        # need to build the extent mask over that tile
-                        if not os.path.isdir(os.path.join(FNAMES.Extent_dir,'tmp')):
-                            os.makedirs(os.path.join(FNAMES.Extent_dir,'tmp'))
-                        cached_file_name=os.path.join(FNAMES.Extent_dir,'LowRes',name+'.osm.bz2')
-                        pixel_size=10
-                        try:
-                            buffer_width=extents_dict[name]['buffer_width']/pixel_size
-                        except:
-                            buffer_width=0.0
-                        try:
-                            mask_width=int(extents_dict[name]['mask_width']/pixel_size)
-                        except:
-                            mask_width=int(100/pixel_size)
-                        pixel_size = pixel_size/111120 
-                        vector_map=VECT.Vector_Map()
-                        osm_layer=OSM.OSM_layer()
-                        if not os.path.exists(cached_file_name):
-                            UI.vprint(0,"Error, missing OSM data for extent code",name,", exiting.") 
-                            del(extents_dict[new_extent_code])
-                            return 0
-                        UI.vprint(1,"    Building layer mask for ",name)
-                        osm_layer.update_dicosm(cached_file_name,None)
-                        multipolygon_area=OSM.OSM_to_MultiPolygon(osm_layer,0,0)
-                        del(osm_layer)
-                        if not multipolygon_area.area:
-                            UI.vprint(0,"Error, erroneous OSM data for extent code",name,", skipped.") 
-                            continue
-                        vector_map.encode_MultiPolygon(multipolygon_area,VECT.dummy_alt,'DUMMY',check=False,cut=False)
-                        vector_map.write_node_file(name+'.node')
-                        vector_map.write_poly_file(name+'.poly')
-                        MESH.triangulate(name,'.')
-                        ((xmin,ymin,xmax,ymax),mask_im)=MASK.triangulation_to_image(name,pixel_size,(tile.lon-0.1,tile.lat-0.1,tile.lon+1.1,tile.lat+1.1))
-                        if buffer_width:
-                            mask_im=mask_im.filter(ImageFilter.GaussianBlur(buffer_width/4))
-                            if buffer_width>0:
-                                mask_im=Image.fromarray((numpy.array(mask_im,dtype=numpy.uint8)>0).astype(numpy.uint8)*255)
-                            else: # buffer width can be negative
-                                mask_im=Image.fromarray((numpy.array(mask_im,dtype=numpy.uint8)==255).astype(numpy.uint8)*255)
-                        if mask_width:
-                            mask_width+=1
-                            img_array=numpy.array(mask_im,dtype=numpy.uint8)
-                            kernel=numpy.ones(int(mask_width))/int(mask_width)
-                            kernel=numpy.array(range(1,2*mask_width))
-                            kernel[mask_width:]=range(mask_width-1,0,-1)
-                            kernel=kernel/mask_width**2
-                            for i in range(0,len(img_array)):
-                                img_array[i]=numpy.convolve(img_array[i],kernel,'same')
-                            img_array=img_array.transpose() 
-                            for i in range(0,len(img_array)):
-                                img_array[i]=numpy.convolve(img_array[i],kernel,'same')
-                            img_array=img_array.transpose()
-                            img_array[img_array>=128]=255
-                            img_array[img_array<128]*=2  
-                            img_array=numpy.array(img_array,dtype=numpy.uint8)
-                            mask_im=Image.fromarray(img_array)
-                        mask_im.save(os.path.join(FNAMES.Extent_dir,'tmp',new_extent_code+".png"))
-                        for f in [name+'.poly',name+'.node',name+'.1.node',name+'.1.ele']:
-                            try: 
-                                os.remove(f)
-                            except:
-                                pass
-                    else:    
-                        comb_list.append(rlayer)
+                    comb_list.append(rlayer)
             if comb_list:
-                local_combined_providers_dict[provider_code]=comb_list
+                if len(comb_list)!=1:
+                    new_comb_list=[]
+                    for rlayer in comb_list:
+                        name=rlayer['extent_code']
+                        if name[0]=='!': name=name[1:]
+                        if extents_dict[name]['dir']=='LowRes':
+                            new_rlayer=dict(rlayer)
+                            new_extent_code=name+"_"+FNAMES.short_latlon(tile.lat,tile.lon)
+                            new_rlayer['extent_code']=new_extent_code
+                            new_comb_list.append(new_rlayer) 
+                            extents_dict[new_extent_code]={'dir':'Auto','code':new_extent_code,'mask_bounds':[tile.lon-0.1,tile.lat-0.1,tile.lon+1.1,tile.lat+1.1]}
+                            if os.path.exists(os.path.join(FNAMES.Extent_dir,'Auto',new_extent_code+".png")):
+                                UI.vprint(1,"    Recycling layer mask for ",name)
+                                continue
+                            UI.vprint(1,"    Building layer mask for ",name)
+                            # need to build the extent mask over that tile
+                            if not os.path.isdir(os.path.join(FNAMES.Extent_dir,'Auto')):
+                                os.makedirs(os.path.join(FNAMES.Extent_dir,'Auto'))
+                            cached_file_name=os.path.join(FNAMES.Extent_dir,'LowRes',name+'.osm.bz2')
+                            pixel_size=10
+                            try:
+                                buffer_width=extents_dict[name]['buffer_width']/pixel_size
+                            except:
+                                buffer_width=0.0
+                            try:
+                                mask_width=int(extents_dict[name]['mask_width']/pixel_size)
+                            except:
+                                mask_width=int(100/pixel_size)
+                            pixel_size = pixel_size/111139 
+                            vector_map=VECT.Vector_Map()
+                            osm_layer=OSM.OSM_layer()
+                            if not os.path.exists(cached_file_name):
+                                UI.vprint(0,"Error, missing OSM data for extent code",name,", exiting.") 
+                                del(extents_dict[new_extent_code])
+                                return 0
+                            osm_layer.update_dicosm(cached_file_name,None)
+                            multipolygon_area=OSM.OSM_to_MultiPolygon(osm_layer,0,0)
+                            del(osm_layer)
+                            if not multipolygon_area.area:
+                                UI.vprint(0,"Error, erroneous OSM data for extent code",name,", skipped.") 
+                                continue
+                            vector_map.encode_MultiPolygon(multipolygon_area,VECT.dummy_alt,'DUMMY',check=False,cut=False)
+                            vector_map.write_node_file(name+'.node')
+                            vector_map.write_poly_file(name+'.poly')
+                            MESH.triangulate(name,'.')
+                            ((xmin,ymin,xmax,ymax),mask_im)=MASK.triangulation_to_image(name,pixel_size,(tile.lon-0.1,tile.lat-0.1,tile.lon+1.1,tile.lat+1.1))
+                            if buffer_width:
+                                mask_im=mask_im.filter(ImageFilter.GaussianBlur(buffer_width/4))
+                                if buffer_width>0:
+                                    mask_im=Image.fromarray((numpy.array(mask_im,dtype=numpy.uint8)>0).astype(numpy.uint8)*255)
+                                else: # buffer width can be negative
+                                    mask_im=Image.fromarray((numpy.array(mask_im,dtype=numpy.uint8)==255).astype(numpy.uint8)*255)
+                            if mask_width:
+                                mask_width+=1
+                                img_array=numpy.array(mask_im,dtype=numpy.uint8)
+                                kernel=numpy.ones(int(mask_width))/int(mask_width)
+                                kernel=numpy.array(range(1,2*mask_width))
+                                kernel[mask_width:]=range(mask_width-1,0,-1)
+                                kernel=kernel/mask_width**2
+                                for i in range(0,len(img_array)):
+                                    img_array[i]=numpy.convolve(img_array[i],kernel,'same')
+                                img_array=img_array.transpose() 
+                                for i in range(0,len(img_array)):
+                                    img_array[i]=numpy.convolve(img_array[i],kernel,'same')
+                                img_array=img_array.transpose()
+                                img_array[img_array>=128]=255
+                                img_array[img_array<128]*=2  
+                                img_array=numpy.array(img_array,dtype=numpy.uint8)
+                                mask_im=Image.fromarray(img_array)
+                            mask_im.save(os.path.join(FNAMES.Extent_dir,'Auto',new_extent_code+".png"))
+                            for f in [name+'.poly',name+'.node',name+'.1.node',name+'.1.ele']:
+                                try: 
+                                    os.remove(f)
+                                except:
+                                    pass
+                        else:    
+                            new_comb_list.append(rlayer)
+                    local_combined_providers_dict[provider_code]=new_comb_list        
+                else:
+                    local_combined_providers_dict[provider_code]=comb_list
             else:
                 UI.vprint(1,"Combined provider",provider_code,"did not contained data for this tile, exiting.")
                 return 0
@@ -1067,6 +1079,9 @@ def build_combined_ortho(tile, latp,lonp,zoomlevel,provider_code,mask_zl,filenam
 def build_geotiffs(tile,texture_attributes_list):
     UI.red_flag=False
     timer=time.time()
+    initialize_color_filters_dict()
+    initialize_providers_dict()   
+    initialize_combined_providers_dict()   
     done=0
     todo=len(texture_attributes_list)
     for texture_attributes in texture_attributes_list:
@@ -1220,6 +1235,36 @@ def combine_textures(tile,til_x_left,til_y_top,zoomlevel,provider_code):
     (y0,x0)=GEO.gtile_to_wgs84(til_x_left,til_y_top,zoomlevel)
     (y1,x1)=GEO.gtile_to_wgs84(til_x_left+16,til_y_top+16,zoomlevel)
     mask_weight_below=numpy.zeros((4096,4096),dtype=numpy.uint16)
+    if len(local_combined_providers_dict[provider_code])==1: # we do not need to bother with masks then 
+        rlayer=local_combined_providers_dict[provider_code][0]
+        true_til_x_left=til_x_left
+        true_til_y_top=til_y_top
+        true_zl=zoomlevel
+        crop=False
+        if 'max_zl' in providers_dict[rlayer['layer_code']]:
+            max_zl=int(providers_dict[rlayer['layer_code']]['max_zl'])
+            if max_zl<zoomlevel:
+                (latmed,lonmed)=GEO.gtile_to_wgs84(til_x_left+8,til_y_top+8,zoomlevel)
+                (true_til_x_left,true_til_y_top)=GEO.wgs84_to_orthogrid(latmed,lonmed,max_zl)
+                true_zl=max_zl
+                crop=True
+                pixx0=round(256*(til_x_left*2**(max_zl-zoomlevel)-true_til_x_left))
+                pixy0=round(256*(til_y_top*2**(max_zl-zoomlevel)-true_til_y_top))
+                pixx1=round(pixx0+2**(12-zoomlevel+max_zl))
+                pixy1=round(pixy0+2**(12-zoomlevel+max_zl))
+        true_file_name=FNAMES.jpeg_file_name_from_attributes(true_til_x_left, true_til_y_top, true_zl,rlayer['layer_code'])
+        true_file_dir=FNAMES.jpeg_file_dir_from_attributes(tile.lat, tile.lon, true_zl,providers_dict[rlayer['layer_code']])
+        true_im=Image.open(os.path.join(true_file_dir,true_file_name))
+        UI.vprint(2,"Imprinting for provider",rlayer,til_x_left,til_y_top) 
+        true_im=color_transform(true_im,rlayer['color_code'])  
+        if rlayer['priority']=='mask' and tile.sea_texture_blur:
+            UI.vprint(2,"Blur of a mask !")
+            true_im=true_im.filter(ImageFilter.GaussianBlur(tile.sea_texture_blur*2**(true_zl-17)))
+        if crop: 
+            true_im=true_im.crop((pixx0,pixy0,pixx1,pixy1)).resize((4096,4096),Image.BICUBIC)
+        UI.vprint(2,"Finished imprinting",til_x_left,til_y_top)
+        return true_im
+    # the real situation now where there are more than one layer with data
     for rlayer in local_combined_providers_dict[provider_code][::-1]:
         mask=has_data((x0,y0,x1,y1),rlayer['extent_code'],return_mask=True,is_mask_layer=(tile.lat,tile.lon, tile.mask_zl) if rlayer['priority']=='mask' else False)
         if not mask: continue
@@ -1254,8 +1299,8 @@ def combine_textures(tile,til_x_left,til_y_top,zoomlevel,provider_code):
         # the mask (where it is nor 0 nor 255) the pixels for which the true_im
         # is all white or all black
         true_arr=numpy.array(true_im).astype(numpy.uint16)
-        #mask[(numpy.sum(true_arr,axis=2)>=735)*(mask>=1)*(mask<=253)]=0
-        mask[(numpy.sum(true_arr,axis=2)<=35)]=0 #*(mask>=1)*(mask<=253)]=0
+        mask[(numpy.sum(true_arr,axis=2)>=735)*(mask>=1)*(mask<=253)]=0
+        mask[(numpy.sum(true_arr,axis=2)<=35)*(mask>=1)*(mask<=253)]=0
         if rlayer['priority']=='low':
             # low priority layers, do not increase mask_weight_below
             wasnt_zero=(mask_weight_below+mask)!=0
@@ -1283,6 +1328,9 @@ def convert_texture(tile,til_x_left,til_y_top,zoomlevel,provider_code,type='dds'
         png_file_name=out_file_name.replace('dds','png')
     elif type=='tif':
         out_file_name=FNAMES.geotiff_file_name_from_attributes(til_x_left,til_y_top,zoomlevel,provider_code)
+        if os.path.exists(os.path.join(FNAMES.Geotiff_dir,out_file_name)):
+            try: os.remove(os.path.join(FNAMES.Geotiff_dir,out_file_name))
+            except: pass
         png_file_name=out_file_name.replace('tif','png')
         tmp_tif_file_name = os.path.join(UI.Ortho4XP_dir,'tmp',out_file_name.replace('4326','3857'))
     UI.vprint(1,"   Converting orthophoto(s) to build texture "+out_file_name+".")
@@ -1327,7 +1375,7 @@ def convert_texture(tile,til_x_left,til_y_top,zoomlevel,provider_code,type='dds'
                 try: os.remove(os.path.join(UI.Ortho4XP_dir,'tmp',png_file_name))
                 except: pass  
                 return
-            conv_cmd=[gdalwarp_cmd,'-of','Gtiff','-co','COMPRESS=JPEG','-s_srs','epsg:3857','-t_srs','epsg:4326','ts','4096','4096','-rb',tmp_tif_file_name,os.path.join(FNAMES.Geotiff_dir,out_file_name)] 
+            conv_cmd=[gdalwarp_cmd,'-of','Gtiff','-co','COMPRESS=JPEG','-s_srs','epsg:3857','-t_srs','epsg:4326','-ts','4096','4096','-rb',tmp_tif_file_name,os.path.join(FNAMES.Geotiff_dir,out_file_name)] 
     tentative=0
     while True:
         if not subprocess.call(conv_cmd,stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT):

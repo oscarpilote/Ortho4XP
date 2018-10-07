@@ -1,0 +1,7 @@
+# Linz open data imagery for _PART OF_ New Zealand. Use only inside of .comb files with proper masking.
+# https://data.linz.govt.nz/set/4702-nz-aerial-imagery/
+grid_type=webmercator
+url_template=https://koordinates-tiles-{switch:a,b,c,d}.global.ssl.fastly.net/services;key=ec2d27e902f1463c9145743576e03f31/tiles/v4/layer=51769,style=auto;layer=88131,style=auto;layer=95497,style=auto/{z}/{x}/{y}.png
+max_threads=8
+imagery_dir=code
+in_GUI=False

@@ -1,0 +1,7 @@
+request_type=wms
+wms_size=512
+epsg_code=25833
+max_threads=4
+imagery_dir=code
+fake_headers={'Referer':'www.norgeibilder.no'}
+color_filters=Vestlandet2013_

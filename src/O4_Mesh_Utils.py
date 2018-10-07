@@ -387,9 +387,25 @@ def build_mesh(tile):
     time.sleep(0.3)
     fingers_crossed.poll()        
     if fingers_crossed.returncode:
-        UI.exit_message_and_bottom_line("\nERROR: Triangle4XP crashed !\n\n"+\
+        UI.vprint(0,"\nWARNING: Triangle4XP could not achieve the requested quality (min_angle), most probably due to an uncatched OSM error.\n"+\
+                    "It will be tempted now with no angle constraint (i.e. min_angle=0).")
+        mesh_cmd[-5]='{:.9g}'.format(0)
+        fingers_crossed=subprocess.Popen(mesh_cmd,stdout=subprocess.PIPE,bufsize=0)
+        while True:
+            line = fingers_crossed.stdout.readline()
+            if not line: 
+                break
+            else:
+                try:
+                    print(line.decode("utf-8")[:-1])
+                except:
+                    pass
+        time.sleep(0.3)
+        fingers_crossed.poll()
+        if fingers_crossed.returncode:
+            UI.exit_message_and_bottom_line("\nERROR: Triangle4XP really couldn't make it !\n\n"+\
                                         "If the reason is not due to the limited amount of RAM please\n"+\
-                                        "file a bug including the .node and .poly files for that you\n"+\
+                                        "file a bug including the .node and .poly files that you\n"+\
                                         "will find in "+str(tile.build_dir)+".\n")
         return 0
         

@@ -1,0 +1,8 @@
+request_type=wms
+epsg_code=2169
+wms_size=1024
+url_prefix=http://wmts1.geoportail.lu/opendata/service?
+wms_version=1.1.1
+layers=ortho_2013
+imagery_dir=code
+in_GUI=False

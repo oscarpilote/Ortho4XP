@@ -4,4 +4,4 @@ top_left_corner=600000 5070000
 resolutions=204.8 102.4 51.2 25.6 12.8 6.4 3.2 1.6 0.8 0.4 0.2
 tile_size=256
 url_template=http://geoservices.buergernetz.bz.it/geoserver/gwc/service/tms/1.0.0/P_BZ_OF_2014_2015@EPSG%3A25832_20cm@jpeg/{zoom}/{x}/{|y|}.jpeg
-extent=AltoAdige
+in_GUI=False

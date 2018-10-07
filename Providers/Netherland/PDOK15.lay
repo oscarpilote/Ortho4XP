@@ -1,0 +1,9 @@
+request_type=wmts
+epsg_code=28992
+layers=luchtfoto
+tilematrixset=nltilingschema
+tile_size=256
+url_prefix=http://geodata1.nationaalgeoregister.nl/luchtfoto/wmts?
+in_GUI=False
+imagery_dir=code
+# color filter : balance medium 3 3 -5 saturation 30 brightness-contrast -20 8

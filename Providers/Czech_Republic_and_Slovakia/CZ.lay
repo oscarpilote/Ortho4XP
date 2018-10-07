@@ -1,0 +1,5 @@
+request_type=tms
+grid_type=webmercator
+url_template=http://m{switch:1,2,3,4}.mapserver.mapy.cz/ophoto-m/{zoom}-{x}-{y}
+imagery_dir=code
+in_GUI=False
