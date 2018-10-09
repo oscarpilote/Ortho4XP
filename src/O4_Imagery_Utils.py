@@ -620,9 +620,14 @@ def http_request_to_image(width,height,url,request_headers,http_session):
             else:
                 r=http_session.get(url, timeout=http_timeout) 
             status_code = str(r)
-            # Bing white image with small camera => try to downsample to lower ZL
-            if ('Content-Length' in r.headers) and (r.headers['Content-Length']=='1033') and  ('virtualearth' in url):
-                return (0,'[404]')
+            # Bing white image with small camera or Arcgis no data yet => try to downsample to lower ZL
+            if ('Content-Length' in r.headers) and int(r.headers['Content-Length'])<=2521:
+                if (r.headers['Content-Length']=='1033') and  ('virtualearth' in url):
+                    UI.vprint(3,url,r.headers)
+                    return (0,'[404]')
+                if (r.headers['Content-Length']=='2521') and  ('arcgisonline' in url):
+                    UI.vprint(3,url,r.headers)
+                    return (0,'[404]')
             if ('[200]' in status_code) and ('image' in r.headers['Content-Type']):
                 try:
                     small_image=Image.open(io.BytesIO(r.content))
