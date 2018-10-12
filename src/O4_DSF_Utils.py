@@ -134,31 +134,50 @@ def zone_list_to_ortho_dico(tile):
                 colmax=round(xmax*4095)
                 rowmax=round((1-ymin)*4095)
                 rowmin=round((1-ymax)*4095)
-                airport_array[rowmin:rowmax+1,colmin:colmax+1]=1 
-        dico_tmp={}
-        dico_customzl={}
-        i=1
-        base_zone=((tile.lat,tile.lon,tile.lat,tile.lon+1,tile.lat+1,tile.lon+1,tile.lat+1,tile.lon,tile.lat,tile.lon),tile.default_zl,tile.default_website)
-        for region in [base_zone]+tile.zone_list[::-1]:
-            dico_tmp[i]=(region[1],region[2])
-            pol=[(round((x-tile.lon)*4095),round((tile.lat+1-y)*4095)) for (x,y) in zip(region[0][1::2],region[0][::2])]
-            masks_draw.polygon(pol,fill=i)
-            i+=1
+                airport_array[rowmin:rowmax+1,colmin:colmax+1]=1
+        dico_customzl={}        
         til_x_min,til_y_min=GEO.wgs84_to_orthogrid(tile.lat+1,tile.lon,tile.mesh_zl)
-        til_x_max,til_y_max=GEO.wgs84_to_orthogrid(tile.lat,tile.lon+1,tile.mesh_zl)
-        for til_x in range(til_x_min,til_x_max+1,16):
-            for til_y in range(til_y_min,til_y_max+1,16):
-                (latp,lonp)=GEO.gtile_to_wgs84(til_x+8,til_y+8,tile.mesh_zl)
-                lonp=max(min(lonp,tile.lon+1),tile.lon) 
-                latp=max(min(latp,tile.lat+1),tile.lat) 
-                x=round((lonp-tile.lon)*4095)
-                y=round((tile.lat+1-latp)*4095)
-                (zoomlevel,provider_code)=dico_tmp[masks_im.getpixel((x,y))]
-                if airport_array[y,x]: 
-                    zoomlevel=max(zoomlevel,tile.cover_zl)
-                til_x_text=16*(int(til_x/2**(tile.mesh_zl-zoomlevel))//16)
-                til_y_text=16*(int(til_y/2**(tile.mesh_zl-zoomlevel))//16)
-                dico_customzl[(til_x,til_y)]=(til_x_text,til_y_text,zoomlevel,provider_code)
+        til_x_max,til_y_max=GEO.wgs84_to_orthogrid(tile.lat,tile.lon+1,tile.mesh_zl)        
+        if tile.cover_airports_with_highres=='Existing':
+            # first a base with default zl and default website 
+            for til_x in range(til_x_min,til_x_max+1,16):
+                for til_y in range(til_y_min,til_y_max+1,16):
+                    til_x_text=16*(int(til_x/2**(tile.mesh_zl-tile.default_zl))//16)
+                    til_y_text=16*(int(til_y/2**(tile.mesh_zl-tile.default_zl))//16)
+                    dico_customzl[(til_x,til_y)]=(til_x_text,til_y_text,tile.default_zl,tile.default_website)
+            # then what we find in the texture folder of the existing tile
+            for f in os.listdir(os.path.join(tile.build_dir,'textures')):
+                if f[-4:]!='.dds': continue
+                items=f.split('_')
+                (til_y_text,til_x_text)=[int(x) for x in items[:2]]
+                zoomlevel=int(items[-1][-6:-4])
+                provider_code='_'.join(items[2:])[:-6]
+                for til_x in range(til_x_text*2**(tile.mesh_zl-zoomlevel),(til_x_text+16)*2**(tile.mesh_zl-zoomlevel)):
+                    for til_y in range(til_y_text*2**(tile.mesh_zl-zoomlevel),(til_y_text+16)*2**(tile.mesh_zl-zoomlevel)):
+                        if ((til_x,til_y) not in dico_customzl) or dico_customzl[(til_x,til_y)][2]<=zoomlevel:
+                            dico_customzl[(til_x,til_y)]=(til_x_text,til_y_text,zoomlevel,provider_code)
+        else:
+            dico_tmp={}
+            i=1
+            base_zone=((tile.lat,tile.lon,tile.lat,tile.lon+1,tile.lat+1,tile.lon+1,tile.lat+1,tile.lon,tile.lat,tile.lon),tile.default_zl,tile.default_website)
+            for region in [base_zone]+tile.zone_list[::-1]:
+                dico_tmp[i]=(region[1],region[2])
+                pol=[(round((x-tile.lon)*4095),round((tile.lat+1-y)*4095)) for (x,y) in zip(region[0][1::2],region[0][::2])]
+                masks_draw.polygon(pol,fill=i)
+                i+=1
+            for til_x in range(til_x_min,til_x_max+1,16):
+                for til_y in range(til_y_min,til_y_max+1,16):
+                    (latp,lonp)=GEO.gtile_to_wgs84(til_x+8,til_y+8,tile.mesh_zl)
+                    lonp=max(min(lonp,tile.lon+1),tile.lon) 
+                    latp=max(min(latp,tile.lat+1),tile.lat) 
+                    x=round((lonp-tile.lon)*4095)
+                    y=round((tile.lat+1-latp)*4095)
+                    (zoomlevel,provider_code)=dico_tmp[masks_im.getpixel((x,y))]
+                    if airport_array[y,x]: 
+                        zoomlevel=max(zoomlevel,tile.cover_zl)
+                    til_x_text=16*(int(til_x/2**(tile.mesh_zl-zoomlevel))//16)
+                    til_y_text=16*(int(til_y/2**(tile.mesh_zl-zoomlevel))//16)
+                    dico_customzl[(til_x,til_y)]=(til_x_text,til_y_text,zoomlevel,provider_code)
         return dico_customzl
 ##############################################################################
 
