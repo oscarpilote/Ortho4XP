@@ -35,7 +35,6 @@ def download_textures(tile,download_queue,convert_queue):
     return 1
 ##############################################################################
 
-
 ##############################################################################
 def build_tile(tile):
     if UI.is_working: return 0

@@ -990,6 +990,17 @@ def build_jpeg_ortho(tile, til_x_left,til_y_top,zoomlevel,provider_code,out_file
         if out_file_name:
             big_img=combine_textures(tile,til_x_left,til_y_top,zoomlevel,provider_code)
             big_img.convert('RGB').save(out_file_name)
+        elif provider_code in providers_dict:  # In case one would like to save combined orthos as jpegs (this can be useful to use different masks parameters for imagery masks layers and actual masks
+            file_name=FNAMES.jpeg_file_name_from_attributes(til_x_left, til_y_top, zoomlevel,provider_code)
+            file_dir=FNAMES.jpeg_file_dir_from_attributes(tile.lat, tile.lon,zoomlevel,providers_dict[provider_code])
+            big_img=combine_textures(tile,til_x_left,til_y_top,zoomlevel,provider_code)
+            if not os.path.exists(file_dir):
+                os.makedirs(file_dir)
+            try:
+                big_img.convert('RGB').save(os.path.join(file_dir,file_name))
+            except Exception as e:
+                UI.lvprint(0,"OS Error : could not save orthophoto on disk, received message :",e)
+                return 0
     elif provider_code in providers_dict:  
         file_name=FNAMES.jpeg_file_name_from_attributes(til_x_left, til_y_top, zoomlevel,provider_code)
         file_dir=FNAMES.jpeg_file_dir_from_attributes(tile.lat, tile.lon,zoomlevel,providers_dict[provider_code])
@@ -1340,31 +1351,50 @@ def convert_texture(tile,til_x_left,til_y_top,zoomlevel,provider_code,type='dds'
         tmp_tif_file_name = os.path.join(UI.Ortho4XP_dir,'tmp',out_file_name.replace('4326','3857'))
     UI.vprint(1,"   Converting orthophoto(s) to build texture "+out_file_name+".")
     erase_tmp_png=False
-    erase_tmp_tif=False    
-    if provider_code in local_combined_providers_dict:
+    erase_tmp_tif=False
+    dxt5=False
+    masked_texture=os.path.exists(os.path.join(tile.build_dir,"textures",FNAMES.mask_file(til_x_left,til_y_top,zoomlevel,provider_code)))
+    if provider_code in providers_dict:
+        jpeg_file_name=FNAMES.jpeg_file_name_from_attributes(til_x_left,til_y_top,zoomlevel,provider_code)
+        file_dir=FNAMES.jpeg_file_dir_from_attributes(tile.lat, tile.lon, zoomlevel, providers_dict[provider_code])
+    if (provider_code in local_combined_providers_dict) and ((provider_code not in providers_dict) or not os.path.exists(os.path.join(file_dir,jpeg_file_name))):
         big_image=combine_textures(tile,til_x_left,til_y_top,zoomlevel,provider_code)
+        if tile.imprint_masks_to_dds and masked_texture:
+            mask_im=Image.open(os.path.join(tile.build_dir,"textures",FNAMES.mask_file(til_x_left,til_y_top,zoomlevel,provider_code))).convert('L')
+            UI.vprint(2,"      Applying alpha mask directly to orthophoto.")
+            big_image.putalpha(mask_im.resize((4096,4096),Image.BICUBIC))
+            try: os.remove(os.path.join(tile.build_dir,"textures",FNAMES.mask_file(til_x_left,til_y_top,zoomlevel,provider_code))) 
+            except: pass
+            dxt5=True
         file_to_convert=os.path.join(UI.Ortho4XP_dir,'tmp',png_file_name)
         erase_tmp_png=True
         big_image.save(file_to_convert) 
         # If one wanted to distribute jpegs instead of dds, uncomment the next line
         # big_image.convert('RGB').save(os.path.join(tile.build_dir,'textures',out_file_name.replace('dds','jpg')),quality=70)
     # now if provider_code was not in local_combined_providers_dict but color correction is required
-    elif providers_dict[provider_code]['color_filters']!='none':
-        jpeg_file_name=FNAMES.jpeg_file_name_from_attributes(til_x_left,til_y_top,zoomlevel,provider_code)
-        file_dir=FNAMES.jpeg_file_dir_from_attributes(tile.lat,tile.lon, zoomlevel, providers_dict[provider_code])
+    elif providers_dict[provider_code]['color_filters']!='none' or (tile.imprint_masks_to_dds and masked_texture):
         big_image=Image.open(os.path.join(file_dir,jpeg_file_name),'r').convert('RGB')
-        big_image=color_transform(big_image,providers_dict[provider_code]['color_filters'])
+        if providers_dict[provider_code]['color_filters']!='none':
+            big_image=color_transform(big_image,providers_dict[provider_code]['color_filters'])
+        if (tile.imprint_masks_to_dds and masked_texture):
+            mask_im=Image.open(os.path.join(tile.build_dir,"textures",FNAMES.mask_file(til_x_left,til_y_top,zoomlevel,provider_code))).convert('L')
+            UI.vprint(2,"      Applying alpha mask directly to orthophoto.")
+            big_image.putalpha(mask_im.resize((4096,4096),Image.BICUBIC))
+            try: os.remove(os.path.join(tile.build_dir,"textures",FNAMES.mask_file(til_x_left,til_y_top,zoomlevel,provider_code))) 
+            except: pass
+            dxt5=True
         file_to_convert=os.path.join(UI.Ortho4XP_dir,'tmp',png_file_name)
         erase_tmp_png=True
         big_image.save(file_to_convert) 
     # finally if nothing needs to be done prior to the conversion
     else:
-        jpeg_file_name=FNAMES.jpeg_file_name_from_attributes(til_x_left,til_y_top,zoomlevel,provider_code)
-        file_dir=FNAMES.jpeg_file_dir_from_attributes(tile.lat, tile.lon, zoomlevel, providers_dict[provider_code])
         file_to_convert=os.path.join(file_dir,jpeg_file_name)
     # eventually the dds conversion
     if type=='dds':
-        conv_cmd=[dds_convert_cmd,'-bc1','-fast',file_to_convert,os.path.join(tile.build_dir,'textures',out_file_name),devnull_rdir]
+        if not dxt5:
+            conv_cmd=[dds_convert_cmd,'-bc1','-fast',file_to_convert,os.path.join(tile.build_dir,'textures',out_file_name),devnull_rdir]
+        else:
+            conv_cmd=[dds_convert_cmd,'-bc3','-fast',file_to_convert,os.path.join(tile.build_dir,'textures',out_file_name),devnull_rdir]
     else:
         (latmax,lonmin)=GEO.gtile_to_wgs84(til_x_left,til_y_top,zoomlevel)
         (latmin,lonmax)=GEO.gtile_to_wgs84(til_x_left+16,til_y_top+16,zoomlevel)

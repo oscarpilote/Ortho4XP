@@ -207,14 +207,23 @@ def create_terrain_file(tile,texture_file_name,til_x_left,til_y_top,zoomlevel,pr
             f.write('BORDER_TEX ../textures/water_transition.png\n')
             if not os.path.exists(os.path.join(tile.build_dir,'textures','water_transition.png')):
                 shutil.copy(os.path.join(FNAMES.Utils_dir,'water_transition.png'),os.path.join(tile.build_dir,'textures'))
-        elif tri_type==2: #border_tex mask
+        elif tri_type==2 and not tile.imprint_masks_to_dds: #border_tex mask
             f.write('LOAD_CENTER_BORDER '+'{:.5f}'.format(lat_med)+' '\
                +'{:.5f}'.format(lon_med)+' '+str(texture_approx_size)+' '+str(4096//2**(zoomlevel-tile.mask_zl))+'\n')
             f.write('BORDER_TEX ../textures/'+FNAMES.mask_file(til_x_left,til_y_top,zoomlevel,provider_code)+'\n')
+        elif tri_type==2 and tile.imprint_masks_to_dds and (tile.experimental_water & 2): #dxt5 with normal map
+            f.write('TEXTURE_NORMAL '+str(2**(17-zoomlevel))+' ../textures/water_normal_map.dds\n')
+            f.write('GLOBAL_specular 1.0\n')
+            f.write('NORMAL_METALNESS\n')
+            if not os.path.exists(os.path.join(tile.build_dir,'textures','water_normal_map.dds')):
+                shutil.copy(os.path.join(FNAMES.Utils_dir,'water_normal_map.dds'),os.path.join(tile.build_dir,'textures'))
+            pass
         elif tile.use_decal_on_terrain:
             f.write('DECAL_LIB lib/g10/decals/maquify_1_green_key.dcl\n')
         if tri_type in (1,2):
             f.write('WET\n')
+        else:
+            f.write('NO_ALPHA\n')
         if tri_type in (1,2) or not tile.terrain_casts_shadows:
             f.write('NO_SHADOW\n')
         return ter_file_name
@@ -323,39 +332,47 @@ def build_dsf(tile,download_queue):
         f_mesh.readline()
     nbr_tris=int(f_mesh.readline()) # read nbr of tris
     step=nbr_tris//100+1
+    
+    tri_list=[]
     for i in range(nbr_tris):
-        if i%step==0:
-            UI.progress_bar(1,int(i/step*0.9))
-            if UI.red_flag: UI.vprint(1,"DSF construction interrupted."); return 0   
         # look for the texture that will possibly cover the tri
         (n1,n2,n3,tri_type)=[int(x)-1 for x in f_mesh.readline().split()[:4]]
         tri_type+=1
+        # Triangles of mixed types are set for water in priority (to avoid water cut by solid roads), and others are set for type=0 
+        tri_type = (tri_type & has_water) and (2*((tri_type & has_water)>1 or tile.use_masks_for_inland) or 1)
+        tri_list.append((n1,n2,n3,tri_type))
+    f_mesh.close()
+    
+    i=0
+    # First sea water (or equivalent) tris 
+    for tri in [tri for tri in tri_list if tri[3]==2]:
+        (n1,n2,n3,tri_type)=tri
+        if i%step==0:
+            UI.progress_bar(1,int(i/step*0.9))
+            if UI.red_flag: UI.vprint(1,"DSF construction interrupted."); return 0   
+        i+=1   
         bary_lon=(node_coords[5*n1]+node_coords[5*n2]+node_coords[5*n3])/3
         bary_lat=(node_coords[5*n1+1]+node_coords[5*n2+1]+node_coords[5*n3+1])/3
         texture_attributes=dico_customzl[GEO.wgs84_to_orthogrid(bary_lat,bary_lon,tile.mesh_zl)]
-        # Triangles of mixed types are set for water in priority (to avoid water cut by solid roads), and others are set for type=0 
-        tri_type = (tri_type & has_water) and (2*((tri_type & has_water)>1 or tile.use_masks_for_inland) or 1)
         # The entries for the terrain and texture main dictionnaries
         terrain_attributes=(texture_attributes,tri_type)
         # Do we need to build new terrain file(s) ?       
         if terrain_attributes in dico_terrains: 
             terrain_idx=dico_terrains[terrain_attributes]
         else:
-            # if tri_type=0 or 1 we certainly need a new terrain
-            needs_new_terrain=tri_type<2
+            needs_new_terrain=False
             # if not we need to check with masks values
-            if tri_type==2:
-                if terrain_attributes not in skipped_terrains_for_masking:
-                    mask_im=MASK.needs_mask(tile,*texture_attributes)
-                    if mask_im:
-                        UI.vprint(2,"      Use of an alpha mask.")
-                        needs_new_terrain=True
-                        mask_im.save(os.path.join(tile.build_dir,"textures",FNAMES.mask_file(*texture_attributes)))
-                    else:
-                        skipped_terrains_for_masking.add(terrain_attributes)
-                        # clean up potential old masks in the tile dir   
-                        try: os.remove(os.path.join(tile.build_dir,"textures",FNAMES.mask_file(*texture_attributes)))
-                        except: pass
+            if terrain_attributes not in skipped_terrains_for_masking:
+                mask_im=MASK.needs_mask(tile,*texture_attributes)
+                if mask_im:
+                    UI.vprint(2,"      Use of an alpha mask.")
+                    needs_new_terrain=True
+                    mask_im.save(os.path.join(tile.build_dir,"textures",FNAMES.mask_file(*texture_attributes)))
+                else:
+                    skipped_terrains_for_masking.add(terrain_attributes)
+                    # clean up potential old masks in the tile dir   
+                    try: os.remove(os.path.join(tile.build_dir,"textures",FNAMES.mask_file(*texture_attributes)))
+                    except: pass
             if needs_new_terrain:
                 terrain_idx=len(dico_terrains)
                 textured_tris[terrain_idx]=defaultdict(lambda: array.array('H'))
@@ -365,7 +382,7 @@ def build_dsf(tile,download_queue):
                 texture_file_name=FNAMES.dds_file_name_from_attributes(*texture_attributes)
                 # do we need to download a new texture ?       
                 if texture_attributes not in treated_textures:
-                    if not os.path.isfile(os.path.join(tile.build_dir,'textures',texture_file_name)):
+                    if (not os.path.isfile(os.path.join(tile.build_dir,'textures',texture_file_name))) or (tile.imprint_masks_to_dds):
                         if  'g2xpl' not in texture_attributes[3]:
                             download_queue.put(texture_attributes)
                         elif os.path.isfile(os.path.join(tile.build_dir,'textures',texture_file_name.replace('dds','partial.dds'))):
@@ -393,26 +410,15 @@ def build_dsf(tile,download_queue):
                 else:
                     (s,t)=GEO.st_coord(node_coords[5*n+1],node_coords[5*n],*texture_attributes)
                     # BEWARE : normal coordinates are pointing (EAST,SOUTH) in X-Plane, not (EAST,NORTH) ! (cfr DSF specs), so v -> -v
-                    if not tri_type: # land
-                        idx_dsfpool=idx_pool
-                        dsf_pools[idx_dsfpool].extend(node_icoords[5*n:5*n+5])
-                        dsf_pools[idx_dsfpool].extend((int(round(s*65535)),int(round(t*65535))))
-                    elif tri_type==1: # inland water
-                        if not (tile.experimental_water & 1):
-                            idx_dsfpool=idx_pool+pool_nbr
-                            # constant alpha overlay with flat shading
-                            dsf_pools[idx_dsfpool].extend(node_icoords[5*n:5*n+3])
-                            dsf_pools[idx_dsfpool].extend((32768,32768,int(round(s*65535)),int(round(t*65535)),0,int(round(tile.ratio_water*65535))))
-                        else:
-                            idx_dsfpool=idx_pool
-                            # normal map texture over flat shading - no overlay
-                            dsf_pools[idx_dsfpool].extend(node_icoords[5*n:5*n+3])
-                            dsf_pools[idx_dsfpool].extend((32768,32768,int(round(s*65535)),int(round(t*65535))))
-                    else: # tri_type==2
+                    if not tile.imprint_masks_to_dds: # border_tex
                         idx_dsfpool=idx_pool+pool_nbr
                         # border_tex masks with original normal
                         dsf_pools[idx_dsfpool].extend(node_icoords[5*n:5*n+5])
                         dsf_pools[idx_dsfpool].extend((int(round(s*65535)),int(round(t*65535)),int(round(s*65535)),int(round(t*65535))))
+                    else: # dtx5 dds with mask included
+                        idx_dsfpool=idx_pool
+                        dsf_pools[idx_dsfpool].extend(node_icoords[5*n:5*n+5])
+                        dsf_pools[idx_dsfpool].extend((int(round(s*65535)),int(round(t*65535))))
                     len_textured_nodes+=1
                     pos_in_pool=dsf_pool_length[idx_dsfpool]
                     textured_nodes[node_hash]=(idx_dsfpool,pos_in_pool)
@@ -427,6 +433,162 @@ def build_dsf(tile,download_queue):
             else:
                 total_cross_pool+=1
                 textured_tris[terrain_idx]['cross-pool'].extend(tri_p)
+        # I. X-Plane water
+        if not (tile.experimental_water & tri_type) :   
+            tri_p=array.array('H')
+            for n in (n1,n3,n2):     # beware of ordering for orientation ! 
+                node_hash=(n,0)
+                if node_hash in textured_nodes:
+                    (idx_dsfpool,pos_in_pool)=textured_nodes[node_hash]
+                else:
+                    idx_dsfpool=idx_node_to_idx_pool[n]+2*pool_nbr
+                    len_textured_nodes+=1
+                    pos_in_pool=dsf_pool_length[idx_dsfpool]
+                    textured_nodes[node_hash]=[idx_dsfpool,pos_in_pool]
+                    #in some cases we might prefer to use normal shading for some sea triangles too (albedo continuity with elevation derived masks) 
+                    #dsf_pools[idx_dsfpool].extend(node_icoords[5*n:5*n+5])
+                    dsf_pools[idx_dsfpool].extend(node_icoords[5*n:5*n+3])
+                    dsf_pools[idx_dsfpool].extend((32768,32768))
+                    dsf_pool_length[idx_dsfpool]+=1
+                tri_p.extend((idx_dsfpool,pos_in_pool))
+            if tri_p[0]==tri_p[2]==tri_p[4]:
+                textured_tris[0][tri_p[0]].extend((tri_p[1],tri_p[3],tri_p[5]))    
+            else:
+                total_cross_pool+=1
+                textured_tris[0]['cross-pool'].extend(tri_p)
+        # II. Low resolution texture with global coverage        
+        if ((tile.experimental_water & 2) or tile.add_low_res_sea_ovl): # experimental water over sea
+            #sea_zl=int(IMG.providers_dict['SEA']['max_zl'])
+            sea_zl=experimental_water_zl
+            (til_x_left,til_y_top)=GEO.wgs84_to_orthogrid(bary_lat,bary_lon,sea_zl)
+            texture_attributes=(til_x_left,til_y_top,sea_zl,'SEA')
+            terrain_attributes=(texture_attributes,tri_type)
+            if terrain_attributes in dico_terrains:
+                terrain_idx=dico_terrains[terrain_attributes]
+            else:
+                terrain_idx=len(dico_terrains)
+                is_overlay= not(tile.experimental_water & 2) and 'ratio_water'
+                if is_overlay: overlay_terrains.add(terrain_idx)
+                textured_tris[terrain_idx]=defaultdict(lambda: array.array('H'))
+                dico_terrains[terrain_attributes]=terrain_idx
+                texture_file_name=FNAMES.dds_file_name_from_attributes(*texture_attributes)
+                # do we need to download a new texture ?       
+                if texture_attributes not in treated_textures:
+                    if not os.path.isfile(os.path.join(tile.build_dir,'textures',texture_file_name)):
+                        download_queue.put(texture_attributes)
+                    else:
+                        UI.vprint(1,"   Texture file "+texture_file_name+" already present.")
+                    treated_textures.add(texture_attributes)
+                terrain_file_name=create_terrain_file(tile,texture_file_name,*texture_attributes,tri_type,is_overlay)
+                bTERT+=bytes('terrain/'+terrain_file_name+'\0','ascii') 
+            # We put the tri in the right terrain   
+            tri_p=array.array('H')
+            for n in (n1,n3,n2):     # beware of ordering for orientation ! 
+                idx_pool=idx_node_to_idx_pool[n]
+                node_hash=(idx_pool,*node_icoords[5*n:5*n+2],terrain_idx)
+                if node_hash in textured_nodes:
+                    (idx_dsfpool,pos_in_pool)=textured_nodes[node_hash]
+                else:
+                    (s,t)=GEO.st_coord(node_coords[5*n+1],node_coords[5*n],*texture_attributes)
+                    # BEWARE : normal coordinates are pointing (EAST,SOUTH) in X-Plane, not (EAST,NORTH) ! (cfr DSF specs), so v -> -v
+                    if (tile.experimental_water & 2):
+                        idx_dsfpool=idx_pool
+                        # normal map texture over flat shading - no overlay
+                        dsf_pools[idx_dsfpool].extend(node_icoords[5*n:5*n+3])
+                        dsf_pools[idx_dsfpool].extend((32768,32768,int(round(s*65535)),int(round(t*65535))))    
+                    else:
+                        idx_dsfpool=idx_pool+pool_nbr
+                        # constant alpha overlay with flat shading
+                        dsf_pools[idx_dsfpool].extend(node_icoords[5*n:5*n+3])
+                        dsf_pools[idx_dsfpool].extend((32768,32768,int(round(s*65535)),int(round(t*65535)),0,int(round(tile.ratio_water*65535))))
+                    len_textured_nodes+=1
+                    pos_in_pool=dsf_pool_length[idx_dsfpool]
+                    textured_nodes[node_hash]=(idx_dsfpool,pos_in_pool)
+                    dsf_pool_length[idx_dsfpool]+=1
+                tri_p.extend((idx_dsfpool,pos_in_pool))
+            if tri_p[0]==tri_p[2]==tri_p[4]:
+                textured_tris[terrain_idx][tri_p[0]].extend((tri_p[1],tri_p[3],tri_p[5]))    
+            else:
+                total_cross_pool+=1
+                textured_tris[terrain_idx]['cross-pool'].extend(tri_p)
+    # Second land and inland water tris 
+    for tri in [tri for tri in tri_list if tri[3]<2]:
+        (n1,n2,n3,tri_type)=tri
+        if i%step==0:
+            UI.progress_bar(1,int(i/step*0.9))
+            if UI.red_flag: UI.vprint(1,"DSF construction interrupted."); return 0   
+        i+=1   
+        bary_lon=(node_coords[5*n1]+node_coords[5*n2]+node_coords[5*n3])/3
+        bary_lat=(node_coords[5*n1+1]+node_coords[5*n2+1]+node_coords[5*n3+1])/3
+        texture_attributes=dico_customzl[GEO.wgs84_to_orthogrid(bary_lat,bary_lon,tile.mesh_zl)]
+        # The entries for the terrain and texture main dictionnaries
+        terrain_attributes=(texture_attributes,tri_type)
+        # Do we need to build new terrain file(s) ?       
+        if terrain_attributes in dico_terrains: 
+            terrain_idx=dico_terrains[terrain_attributes]
+        else:
+            terrain_idx=len(dico_terrains)
+            textured_tris[terrain_idx]=defaultdict(lambda: array.array('H'))
+            dico_terrains[terrain_attributes]=terrain_idx
+            is_overlay=(tri_type==1 and not (tile.experimental_water & 1))
+            if is_overlay: overlay_terrains.add(terrain_idx)
+            texture_file_name=FNAMES.dds_file_name_from_attributes(*texture_attributes)
+            # do we need to download a new texture ?       
+            if texture_attributes not in treated_textures:
+                if (not os.path.isfile(os.path.join(tile.build_dir,'textures',texture_file_name))):
+                    if  'g2xpl' not in texture_attributes[3]:
+                        download_queue.put(texture_attributes)
+                    elif os.path.isfile(os.path.join(tile.build_dir,'textures',texture_file_name.replace('dds','partial.dds'))):
+                        texture_file_name=texture_file_name.replace('dds','partial.dds')
+                        UI.vprint(1,"   Texture file "+texture_file_name+" already present.")
+                    else:
+                        UI.vprint(1,"   Missing a required texture, conversion from g2xpl requires texture download.")
+                        download_queue.put(texture_attributes)
+                else:
+                    UI.vprint(1,"   Texture file "+texture_file_name+" already present.")
+                treated_textures.add(texture_attributes)
+            terrain_file_name=create_terrain_file(tile,texture_file_name,*texture_attributes,tri_type,is_overlay)
+            bTERT+=bytes('terrain/'+terrain_file_name+'\0','ascii') 
+        # We put the tri in the right terrain   
+        # First the ones associated to the dico_customzl 
+        tri_p=array.array('H')
+        for n in (n1,n3,n2):     # beware of ordering for orientation ! 
+            idx_pool=idx_node_to_idx_pool[n]
+            node_hash=(idx_pool,*node_icoords[5*n:5*n+2],terrain_idx)
+            if node_hash in textured_nodes:
+                (idx_dsfpool,pos_in_pool)=textured_nodes[node_hash]
+            else:
+                (s,t)=GEO.st_coord(node_coords[5*n+1],node_coords[5*n],*texture_attributes)
+                # BEWARE : normal coordinates are pointing (EAST,SOUTH) in X-Plane, not (EAST,NORTH) ! (cfr DSF specs), so v -> -v
+                if not tri_type: # land
+                    idx_dsfpool=idx_pool
+                    dsf_pools[idx_dsfpool].extend(node_icoords[5*n:5*n+5])
+                    dsf_pools[idx_dsfpool].extend((int(round(s*65535)),int(round(t*65535))))
+                else: # inland water
+                    if not (tile.experimental_water & 1):
+                        idx_dsfpool=idx_pool+pool_nbr
+                        # constant alpha overlay with flat shading
+                        dsf_pools[idx_dsfpool].extend(node_icoords[5*n:5*n+3])
+                        dsf_pools[idx_dsfpool].extend((32768,32768,int(round(s*65535)),int(round(t*65535)),0,int(round(tile.ratio_water*65535))))
+                    else:
+                        idx_dsfpool=idx_pool
+                        # normal map texture over flat shading - no overlay
+                        dsf_pools[idx_dsfpool].extend(node_icoords[5*n:5*n+3])
+                        dsf_pools[idx_dsfpool].extend((32768,32768,int(round(s*65535)),int(round(t*65535))))
+                len_textured_nodes+=1
+                pos_in_pool=dsf_pool_length[idx_dsfpool]
+                textured_nodes[node_hash]=(idx_dsfpool,pos_in_pool)
+                dsf_pool_length[idx_dsfpool]+=1
+            tri_p.extend((idx_dsfpool,pos_in_pool))
+        # some triangles could be reduced to nothing by the pool snapping,
+        # we skip thme (possible killer to X-Plane's drapping of roads ?)    
+        if tri_p[:2]==tri_p[2:4] or tri_p[2:4]==tri_p[4:] or tri_p[4:]==tri_p[:2]:
+            continue
+        if tri_p[0]==tri_p[2]==tri_p[4]:
+            textured_tris[terrain_idx][tri_p[0]].extend((tri_p[1],tri_p[3],tri_p[5]))    
+        else:
+            total_cross_pool+=1
+            textured_tris[terrain_idx]['cross-pool'].extend(tri_p)
         if tri_type: # All water effects not related to the full resolution texture 
             # I. X-Plane water
             if not (tile.experimental_water & tri_type) :   
@@ -451,62 +613,7 @@ def build_dsf(tile,download_queue):
                 else:
                     total_cross_pool+=1
                     textured_tris[0]['cross-pool'].extend(tri_p)
-            # II. Low resolution texture with global coverage        
-            if tri_type==2 and ((tile.experimental_water & 2) or tile.add_low_res_sea_ovl): # experimental water over sea
-                #sea_zl=int(IMG.providers_dict['SEA']['max_zl'])
-                sea_zl=experimental_water_zl
-                (til_x_left,til_y_top)=GEO.wgs84_to_orthogrid(bary_lat,bary_lon,sea_zl)
-                texture_attributes=(til_x_left,til_y_top,sea_zl,'SEA')
-                terrain_attributes=(texture_attributes,tri_type)
-                if terrain_attributes in dico_terrains:
-                    terrain_idx=dico_terrains[terrain_attributes]
-                else:
-                    terrain_idx=len(dico_terrains)
-                    is_overlay= not(tile.experimental_water & 2) and 'ratio_water'
-                    if is_overlay: overlay_terrains.add(terrain_idx)
-                    textured_tris[terrain_idx]=defaultdict(lambda: array.array('H'))
-                    dico_terrains[terrain_attributes]=terrain_idx
-                    texture_file_name=FNAMES.dds_file_name_from_attributes(*texture_attributes)
-                    # do we need to download a new texture ?       
-                    if texture_attributes not in treated_textures:
-                        if not os.path.isfile(os.path.join(tile.build_dir,'textures',texture_file_name)):
-                            download_queue.put(texture_attributes)
-                        else:
-                            UI.vprint(1,"   Texture file "+texture_file_name+" already present.")
-                        treated_textures.add(texture_attributes)
-                    terrain_file_name=create_terrain_file(tile,texture_file_name,*texture_attributes,tri_type,is_overlay)
-                    bTERT+=bytes('terrain/'+terrain_file_name+'\0','ascii') 
-                # We put the tri in the right terrain   
-                tri_p=array.array('H')
-                for n in (n1,n3,n2):     # beware of ordering for orientation ! 
-                    idx_pool=idx_node_to_idx_pool[n]
-                    node_hash=(idx_pool,*node_icoords[5*n:5*n+2],terrain_idx)
-                    if node_hash in textured_nodes:
-                        (idx_dsfpool,pos_in_pool)=textured_nodes[node_hash]
-                    else:
-                        (s,t)=GEO.st_coord(node_coords[5*n+1],node_coords[5*n],*texture_attributes)
-                        # BEWARE : normal coordinates are pointing (EAST,SOUTH) in X-Plane, not (EAST,NORTH) ! (cfr DSF specs), so v -> -v
-                        if (tile.experimental_water & 2):
-                            idx_dsfpool=idx_pool
-                            # normal map texture over flat shading - no overlay
-                            dsf_pools[idx_dsfpool].extend(node_icoords[5*n:5*n+3])
-                            dsf_pools[idx_dsfpool].extend((32768,32768,int(round(s*65535)),int(round(t*65535))))    
-                        else:
-                            idx_dsfpool=idx_pool+pool_nbr
-                            # constant alpha overlay with flat shading
-                            dsf_pools[idx_dsfpool].extend(node_icoords[5*n:5*n+3])
-                            dsf_pools[idx_dsfpool].extend((32768,32768,int(round(s*65535)),int(round(t*65535)),0,int(round(tile.ratio_water*65535))))
-                        len_textured_nodes+=1
-                        pos_in_pool=dsf_pool_length[idx_dsfpool]
-                        textured_nodes[node_hash]=(idx_dsfpool,pos_in_pool)
-                        dsf_pool_length[idx_dsfpool]+=1
-                    tri_p.extend((idx_dsfpool,pos_in_pool))
-                if tri_p[0]==tri_p[2]==tri_p[4]:
-                    textured_tris[terrain_idx][tri_p[0]].extend((tri_p[1],tri_p[3],tri_p[5]))    
-                else:
-                    total_cross_pool+=1
-                    textured_tris[terrain_idx]['cross-pool'].extend(tri_p)
-    f_mesh.close()
+    
     download_queue.put('quit')
     
     UI.vprint(1,"-> Encoding of the DSF file")  
