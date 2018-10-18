@@ -4,6 +4,7 @@ import os
 import pickle
 import subprocess
 import numpy
+import requests
 from math import sqrt, cos, pi
 import O4_DEM_Utils as DEM
 import O4_UI_Utils as UI
@@ -17,14 +18,71 @@ if 'dar' in sys.platform:
     Triangle4XP_cmd = os.path.join(FNAMES.Utils_dir,"Triangle4XP.app ")
     triangle_cmd    = os.path.join(FNAMES.Utils_dir,"triangle.app ")
     sort_mesh_cmd   = os.path.join(FNAMES.Utils_dir,"moulinette.app ")
+    unzip_cmd       = "7z "
 elif 'win' in sys.platform: 
     Triangle4XP_cmd = os.path.join(FNAMES.Utils_dir,"Triangle4XP.exe ")
     triangle_cmd    = os.path.join(FNAMES.Utils_dir,"triangle.exe ")
     sort_mesh_cmd   = os.path.join(FNAMES.Utils_dir,"moulinette.exe ")
+    unzip_cmd       = os.path.join(FNAMES.Utils_dir,"7z1805-x64.exe ")
 else:
     Triangle4XP_cmd = os.path.join(FNAMES.Utils_dir,"Triangle4XP ")
     triangle_cmd    = os.path.join(FNAMES.Utils_dir,"triangle ")
     sort_mesh_cmd   = os.path.join(FNAMES.Utils_dir,"moulinette ")
+    unzip_cmd       = "7z "
+
+
+community_server=False
+if os.path.exists(os.path.join(FNAMES.Ortho4XP_dir,"community_server.txt")):
+    try:
+        f=open(os.path.join(FNAMES.Ortho4XP_dir,"community_server.txt"),'r')
+        for line in f.readlines():
+            line=line.strip()
+            if not line: continue
+            if '#' in line:
+               if line[0]=='#': continue
+               else: line=line.split('#')[0].strip()
+            if not line: continue
+            community_server=True
+            community_prefix=line
+            break
+    except:
+        pass
+
+def community_mesh(tile):
+    if not community_server:
+        UI.exit_message_and_bottom_line("\nERROR: No community server defined in community_server.txt")
+        return 0
+    url=community_prefix+os.path.basename(FNAMES.mesh_file(tile.build_dir,tile.lat,tile.lon))+'.7z'
+    timer=time.time()
+    UI.vprint(0,"Querying",url,"...")
+    try:
+        r=requests.get(url,timeout=30)
+        if '[200]' in str(r):
+            UI.vprint(0,"We've got something !")
+            f=open(FNAMES.mesh_file(tile.build_dir,tile.lat,tile.lon)+'.7z','wb')
+            f.write(r.content)
+            f.close()
+            if subprocess.call([unzip_cmd.strip(),'e','-y','-o'+tile.build_dir,FNAMES.mesh_file(tile.build_dir,tile.lat,tile.lon)+".7z"]):
+                UI.exit_message_and_bottom_line("\nERROR: Could not extract community_mesh from archive.")
+                return 0
+            os.remove(FNAMES.mesh_file(tile.build_dir,tile.lat,tile.lon)+'.7z')
+            UI.timings_and_bottom_line(timer)
+            return 1
+        elif '[40' in str(r):
+            UI.exit_message_and_bottom_line("\nSORRY: Community server does not propose that mesh: "+str(r))
+            return 0
+        elif '[50' in str(r):
+            UI.exit_message_and_bottom_line("\nSORRY: Community server seems to be down or struggling: "+str(r))
+            return 0
+        else:
+            UI.exit_message_and_bottom_line("\nSORRY: Community server seems to be down or struggling: "+str(r))
+            return 0
+    except Exception as e:
+        UI.exit_message_and_bottom_line("\nERROR: Network or server unreachable:\n"+str(e))
+        return 0
+        
+        
+        
 
 
 ##############################################################################
@@ -174,15 +232,15 @@ def write_mesh_file(tile,vertices):
     f.write("Vertices\n")
     f.write(str(nbr_vert)+"\n")
     for i in range(0,nbr_vert):
-        f.write('{:.9f}'.format(vertices[6*i]+tile.lon)+" "+\
-                '{:.9f}'.format(vertices[6*i+1]+tile.lat)+" "+\
-                '{:.9f}'.format(vertices[6*i+2]/100000)+" 0\n") 
+        f.write('{:.7f}'.format(vertices[6*i]+tile.lon)+" "+\
+                '{:.7f}'.format(vertices[6*i+1]+tile.lat)+" "+\
+                '{:.7f}'.format(vertices[6*i+2]/100000)+" 0\n") 
     f.write("\n")
     f.write("Normals\n")
     f.write(str(nbr_vert)+"\n")
     for i in range(0,nbr_vert):
-        f.write('{:.9f}'.format(vertices[6*i+3])+" "+\
-                '{:.9f}'.format(vertices[6*i+4])+"\n")
+        f.write('{:.2f}'.format(vertices[6*i+3])+" "+\
+                '{:.2f}'.format(vertices[6*i+4])+"\n")
     f.write("\n")
     f.write("Triangles\n")
     f.write(str(nbr_tri)+"\n")
@@ -295,7 +353,7 @@ def build_mesh(tile):
     UI.red_flag=False  
     VECT.scalx=cos((tile.lat+0.5)*pi/180)  
     UI.logprint("Step 2 for tile lat=",tile.lat,", lon=",tile.lon,": starting.")
-    UI.vprint(0,"\nStep 2 : Building mesh tile "+FNAMES.short_latlon(tile.lat,tile.lon)+" : \n--------\n")
+    UI.vprint(0,"\nStep 2 : Building mesh for tile "+FNAMES.short_latlon(tile.lat,tile.lon)+" : \n--------\n")
     UI.progress_bar(1,0)
     poly_file    = FNAMES.input_poly_file(tile)
     node_file    = FNAMES.input_node_file(tile)

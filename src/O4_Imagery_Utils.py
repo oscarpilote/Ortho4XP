@@ -166,20 +166,17 @@ def initialize_providers_dict():
             f=open(os.path.join(FNAMES.Provider_dir,dir_name,file_name),'r')
             valid_provider=True
             for line in f.readlines():
-                line=line[:-1]
+                line=line.strip()
                 if "#" in line:
                     if line[0]=="#": 
                         continue
                     else:
                         line=line.split('#')[0]
                 if ("=" not in line): continue
-                try:
-                    key=line.split("=")[0]
-                    value=line[len(key)+1:]
-                    provider[key]=value
-                except:
-                    UI.vprint(0,"Error for provider",provider_code,"in line",line)
-                    continue
+                items=line.split("=")
+                key=items[0].strip()    
+                value='='.join(items[1:]).strip()
+                provider[key]=value
                 # structuring data
                 if key=='request_type' and value not in ['wms','wmts','tms','local_tms']:
                     UI.vprint(0,"Unknown request_type field for provider",provider_code,":",value)
@@ -267,7 +264,9 @@ def initialize_providers_dict():
                         print("Error in reading color_filter for provider",provider_code,". Assuming none.")
                         provider[key]='none'
                 elif key=='imagery_dir':
-                   pass
+                   if value not in ('grouped','normal','code'):
+                        print("Error in reading imagery_dir for provider",provider_code,". Assuming grouped.")
+                        provider[key]='grouped'
             if 'request_type' in provider and provider['request_type']=='wmts':
                 try: 
                     tilematrixsets=read_tilematrixsets(os.path.join(FNAMES.Provider_dir,dir_name,'capabilities_'+provider_code+'.xml'))
@@ -1353,18 +1352,38 @@ def convert_texture(tile,til_x_left,til_y_top,zoomlevel,provider_code,type='dds'
     erase_tmp_png=False
     erase_tmp_tif=False
     dxt5=False
-    masked_texture=os.path.exists(os.path.join(tile.build_dir,"textures",FNAMES.mask_file(til_x_left,til_y_top,zoomlevel,provider_code)))
+    masked_texture=False
+    if tile.imprint_masks_to_dds and type=='dds':
+        masked_texture=os.path.exists(os.path.join(tile.build_dir,"textures",FNAMES.mask_file(til_x_left,til_y_top,zoomlevel,provider_code)))
+        if masked_texture:
+            mask_im=Image.open(os.path.join(tile.build_dir,"textures",FNAMES.mask_file(til_x_left,til_y_top,zoomlevel,provider_code))).convert('L')
+    elif tile.imprint_masks_to_dds: # type = 'tif'
+        if int(zoomlevel)>=tile.mask_zl:
+            factor=2**(zoomlevel-tile.mask_zl)
+            m_til_x=(int(til_x_left/factor)//16)*16
+            m_til_y=(int(til_y_top/factor)//16)*16
+            rx=int((til_x_left-factor*m_til_x)/16)
+            ry=int((til_y_top-factor*m_til_y)/16)
+            mask_file=os.path.join(FNAMES.mask_dir(tile.lat,tile.lon),FNAMES.legacy_mask(m_til_x,m_til_y))
+            if os.path.isfile(mask_file): 
+                big_img=Image.open(mask_file)
+                x0=int(rx*4096/factor)
+                y0=int(ry*4096/factor)
+                mask_im=big_img.crop((x0,y0,x0+4096//factor,y0+4096//factor))
+                small_array=numpy.array(mask_im,dtype=numpy.uint8)
+                if small_array.max()>30: 
+                    masked_texture=True
     if provider_code in providers_dict:
         jpeg_file_name=FNAMES.jpeg_file_name_from_attributes(til_x_left,til_y_top,zoomlevel,provider_code)
         file_dir=FNAMES.jpeg_file_dir_from_attributes(tile.lat, tile.lon, zoomlevel, providers_dict[provider_code])
     if (provider_code in local_combined_providers_dict) and ((provider_code not in providers_dict) or not os.path.exists(os.path.join(file_dir,jpeg_file_name))):
         big_image=combine_textures(tile,til_x_left,til_y_top,zoomlevel,provider_code)
-        if tile.imprint_masks_to_dds and masked_texture:
-            mask_im=Image.open(os.path.join(tile.build_dir,"textures",FNAMES.mask_file(til_x_left,til_y_top,zoomlevel,provider_code))).convert('L')
+        if masked_texture:
             UI.vprint(2,"      Applying alpha mask directly to orthophoto.")
             big_image.putalpha(mask_im.resize((4096,4096),Image.BICUBIC))
-            try: os.remove(os.path.join(tile.build_dir,"textures",FNAMES.mask_file(til_x_left,til_y_top,zoomlevel,provider_code))) 
-            except: pass
+            if type=='dds':
+                try: os.remove(os.path.join(tile.build_dir,"textures",FNAMES.mask_file(til_x_left,til_y_top,zoomlevel,provider_code))) 
+                except: pass
             dxt5=True
         file_to_convert=os.path.join(UI.Ortho4XP_dir,'tmp',png_file_name)
         erase_tmp_png=True
@@ -1372,16 +1391,16 @@ def convert_texture(tile,til_x_left,til_y_top,zoomlevel,provider_code,type='dds'
         # If one wanted to distribute jpegs instead of dds, uncomment the next line
         # big_image.convert('RGB').save(os.path.join(tile.build_dir,'textures',out_file_name.replace('dds','jpg')),quality=70)
     # now if provider_code was not in local_combined_providers_dict but color correction is required
-    elif providers_dict[provider_code]['color_filters']!='none' or (tile.imprint_masks_to_dds and masked_texture):
+    elif providers_dict[provider_code]['color_filters']!='none' or masked_texture:
         big_image=Image.open(os.path.join(file_dir,jpeg_file_name),'r').convert('RGB')
         if providers_dict[provider_code]['color_filters']!='none':
             big_image=color_transform(big_image,providers_dict[provider_code]['color_filters'])
-        if (tile.imprint_masks_to_dds and masked_texture):
-            mask_im=Image.open(os.path.join(tile.build_dir,"textures",FNAMES.mask_file(til_x_left,til_y_top,zoomlevel,provider_code))).convert('L')
+        if masked_texture:
             UI.vprint(2,"      Applying alpha mask directly to orthophoto.")
             big_image.putalpha(mask_im.resize((4096,4096),Image.BICUBIC))
-            try: os.remove(os.path.join(tile.build_dir,"textures",FNAMES.mask_file(til_x_left,til_y_top,zoomlevel,provider_code))) 
-            except: pass
+            if type=='dds':
+                try: os.remove(os.path.join(tile.build_dir,"textures",FNAMES.mask_file(til_x_left,til_y_top,zoomlevel,provider_code))) 
+                except: pass
             dxt5=True
         file_to_convert=os.path.join(UI.Ortho4XP_dir,'tmp',png_file_name)
         erase_tmp_png=True

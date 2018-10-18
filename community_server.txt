@@ -1,0 +1,9 @@
+# This file can contain the url prefix of a community server for mesh files.
+# If the server prefix is http://foo.org/dummy/ then the mesh file for tile 
+# +47-123 is supposed to be available as: 
+# http://foo.org/dummy/Data+47-123.mesh.7z
+# Automated download of a given mesh file (if existing on the server) is 
+# possible from the interface by using Ctrl+click on the "Triangulate mesh" 
+# button.
+
+http://foo.org/dummy/

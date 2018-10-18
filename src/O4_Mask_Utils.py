@@ -334,6 +334,7 @@ def build_masks(tile):
             gamma=2.5
             b_img_array=(((numpy.tan((b_img_array.astype(numpy.float32)-127.5)/128*atan(3))-numpy.tan(-127.5/128*atan(3)))\
                     *254/(2*numpy.tan(127.5/128*atan(3))))**gamma/(255**(gamma-1))).astype(numpy.uint8)
+            #b_img_array=(1.4*(255-((256-b_img_array.astype(numpy.float32))/256.0)**0.2*255)).astype(numpy.uint8)
             #b_img_array=numpy.minimum(b_img_array,200)
             #still some slight smoothing at the shore
             b_img_array=numpy.maximum(b_img_array,numpy.array(Image.fromarray(img_array).convert("L").\
@@ -378,11 +379,10 @@ def build_masks(tile):
         else:
             # Just a (futile) copy
             b_img_array=numpy.array(img_array)
-
         
         # Ensure land is kept to 255 on the mask to avoid unecessary ones, crop to final size, and take the
         # max with the possible custom extent mask
-        img_array=numpy.maximum(img_array,b_img_array)[1024:4096+1024,1024:4096+1024]
+        img_array=numpy.maximum((img_array>0).astype(numpy.uint8)*255,b_img_array)[1024:4096+1024,1024:4096+1024]
         img_array=numpy.maximum(img_array,custom_mask_array)
 
         if not (img_array.max()==0 or img_array.min()==255):

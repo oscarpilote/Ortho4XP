@@ -124,9 +124,11 @@ class Ortho4XP_GUI(tk.Tk):
         for i in range(5):
             self.frame_steps.columnconfigure(i,weight=1)
         ttk.Button(self.frame_steps, text="Assemble Vector data",command=self.build_poly_file).grid(row=0,column=0, padx=5, pady=0,sticky=N+S+E+W)
-        build_mesh_button=ttk.Button(self.frame_steps, text="Triangulate 3D Mesh",command=self.build_mesh)
+        build_mesh_button=ttk.Button(self.frame_steps, text="Triangulate 3D Mesh")#,command=self.build_mesh)
         build_mesh_button.grid(row=0,column=1, padx=5, pady=0,sticky=N+S+E+W)
+        build_mesh_button.bind("<ButtonPress-1>", self.build_mesh)
         build_mesh_button.bind("<Shift-ButtonPress-1>", self.sort_mesh)
+        build_mesh_button.bind("<Control-ButtonPress-1>", self.community_mesh)
         ttk.Button(self.frame_steps, text=" Draw Water Masks  ",command=self.build_masks).grid(row=0,column=2, padx=5, pady=0,sticky=N+S+E+W)
         ttk.Button(self.frame_steps, text=" Build Imagery/DSF ",command=self.build_tile).grid(row=0,column=3, padx=5, pady=0,sticky=N+S+E+W)
         ttk.Button(self.frame_steps, text="    All in one     ",command=self.build_all).grid(row=0,column=4, padx=5, pady=0,sticky=N+S+E+W)
@@ -257,7 +259,7 @@ class Ortho4XP_GUI(tk.Tk):
         self.working_thread=threading.Thread(target=VMAP.build_poly_file,args=[tile])
         self.working_thread.start()
     
-    def build_mesh(self):
+    def build_mesh(self,event):
         try: 
             tile=self.tile_from_interface()
             tile.make_dirs()
@@ -273,6 +275,15 @@ class Ortho4XP_GUI(tk.Tk):
         except: 
             UI.vprint(1,"Process aborted.\n"); return 0
         self.working_thread=threading.Thread(target=MESH.sort_mesh,args=[tile])
+        self.working_thread.start()
+        
+    def community_mesh(self,event):
+        try: 
+            tile=self.tile_from_interface()
+            tile.make_dirs()
+        except: 
+            UI.vprint(1,"Process aborted.\n"); return 0
+        self.working_thread=threading.Thread(target=MESH.community_mesh,args=[tile])
         self.working_thread.start()
     
     def build_masks(self):

@@ -17,7 +17,7 @@ if 'dar' in sys.platform:
     unzip_cmd    = "7z "
     dsftool_cmd  = os.path.join(FNAMES.Utils_dir,"DSFTool.app ")
 elif 'win' in sys.platform: 
-    unzip_cmd    = os.path.join(FNAMES.Utils_dir,"7z.exe ")
+    unzip_cmd    = os.path.join(FNAMES.Utils_dir,"7z1805-x64.exe ")
     dsftool_cmd  = os.path.join(FNAMES.Utils_dir,"DSFTool.exe ")
 else:
     unzip_cmd    = "7z "

@@ -593,9 +593,11 @@ def encode_hangars(tile,dico_airports,vector_map,patches_list):
         if airport in patches_list: continue
         for pol in VECT.ensure_MultiPolygon(VECT.cut_to_tile(dico_airports[airport]['hangar'])):
             way=numpy.array(pol.exterior.coords)
-            alti_way=numpy.ones((len(way),1))*numpy.min(tile.dem.alt_vec(way))
-            vector_map.insert_way(numpy.hstack([way,alti_way]),'HANGAR',check=True) 
-            seeds.append(numpy.array(pol.representative_point()))
+            alt=tile.dem.alt_vec(way)
+            if alt.max()-alt.min()<=1.5:
+                alti_way=numpy.ones((len(way),1))*numpy.mean(tile.dem.alt_vec(way))
+                vector_map.insert_way(numpy.hstack([way,alti_way]),'HANGAR',check=True) 
+                seeds.append(numpy.array(pol.representative_point()))
     if seeds:
         if 'HANGAR' in vector_map.seeds:
             vector_map.seeds['HANGAR']+=seeds
