@@ -1,3 +1,20 @@
+NOTICE 1. Windows users: Only use Notepad++ or an equivalent decent editor 
+to read or modify Ortho4XP related files. Notepad doesn't understand linux 
+line-ends and will create a mess. 
+------------------------------------------------------------------------
+
+------------------------------------------------------------------------
+NOTICE 2 : Windows users: You do not need to read further than this 
+notice if you have installed the binary windows version !
+In your case, the executable file is Binary/Ortho4XP_v130.exe, and the 
+only advisable action is to make a short-cut to it somewhere, e.g. in the
+main Ortho4XP directory (but the executable needs to stay where it is). 
+If you end-up installing the python modules some day (to get more frequent
+updates or bugs fixed), the Binary directory won't be necessary anymore. 
+------------------------------------------------------------------------
+
+The following instructions are for the script install :
+
 Linux (Debian derived, names might slightly differ for other distros)
 -----
 
@@ -12,22 +29,29 @@ Windows
 1) Download and install Python 3 from www.python.org 
 
 Just select one for your Windows OS, there is no benefit in our case to 
-donwload the pretty lastest version of Python, since you might get difficulties 
-further down to find modules already built for it. As of 01/2018, I would 
-recommend using 3.5 or 3.6.    
+download the pretty lastest version of Python, since you might get difficulties 
+further down to find modules already built for it. As of 10/2018, I would 
+recommend using 3.7.    
 Make sure during the process that "pip" (package management system for Python)
-is installed along and made accessible from your PATH [there used to be a checkbox
-for this during the Python install process].  
+is installed along and made accessible from your PATH [there is a checkbox
+for this during the Python install process wich by default ISN'T checked].  
 
 2) Download the following packages from https://www.lfd.uci.edu/~gohlke/pythonlibs/
 
-Pyproj, Numpy, Gdal, Shapely, Rtree, Pillow
+Pyproj, Numpy, Gdal, Shapely, Rtree, Pillow (or alternatively Pillow-SIMD)
 
 Pay attention to take the ones that correspond to the Python version which you picked
 at Step 1) and to your OS nbr of bits (32 or 64, I guess 64 in all but a few cases).
-As an example, if Python 3.5.*  was selected at Step 1) above and you
-have a 64bit windows, then you would choose these files that have -cp35- and _amd64 
-within their filename.    
+As an example, if Python 3.7.*  was selected at Step 1) above and you
+have a 64bit windows, then you would choose these files that have -cp37- and _amd64 
+within their filename.   
+
+In order to use the build geotiff feature of the custom_zl map, you will need to 
+add the directory containing gdal_translate and gdalwarp (***/python**/lib/site-packages/osgeo/) 
+into your PATH variable.
+
+Finally, if you do not already have them : download and install the build tools for visual studio (2017):
+https://visualstudio.microsoft.com/fr/downloads/  
 
 3) From a command window launch successively 
 
