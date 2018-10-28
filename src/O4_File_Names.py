@@ -35,6 +35,10 @@ def long_latlon(lat,lon):
     strlatround='{:+.0f}'.format(floor(lat/10)*10).zfill(3)
     strlonround='{:+.0f}'.format(floor(lon/10)*10).zfill(4)
     return os.path.join(strlatround+strlonround,strlat+strlon)
+def hem_latlon(lat,lon):
+    hemisphere='N' if lat>=0 else 'S'
+    greenwichside='E' if lon>=0 else 'W'
+    return hemisphere+'{:.0f}'.format(abs(lat)).zfill(2)+greenwichside+'{:.0f}'.format(abs(lon)).zfill(3)
 ##############################################################################
 
 def tile_dir(lat,lon):
@@ -114,10 +118,7 @@ def osm_old_cached(lat, lon, query):
 
 ##############################################################################
 def base_file_name(lat, lon):
-    hemisphere='N' if lat>=0 else 'S'
-    greenwichside='E' if lon>=0 else 'W'
-    file_name=hemisphere+'{:.0f}'.format(abs(lat)).zfill(2)+greenwichside+'{:.0f}'.format(abs(lon)).zfill(3)
-    return os.path.join(Elevation_dir,round_latlon(lat,lon),file_name)
+    return os.path.join(Elevation_dir,round_latlon(lat,lon),hem_latlon(lat,lon))
 ##############################################################################
 
 ##############################################################################
@@ -133,7 +134,6 @@ def elevation_data(source,lat, lon):
     elif source=='NED1':
         return os.path.join(Elevation_dir,long_latlon(lat,lon)+'_NED1','w001001.adf') 
 ##############################################################################
-
 
 ##############################################################################
 def generic_tif(lat, lon):

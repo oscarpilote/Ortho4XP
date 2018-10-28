@@ -122,7 +122,7 @@ def include_airports(vector_map,tile):
     queries=[('node["aeroway"]','way["aeroway"]','rel["aeroway"]')]
     tags_of_interest=["all"]
     if not OSM.OSM_queries_to_OSM_layer(queries,airport_layer,tile.lat,tile.lon,tags_of_interest,cached_suffix='airports'): 
-        return 0
+        return (0,0)
     dico_airports={}
     APT.discover_airport_names(airport_layer,dico_airports)
     APT.attach_surfaces_to_airports(airport_layer,dico_airports)

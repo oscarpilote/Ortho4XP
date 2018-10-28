@@ -129,7 +129,10 @@ class Ortho4XP_GUI(tk.Tk):
         build_mesh_button.bind("<ButtonPress-1>", self.build_mesh)
         build_mesh_button.bind("<Shift-ButtonPress-1>", self.sort_mesh)
         build_mesh_button.bind("<Control-ButtonPress-1>", self.community_mesh)
-        ttk.Button(self.frame_steps, text=" Draw Water Masks  ",command=self.build_masks).grid(row=0,column=2, padx=5, pady=0,sticky=N+S+E+W)
+        build_masks_button=ttk.Button(self.frame_steps, text=" Draw Water Masks  ")#,command=self.build_masks)
+        build_masks_button.grid(row=0,column=2, padx=5, pady=0,sticky=N+S+E+W)
+        build_masks_button.bind("<ButtonPress-1>", self.build_masks)
+        build_masks_button.bind("<Shift-ButtonPress-1>", self.build_masks) 
         ttk.Button(self.frame_steps, text=" Build Imagery/DSF ",command=self.build_tile).grid(row=0,column=3, padx=5, pady=0,sticky=N+S+E+W)
         ttk.Button(self.frame_steps, text="    All in one     ",command=self.build_all).grid(row=0,column=4, padx=5, pady=0,sticky=N+S+E+W)
         
@@ -286,13 +289,14 @@ class Ortho4XP_GUI(tk.Tk):
         self.working_thread=threading.Thread(target=MESH.community_mesh,args=[tile])
         self.working_thread.start()
     
-    def build_masks(self):
+    def build_masks(self,event):
+        for_imagery="Shift" in str(event) or "shift" in str(event)
         try: 
             tile=self.tile_from_interface()
             tile.make_dirs()
         except: 
             UI.vprint(1,"Process aborted.\n"); return 0
-        self.working_thread=threading.Thread(target=MASK.build_masks,args=[tile])
+        self.working_thread=threading.Thread(target=MASK.build_masks,args=[tile,for_imagery])
         self.working_thread.start()
     
     def build_tile(self):
@@ -919,7 +923,7 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
                             content='?'
                         self.dico_tiles_done[(lat,lon)]=(\
                                 self.canvas.create_rectangle(x0,y0,x1,y1,fill=color,stipple='gray12') if not OsX else self.canvas.create_rectangle(x0,y0,x1,y1,outline='black'),\
-                                self.canvas.create_text((x0+x1)//2,(y0+y1)//2,justify=CENTER,text=content,fill=dico_color[zl],font=('Helvetica','12','normal')),\
+                                self.canvas.create_text((x0+x1)//2,(y0+y1)//2,justify=CENTER,text=content,fill='black',font=('Helvetica','12','normal')),\
                                 dir_name\
                                 )
                         link=os.path.join(CFG.custom_scenery_dir,'zOrtho4XP_'+FNAMES.short_latlon(lat,lon))
@@ -965,7 +969,7 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
                         content='?'
                     self.dico_tiles_done[(lat,lon)]=(\
                                 self.canvas.create_rectangle(x0,y0,x1,y1,fill=color,stipple='gray12') if not OsX else self.canvas.create_rectangle(x0,y0,x1,y1,outline='black'),\
-                                self.canvas.create_text((x0+x1)//2,(y0+y1)//2,justify=CENTER,text=content,fill=dico_color[zl],font=('Helvetica','12','normal')),\
+                                self.canvas.create_text((x0+x1)//2,(y0+y1)//2,justify=CENTER,text=content,fill='black',font=('Helvetica','12','normal')),\
                                 dir_name\
                                 )
             link=os.path.join(CFG.custom_scenery_dir,'zOrtho4XP_'+os.path.basename(self.working_dir))

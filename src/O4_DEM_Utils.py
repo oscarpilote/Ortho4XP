@@ -31,6 +31,7 @@ class DEM():
     def __init__(self,lat,lon,source='',fill_nodata=True,info_only=False):
         self.lat=lat
         self.lon=lon
+        source=source.replace("{latlon}",FNAMES.hem_latlon(lat,lon))
         if ";" in source:
             self.alt=self.alt_composite
             self.alt_vec=self.alt_vec_composite
@@ -42,7 +43,9 @@ class DEM():
         if fill_nodata=="to zero":
             self.nodata_to_zero()
         elif fill_nodata:
-            fill_nodata_values_with_nearest_neighbor(self.alt_dem,self.nodata)
+            if not fill_nodata_values_with_nearest_neighbor(self.alt_dem,self.nodata):
+                UI.vprint(1,"   INFO: Dataset contains too much no_data to be filled.")
+                self.nodata_to_zero()
             
         UI.vprint(1,"    * Min altitude:",self.alt_dem.min(),", Max altitude:",self.alt_dem.max(),", Mean:",self.alt_dem.mean())
 
@@ -487,6 +490,8 @@ def fill_nodata_values_with_nearest_neighbor(alt_dem,nodata):
         step=0
         while (alt_dem==nodata).any():
             if not step:
+                if numpy.sum(alt_dem==nodata)>=10000:
+                    return 0
                 UI.vprint(2,"    INFO: Elevation file contains voids, trying to fill them recursively by nearest neighbour.")       
             else:
                 UI.vprint(2,"    ",step)
@@ -507,7 +512,8 @@ def fill_nodata_values_with_nearest_neighbor(alt_dem,nodata):
                 UI.vprint(1,"    WARNING: The raster contain holes that seem to big to be filled... I'm filling the remainder with zero.")
                 alt_dem[alt_dem==nodata]=0
                 break
-        if step: UI.vprint(2,"    Done.") 
+        if step: UI.vprint(2,"    Done.")
+        return 1 
 ##############################################################################
 
 ##############################################################################

@@ -69,7 +69,7 @@ else:
 providers_dict={}
 combined_providers_dict={}
 local_combined_providers_dict={}
-extents_dict={'global':{}}
+extents_dict={'global':{'dir':None,'code':'global'}}
 color_filters_dict={'none':[]}
 
 def initialize_extents_dict():
@@ -535,6 +535,11 @@ def has_data(bbox,extent_code,return_mask=False,mask_size=(4096,4096),is_sharp_r
             pxx1=int((x1-xmin)/(xmax-xmin)*sizex)
             pxy0=int((ymax-y0)/(ymax-ymin)*sizey)
             pxy1=int((ymax-y1)/(ymax-ymin)*sizey)
+            if not return_mask:
+                pxx0=max(-1,pxx0)
+                pxx1=min(sizex,pxx1)
+                pxy0=max(-1,pxy0)
+                pxy1=min(sizey,pxy1)
             mask_im=mask_im.crop((pxx0,pxy0,pxx1,pxy1))
             if negative: mask_im=ImageOps.invert(mask_im)
             if not mask_im.getbbox():
@@ -551,7 +556,11 @@ def has_data(bbox,extent_code,return_mask=False,mask_size=(4096,4096),is_sharp_r
             # check if sea mask file exists
             (lat,lon, mask_zl)=is_mask_layer
             (m_tilx,m_tily)=GEO.wgs84_to_orthogrid((y0+y1)/2,(x0+x1)/2,mask_zl)
-            if not os.path.isfile(os.path.join(FNAMES.mask_dir(lat,lon),FNAMES.legacy_mask(m_tilx,m_tily))):
+            if os.path.isdir(os.path.join(FNAMES.mask_dir(lat,lon),"Combined_imagery")):
+               check_dir=os.path.join(FNAMES.mask_dir(lat,lon),"Combined_imagery")
+            else:
+               check_dir=FNAMES.mask_dir(lat,lon)
+            if not os.path.isfile(os.path.join(check_dir,FNAMES.legacy_mask(m_tilx,m_tily))):
                 return False
             # build extent mask_im
             if extent_code!='global':
@@ -574,7 +583,7 @@ def has_data(bbox,extent_code,return_mask=False,mask_size=(4096,4096),is_sharp_r
             # build sea mask_im2    
             (ymax,xmin)=GEO.gtile_to_wgs84(m_tilx,m_tily,mask_zl)
             (ymin,xmax)=GEO.gtile_to_wgs84(m_tilx+16,m_tily+16,mask_zl)
-            mask_im2=Image.open(os.path.join(FNAMES.mask_dir(lat,lon),FNAMES.legacy_mask(m_tilx,m_tily))).convert("L")
+            mask_im2=Image.open(os.path.join(check_dir,FNAMES.legacy_mask(m_tilx,m_tily))).convert("L")
             (sizex,sizey)=mask_im2.size
             pxx0=int((x0-xmin)/(xmax-xmin)*sizex)
             pxx1=int((x1-xmin)/(xmax-xmin)*sizex)

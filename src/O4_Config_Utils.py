@@ -363,6 +363,7 @@ class Ortho4XP_Config(tk.Toplevel):
         if tmp: self.v_[item].set(str(tmp))
     
     def load_tile_cfg(self):
+        zone_list=[]
         try: (lat,lon)=self.parent.get_lat_lon()
         except: return 0
         custom_build_dir=self.parent.custom_build_dir_entry.get()
@@ -385,8 +386,18 @@ class Ortho4XP_Config(tk.Toplevel):
                 if value and value[0] in ('"',"'"): value=value[1:]
                 if value and value[-1] in ('"',"'"): value=value[:-1]
                 self.v_[var].set(value)
-            except:
-                pass
+            except Exception as e:
+                # compatibility with zone_list config files from version <= 1.20
+                    if "zone_list.append" in line:
+                        try:
+                            exec(line)
+                        except Exception as e:
+                            print(e) 
+                            pass
+                    else:
+                        UI.vprint(2,e)
+                        pass
+        if not self.v_['zone_list'].get(): self.v_['zone_list'].set(str(zone_list))        
         f.close()
 
     def write_tile_cfg(self):
