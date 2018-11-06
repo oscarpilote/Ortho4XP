@@ -465,7 +465,7 @@ def build_mesh(tile):
                                         "If the reason is not due to the limited amount of RAM please\n"+\
                                         "file a bug including the .node and .poly files that you\n"+\
                                         "will find in "+str(tile.build_dir)+".\n")
-        return 0
+            return 0
         
     if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
     
