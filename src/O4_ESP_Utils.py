@@ -206,8 +206,11 @@ def make_ESP_inf_file(file_dir, file_name, til_x_left, til_x_right, til_y_top, t
 
         inf_file.write(contents)
 
-def spaw_resample_process(filename):
-    process = subprocess.Popen([O4_Config_Utils.ESP_resample_loc, filename], creationflags=subprocess.CREATE_NEW_CONSOLE)
+def spawn_resample_process(filename):
+    startupinfo = subprocess.STARTUPINFO()
+    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    startupinfo.wShowWindow = 7 # subprocess.SW_SHOWMINNOACTIVE is 7
+    process = subprocess.Popen([O4_Config_Utils.ESP_resample_loc, filename], creationflags=subprocess.CREATE_NEW_CONSOLE, startupinfo=startupinfo)
     # wait until done
     process.communicate()
 
@@ -239,7 +242,7 @@ def worker(queue):
             if O4_Config_Utils.create_ESP_hard_winter:
                 create_hard_winter(file_name + ".bmp", file_name + "_hard_winter.bmp", img_mask_abs_path)
 
-            spaw_resample_process(inf_abs_path)
+            spawn_resample_process(inf_abs_path)
             # now remove the extra night/season bmps
             # could check if we created night, season, etc but let's be lazy and use remove_file_if_exists
             remove_file_if_exists(file_name + "_night.bmp")
@@ -268,7 +271,7 @@ def run_ESP_resample(build_dir):
     # passing shell=True to subprocess didn't help with this error when there are a large amount of inf files to process
     # another solution would be to create inf files with multiple sources, but the below is simpler to code...
 	# start threads
-    print("Starting ESP queue with a max of " + str(O4_Config_Utils.max_resample_processes) + " processes")
+    print("Starting ESP queue with a max of " + str(O4_Config_Utils.max_resample_processes) + " processes. *Resample windows will open minimized to the task bar.")
     q = Queue()
     threads = [Thread(target=worker, args=(q,)) for _ in range(O4_Config_Utils.max_resample_processes)]
     for t in threads:
