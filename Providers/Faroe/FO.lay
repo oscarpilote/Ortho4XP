@@ -1,0 +1,5 @@
+request_type=tms
+grid_type=webmercator
+url_template=http://www.kortal.fo/background/gwc/service/tms/1.0.0/FDS:Mynd_Verdin@EPSG:900913@jpg/{zoom}/{x}/{-y}.jpeg
+imagery_dir=code
+in_GUI=False

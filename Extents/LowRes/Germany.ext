@@ -1,0 +1,4 @@
+# Created with : ../../src/O4_Mask_Utils.py Germany 1000 0 0 rel[admin_level=2][name:en=Germany]
+mask_bounds=5.84,47.24,15.08,55.120000000000005
+buffer_width=100
+blur_width=100

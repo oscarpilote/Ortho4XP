@@ -1,7 +1,0 @@
-request_type=wms
-wms_size=512
-epsg_code=25832
-wms_version=1.1.1
-url_prefix=http://sg.geodatenzentrum.de/wms_dop40?
-layers=rgb
-fake_headers={'User-Agent':user_agent_generic,'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8','Connection':'keep-alive','Accept-Encoding':'gzip, deflate','Cookie':'DLZBKG=ff29cab1-0a6b-4529-910f-5cf8e14ef6e6; bkg_cookie_test=w4tdc13g'}

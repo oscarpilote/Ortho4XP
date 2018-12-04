@@ -6,9 +6,9 @@ import subprocess
 import O4_File_Names as FNAMES
 import O4_UI_Utils as UI
 
-# the following is meant to be modified directly by users who need it
-ovl_exclude_pol=(0,)
-ovl_exclude_net=()
+# the following is meant to be modified directly by users who need it (in the config window, not here!)
+ovl_exclude_pol=[0]
+ovl_exclude_net=[]
 
 # the following is meant to be modified by the CFG module at run time
 custom_overlay_src=''
@@ -66,19 +66,36 @@ def build_overlay(lat,lon):
     line=f.readline()
     g.write('PROPERTY sim/overlay 1\n')
     pol_type=0
+    pol_dict={}
+    exclude_set_updated=False
+    full_ovl_exclude_pol=set(ovl_exclude_pol)
     while line:
         if 'PROPERTY' in line:
             g.write(line)
         elif 'POLYGON_DEF' in line:
             level=2 if 'facade' not in line else 3
-            UI.vprint(level,pol_type,":",line.split()[1])
+            pol_dict[pol_type]=line.split()[1]
+            UI.vprint(level,pol_type,":",pol_dict[pol_type])
             pol_type+=1
             g.write(line)
         elif 'NETWORK_DEF' in line:
             g.write(line)
         elif 'BEGIN_POLYGON' in line:
+            if not exclude_set_updated:
+                tmp=set()
+                for item in full_ovl_exclude_pol:
+                    if isinstance(item,int):
+                        tmp.add(item)
+                    elif isinstance(item,str):
+                        if item and item[0]=='!':
+                            item=item[1:]
+                            tmp=tmp.union([k for k in pol_dict if item not in pol_dict[k]])
+                        else:
+                            tmp=tmp.union([k for k in pol_dict if item in pol_dict[k]])
+                full_ovl_exclude_pol=tmp
+                exclude_set_updated=True
             pol_type = int(line.split()[1])
-            if pol_type not in ovl_exclude_pol and ovl_exclude_pol!=['*']:
+            if pol_type not in full_ovl_exclude_pol:
                 while line and ('END_POLYGON' not in line):
                     g.write(line)
                     line=f.readline()
@@ -88,7 +105,7 @@ def build_overlay(lat,lon):
                     line=f.readline()
         elif 'BEGIN_SEGMENT' in line:
             road_type = int(line.split()[2])
-            if road_type not in ovl_exclude_net and ovl_exclude_net!=['*']:
+            if road_type not in ovl_exclude_net and '' not in ovl_exclude_net and '*' not in ovl_exclude_net:
                 while line and ('END_SEGMENT' not in line):
                     g.write(line)
                     line=f.readline()

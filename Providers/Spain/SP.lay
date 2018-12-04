@@ -1,0 +1,7 @@
+request_type=tms
+grid_type=webmercator
+url_template=http://www.ign.es/wmts/pnoa-ma/geoserver/gwc/service/wmts?FORMAT=image/jpeg&VERSION=1.0.0&SERVICE=WMTS&REQUEST=GetTile&LAYER=OI.OrthoimageCoverage&TILEMATRIXSET=GoogleMapsCompatible&TILEMATRIX={zoom}&TILEROW={y}&TILECOL={x}
+max_threads=32
+in_GUI=False
+imagery_dir=grouped
+

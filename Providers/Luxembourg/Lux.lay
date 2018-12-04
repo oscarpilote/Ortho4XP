@@ -1,0 +1,5 @@
+request_type=tms
+grid_type=webmercator
+url_template=http://{switch:wmts1,wmts2}.geoportail.lu/opendata/wmts/ortho_latest/GLOBAL_WEBMERCATOR_4_V3/{zoom}/{x}/{y}.jpeg
+imagery_dir=code
+in_GUI=False

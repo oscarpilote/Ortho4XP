@@ -1,0 +1,5 @@
+request_type=tms
+grid_type=webmercator
+https://wxs.ign.fr/an7nvfzojv5wa96dsga5nk8w/geoportail/wmts?layer=ORTHOIMAGERY.ORTHOPHOTOS2006-2010&style=normal&tilematrixset=PM&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image%2Fjpeg&TileMatrix={zoom}&TileCol={x}&TileRow={y}
+imagery_dir=grouped
+in_GUI=False

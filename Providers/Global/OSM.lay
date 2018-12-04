@@ -1,4 +1,4 @@
 grid_type=webmercator
 url_template=http://{switch:a,b,c}.tile.openstreetmap.org/{zoom}/{x}/{y}.png
-max_threads=2
+max_threads=8
 fake_headers={}

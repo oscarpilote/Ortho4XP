@@ -7,4 +7,5 @@ layers=Image_Aktuell_RGB
 max_threads=16
 extent=Tirol
 imagery_dir=code
+in_GUI=False
 

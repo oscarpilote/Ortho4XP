@@ -1,0 +1,4 @@
+# Created with : ../../src/O4_Mask_Utils.py Portugal 1000 0 0 rel[admin_level=2][name:en=Portugal]
+mask_bounds=-31.580000000000002,29.8,-6.16,42.18
+buffer_width=200
+mask_width=100

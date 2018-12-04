@@ -1,0 +1,8 @@
+request_type=wms
+epsg_code=3857
+wms_size=1024
+wms_version=1.1.1
+layers=PNOA2015
+url_prefix=http://www.ign.es/wms/pnoa-historico?
+imagery_dir=grouped
+in_GUI=False
