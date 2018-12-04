@@ -1,7 +1,0 @@
-request_type=wms
-epsg_code=3857
-wms_version=1.1.1
-wms_size=1024
-layers=rp_dop
-url_prefix=http://geo4.service24.rlp.de/wms/dop_basis.fcgi?
-extent=Rheinland-Pfalz

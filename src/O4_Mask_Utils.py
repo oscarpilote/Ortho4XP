@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import queue
 from math import  atan, ceil, floor 
 import numpy
 from PIL import Image, ImageDraw, ImageFilter, ImageOps
@@ -13,9 +14,10 @@ import O4_OSM_Utils as OSM
 import O4_Vector_Utils as VECT
 import O4_Mesh_Utils as MESH
 import O4_ESP_Globals
+from O4_Parallel_Utils import parallel_execute
 
 mask_altitude_above=0.5
-
+masks_build_slots=4
 ##############################################################################
 def needs_mask(tile, til_x_left,til_y_top,zoomlevel,*args):
     if int(zoomlevel)<tile.mask_zl:
@@ -40,7 +42,7 @@ def needs_mask(tile, til_x_left,til_y_top,zoomlevel,*args):
 ##############################################################################
 
 ##############################################################################
-def build_masks(tile):
+def build_masks(tile,for_imagery=False):
     if UI.is_working: return 0
     UI.is_working=1
     # Which grey level for inland water equivalent ?
@@ -63,8 +65,9 @@ def build_masks(tile):
     if not os.path.exists(FNAMES.mesh_file(tile.build_dir,tile.lat,tile.lon)):
         UI.lvprint(0,"ERROR: Mesh file ",FNAMES.mesh_file(tile.build_dir,tile.lat,tile.lon),"absent.")
         UI.exit_message_and_bottom_line(''); return 0
-    if not os.path.exists(FNAMES.mask_dir(tile.lat, tile.lon)):
-        os.makedirs(FNAMES.mask_dir(tile.lat, tile.lon))
+    dest_dir=FNAMES.mask_dir(tile.lat, tile.lon) if not for_imagery else os.path.join(FNAMES.mask_dir(tile.lat, tile.lon),"Combined_imagery")    
+    if not os.path.exists(dest_dir):
+        os.makedirs(dest_dir)
     mesh_file_name_list=[]
     for close_lat in range(tile.lat-1,tile.lat+2):
         for close_lon in range(tile.lon-1,tile.lon+2):
@@ -78,13 +81,12 @@ def build_masks(tile):
     ####################
     [til_x_min,til_y_min]=GEO.wgs84_to_orthogrid(tile.lat+1,tile.lon,tile.mask_zl)
     [til_x_max,til_y_max]=GEO.wgs84_to_orthogrid(tile.lat,tile.lon+1,tile.mask_zl)
-    # only delete masks for xplane... might ask Oscar why he does this and doesnt make this an option
     if not O4_ESP_Globals.build_for_ESP:
         UI.vprint(1,"-> Deleting existing masks")
         for til_x in range(til_x_min,til_x_max+1,16):
             for til_y in range(til_y_min,til_y_max+1,16):
                 try:
-                    os.remove(os.path.join(FNAMES.mask_dir(tile.lat,tile.lon), FNAMES.legacy_mask(til_x, til_y)))
+                    os.remove(os.path.join(dest_dir, FNAMES.legacy_mask(til_x, til_y)))
                 except:
                     pass
     UI.vprint(1,"-> Reading mesh data")
@@ -226,14 +228,12 @@ def build_masks(tile):
             UI.exit_message_and_bottom_line("\nERROR: Could not determine the appropriate eleva(tion source. Please check your custom_dem entry.")
             return 0
                 
-    task_len=len(dico_masks)
-    task_done=0
-    for (til_x,til_y) in dico_masks:
-        if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
-        task_done+=1
-        UI.progress_bar(1, 50+int(49*task_done/task_len))
+    masks_queue=queue.Queue()
+    for key in dico_masks: masks_queue.put(key)
+    dico_progress={'done':0,'bar':1}
+    def build_mask(til_x,til_y):
         if til_x<til_x_min or til_x>til_x_max or til_y<til_y_min or til_y>til_y_max:
-            continue
+            return 1
         (latm0,lonm0)=GEO.gtile_to_wgs84(til_x,til_y,tile.mask_zl)
         (px0,py0)=GEO.wgs84_to_pix(latm0,lonm0,tile.mask_zl)
         px0-=1024
@@ -303,6 +303,7 @@ def build_masks(tile):
             name, extension = os.path.splitext(mask_name)
             mask_name = name + ".tif"
         if (img_array.max()==0) and (custom_mask_array.max()==0): # no need to test if the mask is all white since it would otherwise not be present in dico_mask
+<<<<<<< HEAD
             UI.vprint(1,"   Skipping", mask_name)
             continue
         else:
@@ -313,6 +314,12 @@ def build_masks(tile):
                 UI.vprint(1,"   The mask file "+ mask_img_name +" is already present, so don't have to build it")
                 continue
 
+=======
+            UI.vprint(1,"   Skipping", FNAMES.legacy_mask(til_x, til_y))
+            return 1
+        else:
+            UI.vprint(1,"   Creating", FNAMES.legacy_mask(til_x, til_y))
+>>>>>>> e55aaed8c21a6e0a035f2f9ecaa8edc136edb82c
         # Blur of the mask
         pxscal=GEO.webmercator_pixel_size(tile.lat+0.5,tile.mask_zl)
         if tile.masking_mode=="sand":
@@ -346,6 +353,7 @@ def build_masks(tile):
             gamma=2.5
             b_img_array=(((numpy.tan((b_img_array.astype(numpy.float32)-127.5)/128*atan(3))-numpy.tan(-127.5/128*atan(3)))\
                     *254/(2*numpy.tan(127.5/128*atan(3))))**gamma/(255**(gamma-1))).astype(numpy.uint8)
+            #b_img_array=(1.4*(255-((256-b_img_array.astype(numpy.float32))/256.0)**0.2*255)).astype(numpy.uint8)
             #b_img_array=numpy.minimum(b_img_array,200)
             #still some slight smoothing at the shore
             b_img_array=numpy.maximum(b_img_array,numpy.array(Image.fromarray(img_array).convert("L").\
@@ -390,23 +398,28 @@ def build_masks(tile):
         else:
             # Just a (futile) copy
             b_img_array=numpy.array(img_array)
-
         
         # Ensure land is kept to 255 on the mask to avoid unecessary ones, crop to final size, and take the
         # max with the possible custom extent mask
-        img_array=numpy.maximum(img_array,b_img_array)[1024:4096+1024,1024:4096+1024]
+        img_array=numpy.maximum((img_array>0).astype(numpy.uint8)*255,b_img_array)[1024:4096+1024,1024:4096+1024]
         img_array=numpy.maximum(img_array,custom_mask_array)
 
         if not (img_array.max()==0 or img_array.min()==255):
             masks_im=Image.fromarray(img_array)  #.filter(ImageFilter.GaussianBlur(3))
+<<<<<<< HEAD
             mask_img_name = os.path.join(FNAMES.mask_dir(tile.lat,tile.lon), FNAMES.legacy_mask(til_x, til_y))
             if O4_ESP_Globals.build_for_ESP:
                 name, extension = os.path.splitext(mask_img_name)
                 mask_img_name = name + ".tif"
             masks_im.save(mask_img_name)
+=======
+            masks_im.save(os.path.join(dest_dir,FNAMES.legacy_mask(til_x, til_y)))
+>>>>>>> e55aaed8c21a6e0a035f2f9ecaa8edc136edb82c
             UI.vprint(2,"     Done.") 
         else:
-            UI.vprint(1,"     Ends-up being discarded.")        
+            UI.vprint(1,"     Ends-up being discarded.")
+        return 1
+    parallel_execute(build_mask,masks_queue,masks_build_slots,progress=dico_progress)
     UI.progress_bar(1, 100)
     UI.timings_and_bottom_line(timer)
     UI.logprint("Step 2.5 for tile lat=",tile.lat,", lon=",tile.lon,": normal exit.")

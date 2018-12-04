@@ -1,0 +1,7 @@
+# Japan 2007 imagery (partial [-> use only inside of .comb files with proper masking] but very good in some places)
+# Unsure about copyright
+grid_type=webmercator
+url_template=http://cyberjapandata.gsi.go.jp/xyz/ort/{zoom}/{x}/{y}.jpg
+max_threads=8
+imagery_dir=grouped
+in_GUI=False

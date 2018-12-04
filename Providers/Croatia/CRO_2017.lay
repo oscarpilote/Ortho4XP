@@ -1,0 +1,9 @@
+request_type=wmts
+tile_size=256
+epsg_code=3765
+wmts_version=1.0.0
+url_prefix=https://geoportal.dgu.hr/services/auth/dof_hok_tk/wmts?requesttype=from_browser&authKey=665d24c6-e79c-4835-9b69-713e4e814d96&
+layers=DOF5_2017
+tilematrixset=EPSG3765:256x256
+imagery_dir=code
+in_GUI=False

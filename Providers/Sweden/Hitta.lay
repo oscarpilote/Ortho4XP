@@ -1,0 +1,5 @@
+grid_type=webmercator
+url_template=https://static.hitta.se/tile/v3/1/{zoom}/{x}/{-y}
+max_threads=16
+imagery_dir=grouped
+in_GUI=False

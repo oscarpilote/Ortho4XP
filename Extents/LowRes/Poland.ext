@@ -1,0 +1,4 @@
+# Created with : ../../src/O4_Mask_Utils.py Poland 1000 0 0 rel[admin_level=2][name:en=Poland]
+mask_bounds=14.1,48.980000000000004,24.18,55.06
+buffer_width=-100
+blur_width=100
