@@ -303,7 +303,6 @@ def build_masks(tile,for_imagery=False):
             name, extension = os.path.splitext(mask_name)
             mask_name = name + ".tif"
         if (img_array.max()==0) and (custom_mask_array.max()==0): # no need to test if the mask is all white since it would otherwise not be present in dico_mask
-<<<<<<< HEAD
             UI.vprint(1,"   Skipping", mask_name)
             continue
         else:
@@ -314,12 +313,6 @@ def build_masks(tile,for_imagery=False):
                 UI.vprint(1,"   The mask file "+ mask_img_name +" is already present, so don't have to build it")
                 continue
 
-=======
-            UI.vprint(1,"   Skipping", FNAMES.legacy_mask(til_x, til_y))
-            return 1
-        else:
-            UI.vprint(1,"   Creating", FNAMES.legacy_mask(til_x, til_y))
->>>>>>> e55aaed8c21a6e0a035f2f9ecaa8edc136edb82c
         # Blur of the mask
         pxscal=GEO.webmercator_pixel_size(tile.lat+0.5,tile.mask_zl)
         if tile.masking_mode=="sand":
