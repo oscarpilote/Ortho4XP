@@ -399,15 +399,11 @@ def build_masks(tile,for_imagery=False):
 
         if not (img_array.max()==0 or img_array.min()==255):
             masks_im=Image.fromarray(img_array)  #.filter(ImageFilter.GaussianBlur(3))
-<<<<<<< HEAD
-            mask_img_name = os.path.join(FNAMES.mask_dir(tile.lat,tile.lon), FNAMES.legacy_mask(til_x, til_y))
+            mask_img_name = os.path.join(dest_dir, FNAMES.legacy_mask(til_x, til_y))
             if O4_ESP_Globals.build_for_ESP:
                 name, extension = os.path.splitext(mask_img_name)
                 mask_img_name = name + ".tif"
             masks_im.save(mask_img_name)
-=======
-            masks_im.save(os.path.join(dest_dir,FNAMES.legacy_mask(til_x, til_y)))
->>>>>>> e55aaed8c21a6e0a035f2f9ecaa8edc136edb82c
             UI.vprint(2,"     Done.") 
         else:
             UI.vprint(1,"     Ends-up being discarded.")
