@@ -304,14 +304,14 @@ def build_masks(tile,for_imagery=False):
             mask_name = name + ".tif"
         if (img_array.max()==0) and (custom_mask_array.max()==0): # no need to test if the mask is all white since it would otherwise not be present in dico_mask
             UI.vprint(1,"   Skipping", mask_name)
-            continue
+            return 1
         else:
             UI.vprint(1,"   Creating", mask_name)
 
             mask_img_name = os.path.join(FNAMES.mask_dir(tile.lat, tile.lon), mask_name)
             if O4_ESP_Globals.build_for_ESP and os.path.isfile(mask_img_name):
                 UI.vprint(1,"   The mask file "+ mask_img_name +" is already present, so don't have to build it")
-                continue
+                return 1
 
         # Blur of the mask
         pxscal=GEO.webmercator_pixel_size(tile.lat+0.5,tile.mask_zl)
