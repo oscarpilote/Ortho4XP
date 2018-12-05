@@ -3,6 +3,7 @@
 
 #include <Magick++.h>
 #include <climits>
+#include <random>
 
 using namespace Magick;
 using namespace std;
@@ -139,6 +140,16 @@ public:
     bool pixelIsWaterOrWaterTransition(ssize_t x, ssize_t y);
     void setMaskAndGetGetPixels(char *mask_img_path);
     Quantum * getPixels(Image *img);
+};
+
+class RandomNumberGenerator {
+private:
+    std::random_device rd;
+    std::mt19937_64 gen;
+    std::uniform_real_distribution<double> dis;
+public:
+    RandomNumberGenerator();
+    double nextDouble();
 };
 
 bool fileExists(char *fileName);

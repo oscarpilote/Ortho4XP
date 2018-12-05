@@ -136,15 +136,22 @@ bool WaterPixelChecker::pixelIsWaterOrWaterTransition(ssize_t x, ssize_t y) {
     return false;
 }
 
+RandomNumberGenerator::RandomNumberGenerator():gen(this->rd()) {}
+
+double RandomNumberGenerator::nextDouble() {
+    return this->dis(this->gen);
+}
+
 // the below functions are ports from FSET night/season creation scripts
 void c_create_night(char *imgName, char *outName, char *mask_img_path) {
     try {
         Image img;
         img.read(imgName);
         WaterPixelChecker pixelChecker(mask_img_path);
+        RandomNumberGenerator random;
 
         foreach_pixel(&img,
-            [&pixelChecker](Quantum *pixel, ssize_t x, ssize_t y) {
+            [&pixelChecker, &random](Quantum *pixel, ssize_t x, ssize_t y) {
                 int32_t vRed = (int32_t) pixel[0];
                 int32_t vGreen = (int32_t) pixel[1];
                 int32_t vBlue = (int32_t) pixel[2];
@@ -159,15 +166,15 @@ void c_create_night(char *imgName, char *outName, char *mask_img_path) {
                     (vSum  > MasksConfig::mNightStreetConditionRGBSumLargerThanValue) &&
                     (vSum <= MasksConfig::mNightStreetConditionRGBSumLessEqualThanValue)) {
                     //Stree random dither lights
-                    if (nextDouble(0.0, 1.0) < MasksConfig::mNightStreetLightDots1DitherProbabily) {
+                    if (random.nextDouble() < MasksConfig::mNightStreetLightDots1DitherProbabily) {
                         vRed   = MasksConfig::mNightStreetLightDot1Red;
                         vGreen = MasksConfig::mNightStreetLightDot1Green;
                         vBlue  = MasksConfig::mNightStreetLightDot1Blue;
-                    } else if (nextDouble(0.0, 1.0) < MasksConfig::mNightStreetLightDots2DitherProbabily) {
+                    } else if (random.nextDouble() < MasksConfig::mNightStreetLightDots2DitherProbabily) {
                         vRed   = MasksConfig::mNightStreetLightDot2Red;
                         vGreen = MasksConfig::mNightStreetLightDot2Green;
                         vBlue  = MasksConfig::mNightStreetLightDot2Blue;
-                    } else if (nextDouble(0.0, 1.0) < MasksConfig::mNightStreetLightDots3DitherProbabily) {
+                    } else if (random.nextDouble() < MasksConfig::mNightStreetLightDots3DitherProbabily) {
                         vRed   = MasksConfig::mNightStreetLightDot3Red;
                         vGreen = MasksConfig::mNightStreetLightDot3Green;
                         vBlue  = MasksConfig::mNightStreetLightDot3Blue;
@@ -202,9 +209,10 @@ void c_create_hard_winter(char *imgName, char *outName, char *mask_img_path) {
         Image img;
         img.read(imgName);
         WaterPixelChecker pixelChecker(mask_img_path);
+        RandomNumberGenerator random;
 
         foreach_pixel(&img,
-            [&pixelChecker](Quantum *pixel, ssize_t x, ssize_t y) {
+            [&pixelChecker, &random](Quantum *pixel, ssize_t x, ssize_t y) {
                 int32_t vRed = (int32_t) pixel[0];
                 int32_t vGreen = (int32_t) pixel[1];
                 int32_t vBlue = (int32_t) pixel[2];
@@ -225,9 +233,9 @@ void c_create_hard_winter(char *imgName, char *outName, char *mask_img_path) {
                          (vSum > MasksConfig::mHardWinterStreetConditionRGBSumLargerThanValue) &&
                          (vSum < MasksConfig::mHardWinterStreetConditionRGBSumLessThanValue)) {
                         float vAverage = ((Quantum)(vSum)) / 3.0f;
-                        vRed   = (int32_t) (MasksConfig::mHardWinterStreetAverageFactor * (vAverage + ((float) (nextDouble(0.0, 1.0)) * MasksConfig::mHardWinterStreetAverageAdditionRandomFactor + MasksConfig::mHardWinterStreetAverageAdditionRandomOffset)) + MasksConfig::mHardWinterStreetAverageRedOffset);
-                        vGreen = (int32_t) (MasksConfig::mHardWinterStreetAverageFactor * (vAverage + ((float) (nextDouble(0.0, 1.0)) * MasksConfig::mHardWinterStreetAverageAdditionRandomFactor + MasksConfig::mHardWinterStreetAverageAdditionRandomOffset)) + MasksConfig::mHardWinterStreetAverageGreenOffset);
-                        vBlue  = (int32_t) (MasksConfig::mHardWinterStreetAverageFactor * (vAverage + ((float) (nextDouble(0.0, 1.0)) * MasksConfig::mHardWinterStreetAverageAdditionRandomFactor + MasksConfig::mHardWinterStreetAverageAdditionRandomOffset)) + MasksConfig::mHardWinterStreetAverageBlueOffset);
+                        vRed   = (int32_t) (MasksConfig::mHardWinterStreetAverageFactor * (vAverage + ((float) (random.nextDouble()) * MasksConfig::mHardWinterStreetAverageAdditionRandomFactor + MasksConfig::mHardWinterStreetAverageAdditionRandomOffset)) + MasksConfig::mHardWinterStreetAverageRedOffset);
+                        vGreen = (int32_t) (MasksConfig::mHardWinterStreetAverageFactor * (vAverage + ((float) (random.nextDouble()) * MasksConfig::mHardWinterStreetAverageAdditionRandomFactor + MasksConfig::mHardWinterStreetAverageAdditionRandomOffset)) + MasksConfig::mHardWinterStreetAverageGreenOffset);
+                        vBlue  = (int32_t) (MasksConfig::mHardWinterStreetAverageFactor * (vAverage + ((float) (random.nextDouble()) * MasksConfig::mHardWinterStreetAverageAdditionRandomFactor + MasksConfig::mHardWinterStreetAverageAdditionRandomOffset)) + MasksConfig::mHardWinterStreetAverageBlueOffset);
                     } else if (vSum < MasksConfig::mHardWinterDarkConditionRGBSumLessThanValue) {
                         // If it is very dark(-green), it might be forest or very steep rock.
                         // In this case, we might want to sprinkle some more white pixels
@@ -235,10 +243,10 @@ void c_create_hard_winter(char *imgName, char *outName, char *mask_img_path) {
                         if ( vSnowAllowed &&
                             (vGreen > (vRed - MasksConfig::mHardWinterDarkConditionRGDiffValue)) &&
                             (vGreen > vBlue) &&
-                            (nextDouble(0.0, 1.0) < MasksConfig::mHardWinterDarkConditionRandomLessThanValue)) {
-                            vRed   = MasksConfig::mHardWinterDarkRedOffset   + (int32_t) (((float) (nextDouble(0.0, 1.0)) * MasksConfig::mHardWinterDarkRandomFactor));
-                            vGreen = MasksConfig::mHardWinterDarkGreenOffset + (int32_t) (((float) (nextDouble(0.0, 1.0)) * MasksConfig::mHardWinterDarkRandomFactor));
-                            vBlue  = MasksConfig::mHardWinterDarkBlueOffset  + (int32_t) (((float) (nextDouble(0.0, 1.0)) * MasksConfig::mHardWinterDarkRandomFactor));
+                            (random.nextDouble() < MasksConfig::mHardWinterDarkConditionRandomLessThanValue)) {
+                            vRed   = MasksConfig::mHardWinterDarkRedOffset   + (int32_t) (((float) (random.nextDouble()) * MasksConfig::mHardWinterDarkRandomFactor));
+                            vGreen = MasksConfig::mHardWinterDarkGreenOffset + (int32_t) (((float) (random.nextDouble()) * MasksConfig::mHardWinterDarkRandomFactor));
+                            vBlue  = MasksConfig::mHardWinterDarkBlueOffset  + (int32_t) (((float) (random.nextDouble()) * MasksConfig::mHardWinterDarkRandomFactor));
                         } else {
                             // leave very dark pixel (basically) unchanged:
                             if (vStreets) {
@@ -315,9 +323,10 @@ void c_create_autumn(char *imgName, char *outName, char *mask_img_path) {
         Image img;
         img.read(imgName);
         WaterPixelChecker pixelChecker(mask_img_path);
+        RandomNumberGenerator random;
 
         foreach_pixel(&img,
-            [&pixelChecker](Quantum *pixel, ssize_t x, ssize_t y) {
+            [&pixelChecker, &random](Quantum *pixel, ssize_t x, ssize_t y) {
                 int32_t vRed = (int32_t) pixel[0];
                 int32_t vGreen = (int32_t) pixel[1];
                 int32_t vBlue = (int32_t) pixel[2];
@@ -375,9 +384,10 @@ void c_create_spring(char *imgName, char *outName, char *mask_img_path) {
         Image img;
         img.read(imgName);
         WaterPixelChecker pixelChecker(mask_img_path);
+        RandomNumberGenerator random;
 
         foreach_pixel(&img,
-            [&pixelChecker](Quantum *pixel, ssize_t x, ssize_t y) {
+            [&pixelChecker, &random](Quantum *pixel, ssize_t x, ssize_t y) {
                 int32_t vRed = (int32_t) pixel[0];
                 int32_t vGreen = (int32_t) pixel[1];
                 int32_t vBlue = (int32_t) pixel[2];
@@ -431,9 +441,10 @@ void c_create_winter(char *imgName, char *outName, char *mask_img_path) {
         Image img;
         img.read(imgName);
         WaterPixelChecker pixelChecker(mask_img_path);
+        RandomNumberGenerator random;
 
         foreach_pixel(&img,
-            [&pixelChecker](Quantum *pixel, ssize_t x, ssize_t y) {
+            [&pixelChecker, &random](Quantum *pixel, ssize_t x, ssize_t y) {
                 int32_t vRed = (int32_t) pixel[0];
                 int32_t vGreen = (int32_t) pixel[1];
                 int32_t vBlue = (int32_t) pixel[2];
@@ -460,9 +471,9 @@ void c_create_winter(char *imgName, char *outName, char *mask_img_path) {
                             vMax = vBlue;
                         }
                         float vMaxDouble = MasksConfig::mWinterStreetGreyMaxFactor * (float) (vMax);
-                        vRed   = (int32_t) (((float) (nextDouble(0.0, 1.0)) * MasksConfig::mWinterStreetGreyRandomFactor + vMax));
-                        vGreen = (int32_t) (((float) (nextDouble(0.0, 1.0)) * MasksConfig::mWinterStreetGreyRandomFactor + vMax));
-                        vBlue  = (int32_t) (((float) (nextDouble(0.0, 1.0)) * MasksConfig::mWinterStreetGreyRandomFactor + vMax));
+                        vRed   = (int32_t) (((float) (random.nextDouble()) * MasksConfig::mWinterStreetGreyRandomFactor + vMax));
+                        vGreen = (int32_t) (((float) (random.nextDouble()) * MasksConfig::mWinterStreetGreyRandomFactor + vMax));
+                        vBlue  = (int32_t) (((float) (random.nextDouble()) * MasksConfig::mWinterStreetGreyRandomFactor + vMax));
                     } else if ((vSum < MasksConfig::mWinterDarkConditionRGBSumLessThanValue) &&
                              (vSum > MasksConfig::mWinterDarkConditionRGBSumLargerThanValue)) {
                         // Rather dark pixel, but not black
