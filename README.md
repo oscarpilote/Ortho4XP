@@ -57,3 +57,6 @@ night/seasonal texture creation options
 # TODO:
 remove extra steps not needed for ESP scenery creation
 add integration with sceneproc to allow for adding of custom autogen from OpenStreetMap data
+
+# BUGS:
+Certain tiles don't appear when their BGL is too large in size (like when creating tiles at ZL 12 and enabling all the seasons which creates 2+ gig BGLs). Not sure if limitation of the sim, or some other issue.
