@@ -1,0 +1,5 @@
+# May be more clear and/or accurate than what is presented in the default ESRI/ArcGIS World Imagery map.
+# Details: https://www.esri.com/arcgis-blog/products/arcgis-enterprise/imagery/world-imagery-clarity-a-clearer-view-of-the-world/
+grid_type=webmercator
+url_template=https://clarity.maptiles.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{zoom}/{y}/{x}
+imagery_dir=grouped
