@@ -8,6 +8,8 @@ yOrtho4XP_Overlays
 Previews/
 tmp/
 Tiles/
+**/Ortho4XP.log
 **/__pycache__
 **/Thumbs.db
 **/*.bak
+.last_gui_params.txt
