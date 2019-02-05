@@ -6,4 +6,4 @@ pip3 install cython
 pip3 install git+https://github.com/jswhit/pyproj.git
 
 # Install other dependencies
-pip3 install numpy shapely rtree pillow requests
+pip3 install numpy shapely rtree pillow requests gdal
