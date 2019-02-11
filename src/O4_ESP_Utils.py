@@ -30,7 +30,8 @@ def create_INF_source_string(source_num, season, variation, type, layer, source_
     contents += "CellXdimensionDeg = """ + cell_x_dim + "\n"
     contents += "CellYdimensionDeg = """ + cell_y_dim + "\n"
     contents += "PixelIsPoint      = 0\n"
-    contents += "SamplingMethod    = Point"
+    contents += "SamplingMethod    = Point\n"
+    contents += "NullValue         = 255,255,255"
 
     return contents
 
