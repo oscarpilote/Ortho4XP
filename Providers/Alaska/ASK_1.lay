@@ -1,4 +1,0 @@
-grid_type=webmercator
-url_template=http://tiles.gina.alaska.edu/tilesrv/bdl/tile/{x}/{y}/{zoom}
-imagery_dir=grouped
-in_GUI=False
