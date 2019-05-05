@@ -633,11 +633,11 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
 
         def _tmp_smart_zones_list():
             return TILE.smart_zone_list_1(tile_lat_lon=(self.lat, self.lon),
-                                          screen_res=2560,
+                                          screen_res=TILE.ScreenRes.OcculusRift,
                                           fov=60,
                                           fpa=10,
                                           provider='GO2',
-                                          max_zl=20,
+                                          max_zl=19,
                                           min_zl=16,
                                           greediness=3,
                                           greediness_threshold=0.70)

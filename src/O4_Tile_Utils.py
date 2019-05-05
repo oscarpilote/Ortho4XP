@@ -1,3 +1,4 @@
+import enum
 import datetime
 import math
 import os
@@ -154,11 +155,11 @@ def build_tile_list(tile,list_lat_lon,do_osm,do_mesh,do_mask,do_dsf,do_ovl,do_pt
     wall_time = time.clock()
     UI.lvprint(0,"Auto-generating a list of ZL zones around the airports of each tile.")
     zone_lists = smart_zone_list(list_lat_lon=list_lat_lon,
-                                 screen_res=2560,
+                                 screen_res=ScreenRes.OcculusRift,
                                  fov=60,
                                  fpa=10,
                                  provider='GO2',
-                                 max_zl=20,
+                                 max_zl=19,
                                  min_zl=16,
                                  greediness=3,
                                  greediness_threshold=0.70)
@@ -214,6 +215,21 @@ def remove_unwanted_textures(tile):
             except:pass
 ##############################################################################
 
+
+class ScreenRes(enum.Enum):
+    _720p = (1280, 720)
+    SD = _720p
+    _1080p = (1920, 1080)
+    HD = _1080p
+    _1440p = (2560, 1440)
+    QHD = _1440p
+    _2160p = (3840, 2160)
+    _4K = _2160p
+    _4320p = (7680, 4320)
+    _8K = _4320p
+    OcculusRift = (1080, 1200)  # Per eye
+
+
 def smart_zone_list(list_lat_lon, screen_res, fov, fpa, provider, max_zl, min_zl, greediness=1, greediness_threshold=0.70):
     tiles_to_build = [XPlaneTile(lat, lon) for (lat, lon) in list_lat_lon]
     airport_collection = AirportDataSource().airports_in(tiles_to_build, include_surrounding_tiles=True)
@@ -225,7 +241,7 @@ def smart_zone_list(list_lat_lon, screen_res, fov, fpa, provider, max_zl, min_zl
         for zl in range(max_zl, min_zl - 1, -1):
             for polygon in airport_collection.polygons(zl,
                                                        max_zl,
-                                                       screen_res,
+                                                       screen_res.value[0] if isinstance(screen_res, ScreenRes) else screen_res,
                                                        fov,
                                                        fpa,
                                                        greediness,
