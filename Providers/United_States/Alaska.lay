@@ -1,0 +1,4 @@
+grid_type=webmercator
+url_template=http://gis{switch:1,2,3,4}.dnr.alaska.gov/terrapixel/ips/tilesets/SDMI_ORTHO_RGB/SDMI_ORTHO_RGB/default/smerc/{zoom}/{y}/{x}.png?INSTANCE=ortho
+imagery_dir=grouped
+in_GUI=False
