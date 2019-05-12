@@ -1,0 +1,6 @@
+request_type=wms
+wms_size=1024
+epsg_code=3857
+imagery_dir=code
+max_threads=2
+in_GUI=False

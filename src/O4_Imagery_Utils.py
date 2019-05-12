@@ -80,7 +80,7 @@ def initialize_extents_dict():
             if '.' not in file_name or file_name.split('.')[-1]!='ext': continue
             extent_code=file_name.split('.')[0]
             extent={}
-            f=open(os.path.join(FNAMES.Extent_dir,dir_name,file_name),'r')
+            f=open(os.path.join(FNAMES.Extent_dir,dir_name,file_name),'r',encoding='utf-8')
             valid_extent=True
             for line in f.readlines():
                 line=line[:-1]
