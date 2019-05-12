@@ -1,0 +1,4 @@
+grid_type=webmercator
+url_template=http://tiles.gina.alaska.edu/tiles/SPOT5.SDMI.ORTHO_RGB/tile/{x}/{y}/{zoom}
+imagery_dir=grouped
+in_GUI=False
