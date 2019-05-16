@@ -429,7 +429,7 @@ def initialize_local_combined_providers_dict(tile):
                             if not multipolygon_area.area:
                                 UI.vprint(0,"Error, erroneous OSM data for extent code",name,", skipped.") 
                                 continue
-                            vector_map.encode_MultiPolygon(multipolygon_area,VECT.dummy_alt,'DUMMY',check=False,cut=False)
+                            vector_map.encode_MultiPolygon(multipolygon_area,VECT.dummy_alt,'WATER',check=False,cut=False)
                             vector_map.write_node_file(name+'.node')
                             vector_map.write_poly_file(name+'.poly')
                             MESH.triangulate(name,'.')
