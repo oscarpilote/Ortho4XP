@@ -1,6 +1,8 @@
+import datetime
 import os
 import pickle
 import shutil
+import time
 from math import floor, ceil
 import array
 import numpy
@@ -12,6 +14,10 @@ import O4_File_Names as FNAMES
 import O4_Geo_Utils as GEO
 import O4_Mask_Utils as MASK
 import O4_UI_Utils as UI
+import O4_Config_Utils as CFG
+from O4_AirportDataSource import AirportDataSource, XPlaneTile
+import shapely.geometry
+import shapely.prepared
 
 quad_init_level=3
 quad_capacity_high=50000
@@ -91,8 +97,36 @@ class QuadTree(dict):
         UI.vprint(1,"     Number of buckets:",len(lengths))
         UI.vprint(1,"     Average depth:",depths.mean(),", Average bucket size:",lengths.mean())
         UI.vprint(1,"     Largest depth:",numpy.max(depths))
-    
+
+
 ##############################################################################
+def progressive_zone_list(lat, lon, screen_res, fov, fpa, provider, max_zl, min_zl, greediness=3, greediness_threshold=0.70):
+    xp_tile = XPlaneTile(lat, lon)
+    airport_collection = AirportDataSource().airports_in([xp_tile], include_surrounding_tiles=True)
+    if isinstance(screen_res, CFG.ScreenRes):
+        horiz_screen_value = screen_res.value[0]
+    elif isinstance(screen_res, int):
+        horiz_screen_value = screen_res
+    else:
+        horiz_screen_value = CFG.ScreenRes.from_config_value(screen_res)[0]
+
+    tile_poly = shapely.prepared.prep(xp_tile.polygon())
+    tile_zones = []
+    for zl in range(max_zl, min_zl - 1, -1):
+        for polygon in airport_collection.polygons(zl=zl,
+                                                   max_zl=max_zl,
+                                                   screen_res=horiz_screen_value,
+                                                   fov=fov,
+                                                   fpa=fpa,
+                                                   greediness=greediness,
+                                                   greediness_threshold=greediness_threshold):
+            if not tile_poly.disjoint(polygon):
+                coords = []
+                for (x, y) in polygon.exterior.coords:
+                    coords.extend([y, x])
+                tile_zones.append([coords, zl, provider])
+    return tile_zones
+
 
 ##############################################################################
 def zone_list_to_ortho_dico(tile):
@@ -101,6 +135,7 @@ def zone_list_to_ortho_dico(tile):
         masks_im=Image.new("L",(4096,4096),'black')
         masks_draw=ImageDraw.Draw(masks_im)
         airport_array=numpy.zeros((4096,4096),dtype=numpy.bool)
+
         if tile.cover_airports_with_highres in ['True','ICAO']:
             UI.vprint(1,"-> Checking airport locations for upgraded zoomlevel.")
             try:
@@ -135,6 +170,21 @@ def zone_list_to_ortho_dico(tile):
                 rowmax=round((1-ymin)*4095)
                 rowmin=round((1-ymax)*4095)
                 airport_array[rowmin:rowmax+1,colmin:colmax+1]=1
+
+        else:  # elif tile.cover_airports_with_highres == 'Progressive':
+            UI.vprint(1,"-> Auto-generating custom ZL zones along the runways of each airport.")
+            wall_time = time.clock()
+            tile.zone_list.extend(progressive_zone_list(lat=tile.lat,
+                                                        lon=tile.lon,
+                                                        screen_res=CFG.ScreenRes.res_1440p,  # tile.cover_screen_res,
+                                                        fov=60.0,  # tile.cover_fov,
+                                                        fpa=10.0,  # tile.cover_fpa,
+                                                        provider='GO2',  # tile.default_website,
+                                                        max_zl=19,  # tile.cover_zl,
+                                                        min_zl=16))  # tile.default_zl))
+            wall_time_delta = datetime.timedelta(seconds=(time.clock() - wall_time))
+            UI.lvprint(0, "ZL zones computed in {}s".format(wall_time_delta))
+
         dico_customzl={}        
         dico_tmp={}
         til_x_min,til_y_min=GEO.wgs84_to_orthogrid(tile.lat+1,tile.lon,tile.mesh_zl)

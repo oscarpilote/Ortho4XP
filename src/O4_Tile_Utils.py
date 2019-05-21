@@ -1,5 +1,3 @@
-import enum
-import datetime
 import math
 import os
 import time
@@ -15,9 +13,6 @@ import O4_Mask_Utils as MASK
 import O4_DSF_Utils as DSF
 import O4_Overlay_Utils as OVL
 from O4_Parallel_Utils import parallel_launch, parallel_join
-from O4_AirportDataSource import AirportDataSource, XPlaneTile
-import shapely.geometry
-import shapely.prepared
 
 max_convert_slots=4 
 skip_downloads=False
@@ -152,27 +147,12 @@ def build_tile_list(tile,list_lat_lon,do_osm,do_mesh,do_mask,do_dsf,do_ovl,do_pt
     timer=time.time()
     UI.lvprint(0,"Batch build launched for a number of",len(list_lat_lon),"tiles.")
 
-    wall_time = time.clock()
-    UI.lvprint(0,"Auto-generating a list of ZL zones around the airports of each tile.")
-    zone_lists = smart_zone_list(list_lat_lon=list_lat_lon,
-                                 screen_res=ScreenRes.OcculusRift,
-                                 fov=60,
-                                 fpa=10,
-                                 provider='GO2',
-                                 max_zl=19,
-                                 min_zl=16,
-                                 greediness=3,
-                                 greediness_threshold=0.70)
-    wall_time_delta = datetime.timedelta(seconds=(time.clock() - wall_time))
-    UI.lvprint(0, "ZL zones computed in {}s".format(wall_time_delta))
-
     for (k, (lat, lon)) in enumerate(list_lat_lon):
         UI.vprint(1,"Dealing with tile ",k+1,"/",len(list_lat_lon),":",FNAMES.short_latlon(lat,lon)) 
         (tile.lat,tile.lon)=(lat,lon)
         tile.build_dir=FNAMES.build_dir(tile.lat,tile.lon,tile.custom_build_dir)
         tile.dem=None
         if do_ptc: tile.read_from_config()
-        tile.zone_list = zone_lists[k]
         if (do_osm or do_mesh or do_dsf): tile.make_dirs()
         if do_osm: 
             VMAP.build_poly_file(tile)
@@ -213,47 +193,3 @@ def remove_unwanted_textures(tile):
             print("Removing obsolete texture",f)
             try: os.remove(os.path.join(tile.build_dir,'textures',f))
             except:pass
-##############################################################################
-
-
-class ScreenRes(enum.Enum):
-    _720p = (1280, 720)
-    SD = _720p
-    _1080p = (1920, 1080)
-    HD = _1080p
-    _1440p = (2560, 1440)
-    QHD = _1440p
-    _2160p = (3840, 2160)
-    _4K = _2160p
-    _4320p = (7680, 4320)
-    _8K = _4320p
-    OcculusRift = (1080, 1200)  # Per eye
-
-
-def smart_zone_list(list_lat_lon, screen_res, fov, fpa, provider, max_zl, min_zl, greediness=1, greediness_threshold=0.70):
-    tiles_to_build = [XPlaneTile(lat, lon) for (lat, lon) in list_lat_lon]
-    airport_collection = AirportDataSource().airports_in(tiles_to_build, include_surrounding_tiles=True)
-
-    all_zones = []
-    for tile in tiles_to_build:
-        tile_poly = shapely.prepared.prep(tile.polygon())
-        tile_zones = []
-        for zl in range(max_zl, min_zl - 1, -1):
-            for polygon in airport_collection.polygons(zl,
-                                                       max_zl,
-                                                       screen_res.value[0] if isinstance(screen_res, ScreenRes) else screen_res,
-                                                       fov,
-                                                       fpa,
-                                                       greediness,
-                                                       greediness_threshold):
-                if not tile_poly.disjoint(polygon):
-                    coords = []
-                    for (x, y) in polygon.exterior.coords:
-                        coords.extend([y, x])
-                    tile_zones.append([coords, zl, provider])
-        all_zones.append(tile_zones)
-    return all_zones
-
-
-def smart_zone_list_1(tile_lat_lon, screen_res, fov, fpa, provider, max_zl, min_zl, greediness=1, greediness_threshold=0.70):
-    return smart_zone_list([tile_lat_lon], screen_res, fov, fpa, provider, max_zl, min_zl, greediness, greediness_threshold)[0]
