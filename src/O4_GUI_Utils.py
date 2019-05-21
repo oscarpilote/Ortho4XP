@@ -1,8 +1,6 @@
-import datetime
 import os
 import sys
 import shutil
-import time
 from math import floor, cos, pi
 import numpy
 import queue
@@ -22,6 +20,7 @@ import O4_Mask_Utils as MASK
 import O4_Tile_Utils as TILE
 import O4_UI_Utils as UI
 import O4_Config_Utils as CFG
+import O4_DSF_Utils as DSF
 
 # Set OsX=True if you prefer the OsX way of drawing existing tiles but are on Linux or Windows.
 OsX='dar' in sys.platform
@@ -72,11 +71,11 @@ class ZoomLevels:
         return super(ZoomLevels, cls).__new__(cls, *args, **kwargs)
 
     @classmethod
-    def normalized(cls, zl):
+    def normalized(cls, zl, min_zl=None, max_zl=None):
         """Ensure the provided ZL is between __ZL_MIN__ and __ZL_MAX."""
         return max(min(int(zl) + 1,
-                       cls.__ZL_MAX__),
-                   cls.__ZL_MIN__)
+                       max_zl or cls.__ZL_MAX__),
+                   min_zl or cls.__ZL_MIN__)
 
     @staticmethod
     def _heat_map(cold_zls, temperate_zls, warm_zls, blazing_zls):
@@ -494,7 +493,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
 
         self.zlpol=tk.IntVar()
         try: # default_zl might still be empty 
-            self.zlpol.set(ZOOM_LEVELS.normalized(self.parent.default_zl.get()))  # FIXME: re-apply ignored upstream change : min_zl changed from 12 to 15
+            self.zlpol.set(ZOOM_LEVELS.normalized(self.parent.default_zl.get()), min_zl=15)
         except:
             self.zlpol.set(17)
         self.gb = tk.StringVar()
@@ -626,49 +625,31 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         self.boundary=self.canvas.create_polygon(bdpoints,\
                            outline='black',fill='', width=2)
 
-        ################################################################################################################
-        # XXX: tmp profiler
-        #
-        _tmp_enable_profiler = False
+        # If Progressive mode is enabled, preview the computed custom ZL zones for this tile
+        if CFG.cover_airports_with_highres == 'Progressive':
+            custom_zones = DSF.progressive_zone_list(lat=self.lat,
+                                                     lon=self.lon,
+                                                     screen_res=CFG.cover_screen_res,
+                                                     fov=CFG.cover_fov,
+                                                     fpa=CFG.cover_fpa,
+                                                     provider=CFG.default_website,
+                                                     max_zl=CFG.cover_zl,
+                                                     min_zl=CFG.default_zl,
+                                                     greediness=CFG.cover_greediness,
+                                                     greediness_threshold=CFG.cover_greediness_threshold)
+            for zone in custom_zones:
+                self.coords=zone[0][0:-2]
+                self.zlpol.set(zone[1])
+                self.zmap_combo.set(zone[2])
+                self.points=[]
+                for idxll in range(0,len(self.coords)//2):
+                    latp=self.coords[2*idxll]
+                    lonp=self.coords[2*idxll+1]
+                    [x,y]=self.latlon_to_xy(latp,lonp,self.zoomlevel)
+                    self.points+=[int(x),int(y)]
 
-        def _tmp_smart_zones_list():
-            return TILE.smart_zone_list_1(tile_lat_lon=(self.lat, self.lon),
-                                          screen_res=TILE.ScreenRes.OcculusRift,
-                                          fov=60,
-                                          fpa=10,
-                                          provider='GO2',
-                                          max_zl=19,
-                                          min_zl=16,
-                                          greediness=3,
-                                          greediness_threshold=0.70)
-
-        wall_time = time.clock()
-
-        if _tmp_enable_profiler:
-            import cProfile
-            prof = cProfile.Profile()
-            smart_zones = prof.runcall(_tmp_smart_zones_list)
-            prof.dump_stats(os.path.join(FNAMES.Ortho4XP_dir, 'smart_zone_list.prof'))
-        else:
-            smart_zones = _tmp_smart_zones_list()
-
-        wall_time_delta = datetime.timedelta(seconds=(time.clock() - wall_time))
-        UI.lvprint(0, "Smart zone list computed in {}s".format(wall_time_delta))
-        ################################################################################################################
-
-        for zone in smart_zones:
-            self.coords=zone[0][0:-2]
-            self.zlpol.set(zone[1])
-            self.zmap_combo.set(zone[2])
-            self.points=[]
-            for idxll in range(0,len(self.coords)//2):
-                latp=self.coords[2*idxll]
-                lonp=self.coords[2*idxll+1]
-                [x,y]=self.latlon_to_xy(latp,lonp,self.zoomlevel)
-                self.points+=[int(x),int(y)]
-            self.redraw_poly()
-            self.save_zone_cmd()
-        return
+                self.redraw_poly()
+                self.save_zone_cmd()
 
     def scroll_start(self,event):
         self.canvas.scan_mark(event.x, event.y)

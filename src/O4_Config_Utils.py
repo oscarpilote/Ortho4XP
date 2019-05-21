@@ -65,9 +65,14 @@ cfg_vars={
     'default_website':     {'type':str,'default':'','hint':''},
     'default_zl':          {'type':int,'default':16,'hint':''},
     'zone_list':           {'type':list,'default':[],'hint':''},
-    'cover_airports_with_highres':{'type':str,'default':'False','values':('False','True','ICAO','Existing'),'hint':'When set, textures above airports will be upgraded to a higher zoomlevel, the imagery being the same as the one they would otherwise receive. Can be limited to airports with an ICAO code for tiles with so many airports. Exceptional: use "Existing" to (try to) derive custom zl zones from the textures directory of an existing tile.','short_name':'high_zl_airports'},
-    'cover_extent':        {'type':float,'default':1,'hint':'The extent (in km) past the airport boundary taken into account for higher ZL. Note that for VRAM efficiency higher ZL textures are fully used on their whole extent as soon as part of them are needed.'},
-    'cover_zl':            {'type':int,'default':18,'hint':'The zoomlevel with which to cover the airports zone when high_zl_airports is set. Note that if the cover_zl is lower than the zoomlevel which would otherwise be applied on a specific zone, the latter is used.'},
+    'cover_airports_with_highres':{'type':str,'default':'False','values':('False','True','ICAO','Progressive','Existing'),'hint':'When set to True, textures above airports will be upgraded to a higher zoomlevel, the imagery being the same as the one they would otherwise receive.\nIn ICAO mode, this will be limited to airports with an ICAO code (for tiles with so many airports).\nIn Progressive mode, custom ZL zones will automatically be computed along all the runway axes, from "cover_zl" (highest resolution near the airport, see below) up to "base_zl" (lowest). See also cover_screen_res, cover_fov, and cover_fpa.\nIn "Existing" mode, (try to) derive custom zl zones from the textures directory of an existing tile.','short_name':'high_zl_airports'},
+    'cover_extent':        {'type':float,'default':1,'hint':'Only used in True or ICAO mode (see "high_zl_airports")\nThe extent (in km) past the airport boundary taken into account for higher ZL.\nNote that for VRAM efficiency higher ZL textures are fully used on their whole extent as soon as part of them are needed.'},
+    'cover_zl':            {'type':int,'default':18,'hint':'Only used in True, ICAO or Progressive mode (see "high_zl_airports")\nIn True or ICAO mode, this is the zoomlevel with which to cover the airports zone.\nNote that if the cover_zl is lower than the zoomlevel which would otherwise be applied on a specific zone, the latter is used.\nIn Progressive mode, this is the highest desired ZL, near the airport (lowest is set to the base_zl).'},
+    'cover_screen_res':    {'type':str,'default':'HD_1080p','values':('SD_720p','HD_1080p','QHD_1440p','4K_2160p','OculusRift','HtcVive','HtcVivePro'),'hint':'Only used in Progressive mode (see "high_zl_airports")\nThe screen resolution you are expecting to use the most in the simulator.'},
+    'cover_fov':           {'type':float,'default':60.0,'hint':'Only used in Progressive mode (see "high_zl_airports")\nThe Field of View you are are expecting to use in the simulator.'},
+    'cover_fpa':           {'type':float,'default':10,'hint':"Only used in Progressive mode (see \"high_zl_airports\")\nThe higher you are, the less texture resolution you need. Progressive mode uses this Flight Path Angle (from the runway outward) to progressively decrease the Zoom Level of the textures.\nThe total tile size can very drastically increase as you lower this value. The default of 10 degrees was found visually acceptable, with a decent tile size."},
+    'cover_greediness':    {'type':int,'default':1,'hint':"Only used in Progressive mode (see \"high_zl_airports\")\nOptimize texture usage, by \"eating up\" any ZLn-1 texture being \"greediness_threshold\"-percent covered by ZLn textures\nWill look up to 'greediness' lower zoom levels"},
+    'cover_greediness_threshold': {'type':float,'default':0.70,'hint':"Only used in Progressive mode (see \"high_zl_airports\")\nOptimize texture usage, by \"eating up\" any ZLn-1 texture being \"greediness_threshold\"-percent covered by ZLn textures\nWill look up to 'greediness' lower zoom levels"},
     'sea_texture_blur':    {'type':float,'default':0,'hint':'For layers of type "mask" in combined providers imageries, determines the extent (in meters) of the blur radius applied. This allows to smoothen some sea imageries where the wave or reflection pattern was too much present.'},
     'add_low_res_sea_ovl': {'type':bool,'default':False,'hint':'Will add an extra texture layer over the sea (with constant alpha channel given by ratio_water as for inland water), based on a low resolution imagery with global coverage. Masks with their full resolution imagery are still being used when present, the final render is a composite of both. The default imagery with code SEA can be changed as any other imagery defined in the Providers directory, it needs to have a max_zl defined and is used at its max_zl.'},
     'experimental_water':  {'type':int,'default':0,'values':(0,1,2,3),'hint':'If non zero, replaces X-Plane water by a custom normal map over low res ortho-imagery (requires XP11 but turns water rendering more XP10 alike). The value 0 corresponds to legacy X-Plane water, 1 replaces it for inland water only, 2 over sea water only, and 3 over both. Values 2 and 3 should always be used in combination with "imprint_masks_to_dds".\n\nThis experimental feature has two strong downsides: 1) the waves are static rather dynamical (would require a plugin to update the normal_map as X-Plane does) and 2) the wave height is no longer weather dependent. On the other hand, waves might have less repetitive patterns and some blinking in water reflections might be improved too; users are welcome to improve the provided water_normal_map.dds (Gimp can be used to edit the mipmaps individually).'},
@@ -90,7 +95,7 @@ gui_app_vars_long=list_app_vars[-2:]
 list_vector_vars=['apt_smoothing_pix','road_level','road_banking_limit','lane_width','max_levelled_segs','water_simplification','min_area','max_area','clean_bad_geometries','mesh_zl']
 list_mesh_vars=['curvature_tol','apt_curv_tol','apt_curv_ext','coast_curv_tol','coast_curv_ext','limit_tris','hmin','min_angle','sea_smoothing_mode','water_smoothing','iterate']
 list_mask_vars=['mask_zl','masks_width','masking_mode','use_masks_for_inland','imprint_masks_to_dds','masks_use_DEM_too','masks_custom_extent']
-list_dsf_vars=['cover_airports_with_highres','cover_extent','cover_zl','ratio_water','overlay_lod','sea_texture_blur','add_low_res_sea_ovl','experimental_water','normal_map_strength','terrain_casts_shadows','use_decal_on_terrain']
+list_dsf_vars=['cover_airports_with_highres','cover_extent','cover_zl','cover_screen_res','cover_fov','cover_fpa','cover_greediness','cover_greediness_threshold','ratio_water','overlay_lod','sea_texture_blur','add_low_res_sea_ovl','experimental_water','normal_map_strength','terrain_casts_shadows','use_decal_on_terrain']
 list_other_vars=['custom_dem','fill_nodata']
 list_tile_vars=list_vector_vars+list_mesh_vars+list_mask_vars+list_dsf_vars+list_other_vars+['default_website','default_zl','zone_list']
 
@@ -211,6 +216,8 @@ class Tile():
                     if value and value[-1] in ('"',"'"): value=value[:-1]
                     if cfg_vars[var]['type'] in (bool,list):
                         cmd="self."+var+"="+value
+                    elif cfg_vars[var]['type'] is ScreenRes:
+                        cmd="self."+var+"=ScreenRes.from_config_value(value)"
                     else:
                         cmd="self."+var+"=cfg_vars['"+var+"']['type'](value)"
                     exec(cmd)
@@ -229,7 +236,6 @@ class Tile():
         except:
             UI.lvprint(0,"CFG error: Could not read config file for tile",FNAMES.short_latlon(self.lat,self.lon))
             return 0
-
 
     def write_to_config(self,config_file=None):
         if not config_file: 
@@ -304,7 +310,7 @@ class Ortho4XP_Config(tk.Toplevel):
                 ttk.Button(self.frame_cfg,text=text,takefocus=False,command=lambda item=item: self.popup(item,cfg_vars[item]['hint'])).grid(row=row,column=col,padx=2,pady=2,sticky=E+W+N+S)
                 if cfg_vars[item]['type']==bool or 'values' in cfg_vars[item]:
                     values=[True,False] if cfg_vars[item]['type']==bool else [str(x) for x in cfg_vars[item]['values']]
-                    self.entry_[item]=ttk.Combobox(self.frame_cfg,values=values,textvariable=self.v_[item],width=6,state='readonly',style='O4.TCombobox')
+                    self.entry_[item]=ttk.Combobox(self.frame_cfg,values=values,textvariable=self.v_[item],width=11,state='readonly',style='O4.TCombobox')
                 else:
                     self.entry_[item]=ttk.Entry(self.frame_cfg,textvariable=self.v_[item],width=7) 
                 self.entry_[item].grid(row=row,column=col+1,padx=(0,20),pady=2,sticky=N+S+W)
@@ -514,7 +520,3 @@ class Ortho4XP_Config(tk.Toplevel):
         ttk.Label(self.popupwindow, text=input_text,wraplength=600,anchor=W).pack(side="top", fill="x", padx=5,pady=0)
         ttk.Button(self.popupwindow, text="Ok", command = self.popupwindow.destroy).pack(pady=5)
         return
-    
-    
-
-

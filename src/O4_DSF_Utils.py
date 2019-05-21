@@ -145,10 +145,12 @@ def zone_list_to_ortho_dico(tile):
             except:
                 UI.vprint(1,"   WARNING: File",FNAMES.apt_file(tile),"is missing (erased after Step 1?), cannot check airport info for upgraded zoomlevel.")
                 dico_airports={}
+
             if tile.cover_airports_with_highres=='ICAO':
                 airports_list=[airport for airport in dico_airports if dico_airports[airport]['key_type']=='icao']
             else:
                 airports_list=dico_airports.keys()
+
             for airport in airports_list:
                 (xmin,ymin,xmax,ymax)=dico_airports[airport]['boundary'].bounds
                 # extension
@@ -171,17 +173,19 @@ def zone_list_to_ortho_dico(tile):
                 rowmin=round((1-ymax)*4095)
                 airport_array[rowmin:rowmax+1,colmin:colmax+1]=1
 
-        else:  # elif tile.cover_airports_with_highres == 'Progressive':
+        elif tile.cover_airports_with_highres == 'Progressive':
             UI.vprint(1,"-> Auto-generating custom ZL zones along the runways of each airport.")
             wall_time = time.clock()
             tile.zone_list.extend(progressive_zone_list(lat=tile.lat,
                                                         lon=tile.lon,
-                                                        screen_res=CFG.ScreenRes.res_1440p,  # tile.cover_screen_res,
-                                                        fov=60.0,  # tile.cover_fov,
-                                                        fpa=10.0,  # tile.cover_fpa,
-                                                        provider='GO2',  # tile.default_website,
-                                                        max_zl=19,  # tile.cover_zl,
-                                                        min_zl=16))  # tile.default_zl))
+                                                        screen_res=tile.cover_screen_res,
+                                                        fov=tile.cover_fov,
+                                                        fpa=tile.cover_fpa,
+                                                        provider=tile.default_website,
+                                                        max_zl=tile.cover_zl,
+                                                        min_zl=tile.default_zl,
+                                                        greediness=tile.cover_greediness,
+                                                        greediness_threshold=tile.cover_greediness_threshold))
             wall_time_delta = datetime.timedelta(seconds=(time.clock() - wall_time))
             UI.lvprint(0, "ZL zones computed in {}s".format(wall_time_delta))
 
@@ -196,6 +200,7 @@ def zone_list_to_ortho_dico(tile):
             pol=[(round((x-tile.lon)*4095),round((tile.lat+1-y)*4095)) for (x,y) in zip(region[0][1::2],region[0][::2])]
             masks_draw.polygon(pol,fill=i)
             i+=1
+
         for til_x in range(til_x_min,til_x_max+1,16):
             for til_y in range(til_y_min,til_y_max+1,16):
                 (latp,lonp)=GEO.gtile_to_wgs84(til_x+8,til_y+8,tile.mesh_zl)
@@ -209,6 +214,7 @@ def zone_list_to_ortho_dico(tile):
                 til_x_text=16*(int(til_x/2**(tile.mesh_zl-zoomlevel))//16)
                 til_y_text=16*(int(til_y/2**(tile.mesh_zl-zoomlevel))//16)
                 dico_customzl[(til_x,til_y)]=(til_x_text,til_y_text,zoomlevel,provider_code)
+
         if tile.cover_airports_with_highres=='Existing':
             # what we find in the texture folder of the existing tile
             for f in os.listdir(os.path.join(tile.build_dir,'textures')):
@@ -221,8 +227,10 @@ def zone_list_to_ortho_dico(tile):
                     for til_y in range(til_y_text*2**(tile.mesh_zl-zoomlevel),(til_y_text+16)*2**(tile.mesh_zl-zoomlevel)):
                         if ((til_x,til_y) not in dico_customzl) or dico_customzl[(til_x,til_y)][2]<=zoomlevel:
                             dico_customzl[(til_x,til_y)]=(til_x_text,til_y_text,zoomlevel,provider_code)
+
         return dico_customzl
 ##############################################################################
+
 
 ##############################################################################
 def create_terrain_file(tile,texture_file_name,til_x_left,til_y_top,zoomlevel,provider_code,tri_type,is_overlay):
