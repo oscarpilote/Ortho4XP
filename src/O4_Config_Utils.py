@@ -1,3 +1,4 @@
+import enum
 import os
 from math import ceil
 import tkinter as tk
@@ -125,6 +126,43 @@ try:
     f.close()
 except: 
     print("No global config file found. Reverting to default values.") 
+
+
+############################################################################################
+class ScreenRes(enum.Enum):
+    res_720p = (1280, 720)
+    SD = res_720p
+    res_1080p = (1920, 1080)
+    HD = res_1080p
+    res_1440p = (2560, 1440)
+    QHD = res_1440p
+    res_2160p = (3840, 2160)
+    res_4K = res_2160p
+    res_4320p = (7680, 4320)
+    res_8K = res_4320p
+    OculusRift = (1080, 1200)  # Per eye
+    HtcVive = (1080, 1200)  # Per eye
+    HtcVivePro = (1440, 1600)  # Per eye
+
+    __FROM_STR__ = {'SD_720p': res_720p,
+                    'HD_1080p': res_1080p,
+                    'QHD_1440p': res_1440p,
+                    '4K_2160p': res_2160p,
+                    'OculusRift': OculusRift,
+                    'HtcVive': HtcVive,
+                    'HtcVivePro': HtcVivePro}
+
+    @classmethod
+    def from_config_value(cls, config_value):
+        if isinstance(config_value, ScreenRes):
+            return config_value
+        if isinstance(config_value, int):
+            return config_value
+        elif isinstance(config_value, str) and config_value in cls.__FROM_STR__:
+            return cls.__FROM_STR__[config_value]
+        else:
+            raise ValueError("Unsupported ScreenRes value. Accepted values are {}, "
+                             "or an integer (horizontal resolution)".format(sorted(cls.__FROM_STR__.keys())))
 
 
 ############################################################################################
