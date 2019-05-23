@@ -15,7 +15,7 @@ import O4_Geo_Utils as GEO
 import O4_Mask_Utils as MASK
 import O4_UI_Utils as UI
 import O4_Config_Utils as CFG
-from O4_AirportDataSource import AirportDataSource, XPlaneTile
+import O4_AirportDataSource as APT_SRC
 import shapely.geometry
 import shapely.prepared
 
@@ -101,8 +101,8 @@ class QuadTree(dict):
 
 ##############################################################################
 def progressive_zone_list(lat, lon, screen_res, fov, fpa, provider, max_zl, min_zl, greediness=3, greediness_threshold=0.70):
-    xp_tile = XPlaneTile(lat, lon)
-    airport_collection = AirportDataSource().airports_in([xp_tile], include_surrounding_tiles=True)
+    xp_tile = APT_SRC.XPlaneTile(lat, lon)
+    airport_collection = APT_SRC.AirportDataSource().airports_in([xp_tile], include_surrounding_tiles=True)
     if isinstance(screen_res, CFG.ScreenRes):
         horiz_screen_value = screen_res.value[0]
     elif isinstance(screen_res, int):
