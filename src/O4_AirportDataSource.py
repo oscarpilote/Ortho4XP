@@ -679,9 +679,9 @@ class AirportCollection:
                 zl_n_tiles_new.setdefault(zl_optim_tile.lower_zl_tile(), []).extend(zl_n_group)
             zl_n_tiles = zl_n_tiles_new
 
-        return (tile
+        return [tile
                 for tile_group in zl_n_tiles.values()
-                for tile in tile_group)
+                for tile in tile_group]
 
     @staticmethod
     def _compacted_tiles(tiles):
@@ -745,10 +745,7 @@ class AirportCollection:
 
         # Optimize texture usage, but "eating" up any lower zl being "greediness_threshold"-percent covered by this zl
         # Will look up to 'greediness' lower levels
-        tiles = self._optimized_tiles(tiles, greediness, greediness_threshold)
-
-        # Finally, compact and return the tiles
-        return self._compacted_tiles(tiles)
+        return self._optimized_tiles(tiles, greediness, greediness_threshold)
 
     @functools.lru_cache(maxsize=2 ** 4)
     def polygons(self, zl, max_zl, screen_res, fov, fpa, greediness, greediness_threshold):
@@ -759,13 +756,13 @@ class AirportCollection:
         into as few new polygons as possible.
         """
         polys = shapely.ops.unary_union([gtile.polygon()
-                                         for gtile in self.gtiles(zl,
-                                                                  max_zl,
-                                                                  screen_res,
-                                                                  fov,
-                                                                  fpa,
-                                                                  greediness,
-                                                                  greediness_threshold)])
+                                         for gtile in self._compacted_tiles(self.gtiles(zl,
+                                                                                        max_zl,
+                                                                                        screen_res,
+                                                                                        fov,
+                                                                                        fpa,
+                                                                                        greediness,
+                                                                                        greediness_threshold))])
 
         if isinstance(polys, shapely.geometry.MultiPolygon):
             return list(polys)
