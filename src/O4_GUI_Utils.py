@@ -56,16 +56,23 @@ class ZoomLevels:
 
     def __new__(cls, *args, **kwargs):
         """Dynamically build a gradient of fg/bg colors for each Zoom Level."""
-        cls.color_of = {zl: color
-                        for (zl, color) in cls._heat_map(cold_zls=range(cls.__ZL_MIN__, cls.__ZL_LOW__),
-                                                         temperate_zls=range(cls.__ZL_LOW__, cls.__ZL_HIGH__),
-                                                         warm_zls=range(cls.__ZL_HIGH__, cls.__ZL_MAX__ + 1),
-                                                         blazing_zls=range(cls.__ZL_MAX__ + 1, cls.__ZL_OVERKILL__ + 1))}
+        cls.rgb_color_of = {zl: color
+                            for (zl, color) in cls._heat_map(cold_zls=range(cls.__ZL_MIN__, cls.__ZL_LOW__),
+                                                             temperate_zls=range(cls.__ZL_LOW__, cls.__ZL_HIGH__),
+                                                             warm_zls=range(cls.__ZL_HIGH__, cls.__ZL_MAX__ + 1),
+                                                             blazing_zls=range(cls.__ZL_MAX__ + 1,
+                                                                               cls.__ZL_OVERKILL__ + 1))}
+
+        max_opacity = 0xFF * 0.50
+        zl_diff_max = cls.__ZL_OVERKILL__ - cls.__ZL_MIN__
+        cls.rgba_color_of = {zl: (r, g, b, int(max_opacity * (zl - cls.__ZL_MIN__) / zl_diff_max))
+                             for zl in range(cls.__ZL_MIN__, cls.__ZL_OVERKILL__ + 1)
+                             for (r, g, b) in [cls.rgb_color_of[zl]]}
 
         cls.tkinter_fg_color_of = {zl: ('#000000' if cls.__ZL_MIN__ <= zl <= cls.__ZL_MAX__ else '#FFFFFF')
                                    for zl in range(cls.__ZL_MIN__, cls.__ZL_OVERKILL__ + 1)}
 
-        cls.tkinter_color_of = {zl: '#{0[0]:02X}{0[1]:02X}{0[2]:02X}'.format(cls.color_of[zl])
+        cls.tkinter_color_of = {zl: '#{0[0]:02X}{0[1]:02X}{0[2]:02X}'.format(cls.rgb_color_of[zl])
                                 for zl in range(cls.__ZL_MIN__, cls.__ZL_OVERKILL__ + 1)}
 
         return super(ZoomLevels, cls).__new__(cls, *args, **kwargs)
