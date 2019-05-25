@@ -530,8 +530,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         self.zl_combo = ttk.Combobox(self.frame_left, textvariable=self.zl_choice, values=ZOOM_LEVELS.osm_levels, width=3, state='readonly', style='O4.TCombobox')
         self.zl_combo.grid(row=2,column=0,padx=5,pady=3,sticky=E); row+=1
         
-        ttk.Button(self.frame_left, text='Preview',command=lambda: self.preview_tile(lat,lon)).grid(row=row,padx=5,column=0,sticky=N+S+E+W); row+=1
-        ttk.Button(self.frame_left, text='TEST', command=lambda: self.on_preview_button(lat, lon)).grid(row=row, padx=5, column=0, sticky=N + S + E + W); row+=1
+        ttk.Button(self.frame_left, text='Preview', command=lambda: self.on_preview_button(lat, lon)).grid(row=row, padx=5, column=0, sticky=N + S + E + W); row+=1
 
         # Widgets - Progressive ZLs
         tk.Label(self.frame_left,anchor=W,text="Progressive ZLs",fg = "light green",bg = "dark green",font = "Helvetica 16 bold italic").grid(row=row,column=0,pady=10,sticky=W+E); row+=1
