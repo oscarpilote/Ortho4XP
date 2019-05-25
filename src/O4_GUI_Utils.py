@@ -511,6 +511,8 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
             self.zlpol.set(17)
         self.gb = tk.StringVar()
         self.gb.set('0Gb')
+        self.last_clicked_texture = tk.StringVar()
+        self.last_clicked_texture.set('<no texture clicked yet>')
     
         # Frames
         self.frame_left   =  tk.Frame(self, border=4, relief=RIDGE,bg='light green')
@@ -583,6 +585,9 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
                            variable=self.zlpol,
                            value=btn_zl,
                            command=self.redraw_poly).grid(row=0, column=col, padx=0, pady=0, sticky=N + S + E + W)
+
+        tk.Label(self.frame_left,anchor=W,text="Selected Texture File: ",bg="light green").grid(row=row,column=0,padx=5,pady=0,sticky=W); row+=1
+        tk.Entry(self.frame_left,width=30,justify=RIGHT,bg="white",fg="blue",textvariable=self.last_clicked_texture).grid(row=row,column=0,padx=5,pady=0,sticky=E); row+=1
             
         tk.Label(self.frame_left,anchor=W,text="Approx. Add. Size : ",bg="light green").grid(row=row,column=0,padx=5,pady=10,sticky=W)
         tk.Entry(self.frame_left,width=7,justify=RIGHT,bg="white",fg="blue",textvariable=self.gb).grid(row=row,column=0,padx=5,pady=10,sticky=E); row+=1
@@ -728,13 +733,12 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
     def update_internal_state(self, lat, lon):
         self.zoomlevel = int(self.zl_combo.get())
         zoomlevel = self.zoomlevel
-        provider_code = self.map_combo.get()
-        (tilxleft, tilytop) = GEO.wgs84_to_gtile(lat + 1, lon, zoomlevel)
-        (self.latmax, self.lonmin) = GEO.gtile_to_wgs84(tilxleft, tilytop, zoomlevel)
-        (self.xmin, self.ymin) = GEO.wgs84_to_pix(self.latmax, self.lonmin, zoomlevel)
-        (tilxright, tilybot) = GEO.wgs84_to_gtile(lat, lon + 1, zoomlevel)
-        (self.latmin, self.lonmax) = GEO.gtile_to_wgs84(tilxright + 1, tilybot + 1, zoomlevel)
-        (self.xmax, self.ymax) = GEO.wgs84_to_pix(self.latmin, self.lonmax, zoomlevel)
+        tilxleft, tilytop = GEO.wgs84_to_gtile(lat + 1, lon, zoomlevel)
+        self.latmax, self.lonmin = GEO.gtile_to_wgs84(tilxleft, tilytop, zoomlevel)
+        self.xmin, self.ymin = GEO.wgs84_to_pix(self.latmax, self.lonmin, zoomlevel)
+        tilxright, tilybot = GEO.wgs84_to_gtile(lat, lon + 1, zoomlevel)
+        self.latmin, self.lonmax = GEO.gtile_to_wgs84(tilxright + 1, tilybot + 1, zoomlevel)
+        self.xmax, self.ymax = GEO.wgs84_to_pix(self.latmin, self.lonmax, zoomlevel)
         self.polygon_list = []
         self.polyobj_list = []
         self.poly_curr = []
@@ -749,7 +753,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
             self.canvas.bind("<ButtonPress-3>", self.scroll_start)
             self.canvas.bind("<B3-Motion>", self.scroll_move)
             self.canvas.bind("<Control-ButtonPress-3>", self.delPol)
-        self.canvas.bind("<ButtonPress-1>", lambda event: self.canvas.focus_set())
+        self.canvas.bind("<ButtonPress-1>", self.on_map_click)
         self.canvas.bind("<Shift-ButtonPress-1>", self.newPoint)
         self.canvas.bind("<Control-Shift-ButtonPress-1>", self.newPointGrid)
         self.canvas.bind("<Control-ButtonPress-1>", self.newPol)
@@ -758,6 +762,20 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         self.canvas.bind('d', self.delete_zone_cmd)
         self.canvas.bind('n', self.save_zone_cmd)
         self.canvas.bind('<BackSpace>', self.delLast)
+
+    def apply_custom_zone_list(self):
+        for zone in CFG.zone_list:
+            self.coords = zone[0][0:-2]
+            self.zlpol.set(zone[1])
+            self.zmap_combo.set(zone[2])
+            self.points = []
+            for idxll in range(0, len(self.coords) // 2):
+                latp = self.coords[2 * idxll]
+                lonp = self.coords[2 * idxll + 1]
+                [x, y] = self.latlon_to_xy(latp, lonp, self.zoomlevel)
+                self.points += [int(x), int(y)]
+            self.redraw_poly()
+            self.save_zone_cmd()
 
     def on_preview_button(self, lat, lon):
         self.canvas.delete("all")
@@ -768,6 +786,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
                                                          lon=self.lon,
                                                          zl=int(self.zl_combo.get()),
                                                          provider=self.map_combo.get())
+        self.apply_custom_zone_list()
 
     def on_dds_layout_button(self, lat, lon):
         self.canvas.delete("all")
@@ -778,6 +797,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
                                                             lon=self.lon,
                                                             zl=int(self.zl_combo.get()),
                                                             provider=self.map_combo.get())
+        self.apply_custom_zone_list()
 
     def on_toggle_zl_button(self, zl):
         tag = 'ZL_{:d}'.format(zl)
@@ -787,6 +807,19 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
                 self.canvas.itemconfigure(tag, state=NORMAL)
             else:
                 self.canvas.itemconfigure(tag, state=HIDDEN)
+
+    def on_map_click(self, event):
+        map_zl = self.zoomlevel
+        custom_poly_zl = self.zlpol.get()
+        [latp, lonp] = self.xy_to_latlon(x=self.canvas.canvasx(event.x),
+                                         y=self.canvas.canvasy(event.y),
+                                         zoomlevel=map_zl)
+        (a, b) = GEO.wgs84_to_orthogrid(latp, lonp, custom_poly_zl)
+        (latmax, lonmin) = GEO.gtile_to_wgs84(a, b, custom_poly_zl)
+        (x, y) = GEO.wgs84_to_orthogrid(latmax, lonmin, custom_poly_zl)
+        gtile = APT_SRC.GTile(x, y, custom_poly_zl)
+        self.last_clicked_texture.set('{}_{}_{}{}.dds'.format(gtile.y, gtile.x, self.zmap_choice.get(), gtile.zl))
+        self.canvas.focus_set()
 
     ####################################################################################################################
     ####################################################################################################################
@@ -856,32 +889,19 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
                 bdpoints+=[int(x),int(y)]
         self.boundary=self.canvas.create_polygon(bdpoints,\
                            outline='black',fill='', width=2)
-
-        # If Progressive mode is enabled, preview the computed custom ZL zones for this tile
-        if CFG.cover_airports_with_highres == 'Progressive':
-            custom_zones = DSF.progressive_zone_list(lat=self.lat,
-                                                     lon=self.lon,
-                                                     screen_res=CFG.cover_screen_res,
-                                                     fov=CFG.cover_fov,
-                                                     fpa=CFG.cover_fpa,
-                                                     provider=CFG.default_website,
-                                                     max_zl=CFG.cover_zl,
-                                                     min_zl=CFG.default_zl,
-                                                     greediness=CFG.cover_greediness,
-                                                     greediness_threshold=CFG.cover_greediness_threshold)
-            for zone in custom_zones:
-                self.coords=zone[0][0:-2]
-                self.zlpol.set(zone[1])
-                self.zmap_combo.set(zone[2])
-                self.points=[]
-                for idxll in range(0,len(self.coords)//2):
-                    latp=self.coords[2*idxll]
-                    lonp=self.coords[2*idxll+1]
-                    [x,y]=self.latlon_to_xy(latp,lonp,self.zoomlevel)
-                    self.points+=[int(x),int(y)]
-
-                self.redraw_poly()
-                self.save_zone_cmd()
+        for zone in CFG.zone_list:
+            self.coords=zone[0][0:-2]
+            self.zlpol.set(zone[1])
+            self.zmap_combo.set(zone[2])
+            self.points=[]
+            for idxll in range(0,len(self.coords)//2):
+                latp=self.coords[2*idxll]
+                lonp=self.coords[2*idxll+1]
+                [x,y]=self.latlon_to_xy(latp,lonp,self.zoomlevel)
+                self.points+=[int(x),int(y)]
+            self.redraw_poly()
+            self.save_zone_cmd()
+        return
 
     def scroll_start(self,event):
         self.canvas.scan_mark(event.x, event.y)
