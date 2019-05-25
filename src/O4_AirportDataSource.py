@@ -695,11 +695,9 @@ class AirportCollection:
 
     def gtiles(self, zl, max_zl, screen_res, fov, fpa, greediness, greediness_threshold):
         def _margin_width():
-            """Decide on a margin width, arbitrarily based on the width of a ZLn+1 tile"""
-            random_rw = list(list(self.values())[0].values())[0]
-            (lat_1, lon_1) = (random_rw.end_1_lat, random_rw.end_1_lon)
-            (x, y) = GEO.wgs84_to_orthogrid(lat_1, lon_1, zl + 1)
-            (lat_2, lon_2) = GEO.gtile_to_wgs84(x + 16, y, zl + 1)
+            """Decide on a margin width, arbitrarily based on 1/16th of the width of a ZLn tile"""
+            lat_1, lon_1 = GEO.gtile_to_wgs84(0, 0, zl)
+            lat_2, lon_2 = GEO.gtile_to_wgs84(1, 0, zl)  # Next tile is at (x+16, 0), so 1/16th is (x+1, 0)
             return shapely.geometry.Point(lon_1, lat_1).distance(shapely.geometry.Point(lon_2, lat_2))
 
         # First compute the tiles for the current zl
