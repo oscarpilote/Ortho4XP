@@ -1,14 +1,16 @@
+import collections
 import os
 import sys
 import shutil
 from math import floor, cos, pi
 import numpy
 import queue
+import shapely.prepared
 import threading
 import tkinter as tk
 from   tkinter import RIDGE,N,S,E,W,NW,ALL,END,LEFT,RIGHT,CENTER,HORIZONTAL,filedialog
 import tkinter.ttk as ttk
-from PIL import Image, ImageTk
+from PIL import Image, ImageDraw, ImageTk
 import O4_Version 
 import O4_Imagery_Utils as IMG
 import O4_File_Names as FNAMES
@@ -21,6 +23,8 @@ import O4_Tile_Utils as TILE
 import O4_UI_Utils as UI
 import O4_Config_Utils as CFG
 import O4_DSF_Utils as DSF
+import O4_AirportDataSource as APT_SRC
+
 
 # Set OsX=True if you prefer the OsX way of drawing existing tiles but are on Linux or Windows.
 OsX='dar' in sys.platform
@@ -528,6 +532,9 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         self.zl_combo.grid(row=2,column=0,padx=5,pady=3,sticky=E); row+=1
         
         ttk.Button(self.frame_left, text='Preview',command=lambda: self.preview_tile(lat,lon)).grid(row=row,padx=5,column=0,sticky=N+S+E+W); row+=1
+
+        ttk.Button(self.frame_left, text='TEST',command=self.on_test_button).grid(row=row,padx=5,column=0,sticky=N+S+E+W); row+=1
+
         tk.Label(self.frame_left,anchor=W,text="Zone params ",fg = "light green",bg = "dark green",font = "Helvetica 16 bold italic").grid(row=row,column=0,pady=10,sticky=W+E); row+=1
         
         tk.Label(self.frame_left,anchor=W,text="Source : ",bg="light green").grid(row=row,column=0,sticky=W,padx=5,pady=10); 
@@ -566,6 +573,97 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         self.canvas = tk.Canvas(self.frame_right,bd=0,height=750,width=750)
         self.canvas.grid(row=0,column=0,sticky=N+S+E+W)     
 
+
+    ####################################################################################################################
+    ####################################################################################################################
+    ####################################################################################################################
+
+    def tile_pix_origin(self, lat, lon, zl):
+        tilxleft, tilytop = GEO.wgs84_to_gtile(lat + 1, lon, zl)
+        latmax, lonmin = GEO.gtile_to_wgs84(tilxleft, tilytop, zl)
+        return GEO.wgs84_to_pix(latmax, lonmin, zl)
+
+    def latlon_to_xy_new(self, pix_origin, lat, lon, zl):
+        pix_x, pix_y = GEO.wgs84_to_pix(lat, lon, zl)
+        return pix_x - pix_origin[0], pix_y - pix_origin[1]
+
+    def draw_tile_boundaries(self, drawer, bg_map_lat, bg_map_lon, bg_map_zl):
+        pix_origin = self.tile_pix_origin(bg_map_lat, bg_map_lon, bg_map_zl)
+        xy_top_left = self.latlon_to_xy_new(pix_origin, bg_map_lat + 1, bg_map_lon, bg_map_zl)
+        xy_bottom_right = self.latlon_to_xy_new(pix_origin, bg_map_lat, bg_map_lon + 1, bg_map_zl)
+        drawer.rectangle(xy=[xy_top_left, xy_bottom_right],
+                         outline='black',
+                         width=2)
+
+    def draw_textures(self, drawer, bg_map_lat, bg_map_lon, bg_map_zl):
+        pix_origin = self.tile_pix_origin(bg_map_lat, bg_map_lon, bg_map_zl)
+
+        def screen_res():
+            if isinstance(CFG.cover_screen_res, CFG.ScreenRes):
+                return CFG.cover_screen_res.value[0]
+            elif isinstance(CFG.cover_screen_res, int):
+                return CFG.cover_screen_res
+            else:
+                return CFG.ScreenRes.from_config_value(CFG.cover_screen_res)[0]
+
+        xp_tile = APT_SRC.XPlaneTile(bg_map_lat, bg_map_lon)
+        airport_collection = APT_SRC.AirportDataSource().airports_in([xp_tile], include_surrounding_tiles=True)
+
+        all_texture_gtiles = collections.defaultdict(list)
+        for zl in range(CFG.cover_zl, CFG.default_zl - 1, -1):
+            zl_gtiles = airport_collection.gtiles(zl=zl,
+                                                  max_zl=CFG.cover_zl,
+                                                  screen_res=screen_res(),
+                                                  fov=CFG.cover_fov,
+                                                  fpa=CFG.cover_fpa,
+                                                  greediness=CFG.cover_greediness,
+                                                  greediness_threshold=CFG.cover_greediness_threshold)
+            for texture_gtile in zl_gtiles:
+                all_texture_gtiles[zl].append(texture_gtile)
+
+        for zl in sorted(all_texture_gtiles.keys()):
+            for texture_gtile in all_texture_gtiles[zl]:
+                lat_max, lon_min = GEO.gtile_to_wgs84(texture_gtile.x, texture_gtile.y, texture_gtile.zl)
+                lat_min, lon_max = GEO.gtile_to_wgs84(texture_gtile.x + 16, texture_gtile.y + 16, texture_gtile.zl)
+                xy_top_left = self.latlon_to_xy_new(pix_origin, lat_max, lon_min, bg_map_zl)
+                xy_bottom_right = self.latlon_to_xy_new(pix_origin, lat_min, lon_max, bg_map_zl)
+                drawer.rectangle(xy=[xy_top_left, xy_bottom_right],
+                                 fill=ZoomLevels.color_of[texture_gtile.zl] + (int(0.20 * 0xFF),),
+                                 outline=(0x00, 0x00, 0x00, 0x0F),
+                                 width=1)
+
+    def render_background_image(self, canvas, lat, lon, zl, provider):
+        background_map = Image.open(FNAMES.preview(lat=lat,
+                                                   lon=lon,
+                                                   zoomlevel=zl,
+                                                   provider_code=provider))
+        drawer = ImageDraw.Draw(im=background_map, mode="RGBA")
+
+        self.draw_tile_boundaries(drawer, lat, lon, zl)
+
+        if CFG.cover_airports_with_highres == 'Progressive':
+            self.draw_textures(drawer, lat, lon, zl)
+
+        background_image = ImageTk.PhotoImage(image=background_map)
+        canvas.create_image(0, 0, anchor=NW, image=background_image)
+        return background_image
+
+    def on_test_button(self):
+        self.canvas.delete("all")
+        self.canvas.config(scrollregion=self.canvas.bbox(ALL))
+        self.canvas.bind("<ButtonPress-3>", self.scroll_start)
+        self.canvas.bind("<B3-Motion>", self.scroll_move)
+        self.canvas.focus_set()
+        background_image = self.render_background_image(canvas=self.canvas,
+                                                        lat=self.lat,
+                                                        lon=self.lon,
+                                                        zl=int(self.zl_combo.get()),
+                                                        provider=self.map_combo.get())
+        self.test_image = background_image
+
+    ####################################################################################################################
+    ####################################################################################################################
+    ####################################################################################################################
 
     def preview_tile(self,lat,lon):
         self.zoomlevel=int(self.zl_combo.get())
