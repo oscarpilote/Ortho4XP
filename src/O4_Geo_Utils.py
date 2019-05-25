@@ -117,3 +117,17 @@ def st_coord(lat,lon,tex_x,tex_y,zoomlevel,provider_code):
     t = t if t<=1 else 1
     return (s,t)
 ##############################################################################
+
+
+# FIXME: tile_pix_origin() + latlon_to_tile_relative_pix() could be similar to either
+#      : wgs84_to_orthogrid() or st_coord(), I'm not sure
+def tile_pix_origin(lat, lon, zl):
+    tilxleft, tilytop = wgs84_to_gtile(lat + 1, lon, zl)
+    latmax, lonmin = gtile_to_wgs84(tilxleft, tilytop, zl)
+    return wgs84_to_pix(latmax, lonmin, zl)
+
+
+def latlon_to_tile_relative_pix(tile_origin, lat, lon, zl):
+    pix_x, pix_y = wgs84_to_pix(lat, lon, zl)
+    return pix_x - tile_origin[0], pix_y - tile_origin[1]
+
