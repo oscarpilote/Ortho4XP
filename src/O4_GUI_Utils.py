@@ -1,5 +1,8 @@
+import collections
 import functools
+import glob
 import os
+import re
 import sys
 import shutil
 from math import floor, cos, pi
@@ -531,6 +534,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         self.zl_combo.grid(row=2,column=0,padx=5,pady=3,sticky=E); row+=1
         
         ttk.Button(self.frame_left, text='Preview', command=lambda: self.on_preview_button(lat, lon)).grid(row=row, padx=5, column=0, sticky=N + S + E + W); row+=1
+        ttk.Button(self.frame_left, text='Existing DDS Layout', command=lambda: self.on_dds_layout_button(lat, lon)).grid(row=row, padx=5, column=0, sticky=N + S + E + W); row+=1
 
         # Widgets - Progressive ZLs
         tk.Label(self.frame_left,anchor=W,text="Progressive ZLs",fg = "light green",bg = "dark green",font = "Helvetica 16 bold italic").grid(row=row,column=0,pady=10,sticky=W+E); row+=1
@@ -657,6 +661,39 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
 
         return layers
 
+    def dds_layout_layers(self, base_layer, bg_map_lat, bg_map_lon, bg_map_zl):
+        build_dir = os.path.normpath(FNAMES.build_dir(bg_map_lat, bg_map_lon, self.parent.custom_build_dir_entry.get()))
+        re_dds_file = re.compile(r'^(?P<y>\d+)_(?P<x>\d+)_(?:.*)(?P<zl>\d{2})\.dds$')
+
+        dds_gtiles = collections.defaultdict(set)
+        for dds_file in glob.glob(os.path.join(build_dir, 'textures', '*.dds')):
+            m = re_dds_file.match(os.path.basename(dds_file))
+            if not m:
+                raise Exception("Couldn't parse the dds filename : {}".format(dds_file))
+            dds_gtiles[int(m.group('zl'))].add(APT_SRC.GTile(x=int(m.group('x')),
+                                                             y=int(m.group('y')),
+                                                             zl=int(m.group('zl'))))
+
+        pix_origin = GEO.tile_pix_origin(bg_map_lat, bg_map_lon, bg_map_zl)
+        layers = dict()
+        for zl in sorted(dds_gtiles.keys()):
+            # Represent each texture by its own transparent rectangle, all grouped in a single layer (one per ZL)
+            gtiles = dds_gtiles[zl]
+            layer = Image.new(mode="RGBA", size=(base_layer.width(), base_layer.height()))
+            drawer = ImageDraw.Draw(im=layer, mode="RGBA")
+            for texture_gtile in gtiles:
+                lat_max, lon_min = GEO.gtile_to_wgs84(texture_gtile.x, texture_gtile.y, texture_gtile.zl)
+                lat_min, lon_max = GEO.gtile_to_wgs84(texture_gtile.x + 16, texture_gtile.y + 16, texture_gtile.zl)
+                xy_top_left = GEO.latlon_to_tile_relative_pix(pix_origin, lat_max, lon_min, bg_map_zl)
+                xy_bottom_right = GEO.latlon_to_tile_relative_pix(pix_origin, lat_min, lon_max, bg_map_zl)
+                drawer.rectangle(xy=[xy_top_left, xy_bottom_right],
+                                 fill=ZoomLevels.rgba_color_of[texture_gtile.zl],
+                                 outline=(0x00, 0x00, 0x00, 0x0F),
+                                 width=1)
+            layers[zl] = ImageTk.PhotoImage(image=layer)
+
+        return layers
+
     def render_preview_canvas(self, canvas, lat, lon, zl, provider):
         # Build the layer images, store them in a {tag: layer} dictionary and render them on the canvas
         layers = {'map': self.background_map_layer(lat, lon, zl, provider)}
@@ -669,6 +706,21 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
                 layer = zl_layers[zl]
                 layers[tag] = layer
                 canvas.create_image(0, 0, anchor=NW, tags=tag, image=layer)
+
+        # Return the layers for storage, so they're not garbage collected (or they would be removed from the canvas)
+        return layers
+
+    def render_dds_layout_canvas(self, canvas, lat, lon, zl, provider):
+        # Build the layer images, store them in a {tag: layer} dictionary and render them on the canvas
+        layers = {'map': self.background_map_layer(lat, lon, zl, provider)}
+        canvas.create_image(0, 0, anchor=NW, image=layers['map'], tags='map')
+
+        zl_layers = self.dds_layout_layers(layers['map'], lat, lon, zl)
+        for zl in sorted(zl_layers.keys()):
+            tag = 'ZL_{:d}'.format(zl)
+            layer = zl_layers[zl]
+            layers[tag] = layer
+            canvas.create_image(0, 0, anchor=NW, tags=tag, image=layer)
 
         # Return the layers for storage, so they're not garbage collected (or they would be removed from the canvas)
         return layers
@@ -716,6 +768,16 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
                                                          lon=self.lon,
                                                          zl=int(self.zl_combo.get()),
                                                          provider=self.map_combo.get())
+
+    def on_dds_layout_button(self, lat, lon):
+        self.canvas.delete("all")
+        self.update_internal_state(lat, lon)
+        self.configure_canvas()
+        self._canvas_layers = self.render_dds_layout_canvas(canvas=self.canvas,
+                                                            lat=self.lat,
+                                                            lon=self.lon,
+                                                            zl=int(self.zl_combo.get()),
+                                                            provider=self.map_combo.get())
 
     def on_toggle_zl_button(self, zl):
         tag = 'ZL_{:d}'.format(zl)
