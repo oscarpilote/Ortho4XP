@@ -1,5 +1,4 @@
 import bisect
-#import functools
 import glob
 import json
 import math
@@ -694,6 +693,9 @@ class AirportCollection:
         return {icao: arpt.to_json() for (icao, arpt) in self.airports.items()}
 
     def gtiles(self, zl, max_zl, screen_res, fov, fpa, greediness, greediness_threshold):
+        """Return the ZL gtiles needed to cover this airport collection.
+        This list does NOT include any gtile for higher ZLs, only for the requested ZL"""
+
         def _margin_width():
             """Decide on a margin width, arbitrarily based on 1/16th of the width of a ZLn tile"""
             lat_1, lon_1 = GEO.gtile_to_wgs84(0, 0, zl)
@@ -705,37 +707,37 @@ class AirportCollection:
                  for airport in self.airports.values()
                  for tile in airport.gtiles(zl, screen_res, fov, fpa)]
 
-        # Also take a margin around each of the ZLn+1 polygons, and return the corresponding ZLn tiles
         if zl < max_zl:
+            # If we're not at ZLmax, compute the ZLn+1 gtiles, and "compact" them
+            # When compacted, this list will then also include any ZLn gtiles that were fully covered by ZLn+1 gtiles
+            # We'll then exclude any such ZLn tile from the final list, thus creating "holes" for the ZLn+1 gtiles
+            sub_gtiles = set(self._compacted_tiles(self.gtiles(zl=zl + 1,
+                                                               max_zl=max_zl,
+                                                               screen_res=screen_res,
+                                                               fov=fov,
+                                                               fpa=fpa,
+                                                               greediness=greediness,
+                                                               greediness_threshold=greediness_threshold)))
+
+            # Take a margin around each of the ZLn+1 polygons, and add the corresponding ZLn gtiles
+            # We need this margin to ensure that the zones are progressive, to prevent jumps from ZLn to ZLn+2.
             tiles.extend(self._sub_zl_margin(zl,
-                                             self.polygons(zl + 1,
-                                                           max_zl,
-                                                           screen_res,
-                                                           fov,
-                                                           fpa,
-                                                           greediness,
-                                                           greediness_threshold),
+                                             self.as_polygons(sub_gtiles),
                                              _margin_width()))
+        else:
+            sub_gtiles = set()
 
         # Optimize texture usage, but "eating" up any lower zl being "greediness_threshold"-percent covered by this zl
         # Will look up to 'greediness' lower levels
-        return self._optimized_tiles(tiles, greediness, greediness_threshold)
+        tiles = self._optimized_tiles(tiles, greediness, greediness_threshold)
 
-    def polygons(self, zl, max_zl, screen_res, fov, fpa, greediness, greediness_threshold):
-        """Return a Shapely polygon for the given combination of zl, screen_res, fov and fpa (see
-        the docstring of zl_optimal_ground_dist() for a detailed explanation, with self-tests.
+        # Finally, remove any ZLn gtile that is fully covered by ZLn+1 gtiles
+        return list(set(tiles) - sub_gtiles)
 
-        Calls the polygons() method on each of its airports, and tries to merge the resulting polygons
-        into as few new polygons as possible.
-        """
-        polys = shapely.ops.unary_union([gtile.polygon()
-                                         for gtile in self._compacted_tiles(self.gtiles(zl,
-                                                                                        max_zl,
-                                                                                        screen_res,
-                                                                                        fov,
-                                                                                        fpa,
-                                                                                        greediness,
-                                                                                        greediness_threshold))])
+    @staticmethod
+    def as_polygons(gtiles):
+        """Return as few Shapely polygons as possible for the given gtiles."""
+        polys = shapely.ops.unary_union([gtile.polygon() for gtile in gtiles])
 
         if isinstance(polys, shapely.geometry.MultiPolygon):
             return list(polys)

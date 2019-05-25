@@ -100,9 +100,10 @@ class QuadTree(dict):
 
 
 ##############################################################################
+# TODO: move that to the AirportCollection class
 def progressive_zone_list(lat, lon, screen_res, fov, fpa, provider, max_zl, min_zl, greediness=3, greediness_threshold=0.70):
     xp_tile = APT_SRC.XPlaneTile(lat, lon)
-    airport_collection = APT_SRC.AirportDataSource().airports_in([xp_tile], include_surrounding_tiles=True)
+    arpt_collection = APT_SRC.AirportDataSource().airports_in([xp_tile], include_surrounding_tiles=True)
     if isinstance(screen_res, CFG.ScreenRes):
         horiz_screen_value = screen_res.value[0]
     elif isinstance(screen_res, int):
@@ -113,13 +114,13 @@ def progressive_zone_list(lat, lon, screen_res, fov, fpa, provider, max_zl, min_
     tile_poly = shapely.prepared.prep(xp_tile.polygon())
     tile_zones = []
     for zl in range(max_zl, min_zl - 1, -1):
-        for polygon in airport_collection.polygons(zl=zl,
-                                                   max_zl=max_zl,
-                                                   screen_res=horiz_screen_value,
-                                                   fov=fov,
-                                                   fpa=fpa,
-                                                   greediness=greediness,
-                                                   greediness_threshold=greediness_threshold):
+        for polygon in arpt_collection.as_polygons(arpt_collection.gtiles(zl=zl,
+                                                                          max_zl=max_zl,
+                                                                          screen_res=horiz_screen_value,
+                                                                          fov=fov,
+                                                                          fpa=fpa,
+                                                                          greediness=greediness,
+                                                                          greediness_threshold=greediness_threshold)):
             if not tile_poly.disjoint(polygon):
                 coords = []
                 for (x, y) in polygon.exterior.coords:
