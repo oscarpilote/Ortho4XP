@@ -1,5 +1,5 @@
 import bisect
-import functools
+#import functools
 import glob
 import json
 import math
@@ -281,25 +281,6 @@ class GTile:
     __INSTANCES_CACHE_HITS__ = 0
     __INSTANCES_CACHE_MISSES__ = 0
 
-    @classmethod
-    def cache_info(cls):
-        def lru_cache_summary(info):
-            return 'reuse: {:.02f}%, size: {:.02f}% ({}/{})'.format(
-                (info.hits / info.misses) if info.misses else 0,
-                info.currsize / info.maxsize,
-                info.currsize,
-                info.maxsize)
-
-        infos = {'instances': 'reuse: {:.02f}%'.format(cls.__INSTANCES_CACHE_HITS__ /
-                                                       cls.__INSTANCES_CACHE_MISSES__),
-                 'lower_zl_tile': lru_cache_summary(cls.lower_zl_tile.cache_info()),
-                 'higher_zl_subtiles': lru_cache_summary(cls.higher_zl_subtiles.cache_info()),
-                 'zl_siblings': lru_cache_summary(cls.zl_siblings.cache_info()),
-                 'surrounding_tiles': lru_cache_summary(cls.surrounding_tiles.cache_info()),
-                 'polygon': lru_cache_summary(cls.polygon.cache_info())
-                 }
-        return infos
-
     def __new__(cls, x, y, zl, *args, **kwargs):
         try:
             inst = cls.__INSTANCES_CACHE__[(x, y, zl)]
@@ -326,7 +307,6 @@ class GTile:
     def __repr__(self):
         return '<GTile ({}, {})@ZL{}>'.format(self.x, self.y, self.zl)
 
-    @functools.lru_cache(maxsize=2 ** 13)
     def lower_zl_tile(self, target_zl=None):
         if target_zl and target_zl >= self.zl:
             return self
@@ -340,7 +320,6 @@ class GTile:
         else:
             return lower
 
-    @functools.lru_cache(maxsize=2 ** 12)
     def higher_zl_subtiles(self, target_zl=None):
         if target_zl and target_zl <= self.zl:
             return [self]
@@ -351,11 +330,9 @@ class GTile:
                 for x in range(self.x * 2 ** zl_diff, (self.x + 16) * 2 ** zl_diff, 16)
                 for y in range(self.y * 2 ** zl_diff, (self.y + 16) * 2 ** zl_diff, 16))
 
-    @functools.lru_cache(maxsize=2 ** 13)
     def zl_siblings(self):
         return self.lower_zl_tile().higher_zl_subtiles()
 
-    @functools.lru_cache()
     def surrounding_tiles(self, include_self=False):
         return (tile
                 for x_offset in [-16, 0, 16]
@@ -365,7 +342,6 @@ class GTile:
                                    self.zl)]
                 if tile != self or include_self)
 
-    @functools.lru_cache(maxsize=2 ** 14)
     def polygon(self):
         (lat_max, lon_min) = GEO.gtile_to_wgs84(self.x, self.y, self.zl)
         (lat_min, lon_max) = GEO.gtile_to_wgs84(self.x + 16, self.y + 16, self.zl)
@@ -747,7 +723,6 @@ class AirportCollection:
         # Will look up to 'greediness' lower levels
         return self._optimized_tiles(tiles, greediness, greediness_threshold)
 
-    @functools.lru_cache(maxsize=2 ** 4)
     def polygons(self, zl, max_zl, screen_res, fov, fpa, greediness, greediness_threshold):
         """Return a Shapely polygon for the given combination of zl, screen_res, fov and fpa (see
         the docstring of zl_optimal_ground_dist() for a detailed explanation, with self-tests.
