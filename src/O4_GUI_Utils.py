@@ -1,17 +1,16 @@
-import collections
+import functools
 import os
 import sys
 import shutil
 from math import floor, cos, pi
 import numpy
 import queue
-import shapely.prepared
 import threading
 import tkinter as tk
-from   tkinter import RIDGE,N,S,E,W,NW,ALL,END,LEFT,RIGHT,CENTER,HORIZONTAL,filedialog
+from   tkinter import RIDGE,N,S,E,W,NW,ALL,END,LEFT,RIGHT,CENTER,HORIZONTAL,filedialog,NORMAL,HIDDEN
 import tkinter.ttk as ttk
 from PIL import Image, ImageDraw, ImageTk
-import O4_Version 
+import O4_Version
 import O4_Imagery_Utils as IMG
 import O4_File_Names as FNAMES
 import O4_Geo_Utils as GEO
@@ -519,7 +518,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         self.frame_right.rowconfigure(0,weight=1)
         self.frame_right.columnconfigure(0,weight=1)
 
-        # Widgets
+        # Widgets - Preview Parameters
         row=0
         tk.Label(self.frame_left,anchor=W,text="Preview params ",fg = "light green",bg = "dark green",font = "Helvetica 16 bold italic").grid(row=row,column=0,sticky=W+E); row+=1
         
@@ -532,9 +531,32 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         self.zl_combo.grid(row=2,column=0,padx=5,pady=3,sticky=E); row+=1
         
         ttk.Button(self.frame_left, text='Preview',command=lambda: self.preview_tile(lat,lon)).grid(row=row,padx=5,column=0,sticky=N+S+E+W); row+=1
+        ttk.Button(self.frame_left, text='TEST', command=lambda: self.on_preview_button(lat, lon)).grid(row=row, padx=5, column=0, sticky=N + S + E + W); row+=1
 
-        ttk.Button(self.frame_left, text='TEST',command=self.on_test_button).grid(row=row,padx=5,column=0,sticky=N+S+E+W); row+=1
+        # Widgets - Progressive ZLs
+        tk.Label(self.frame_left,anchor=W,text="Progressive ZLs",fg = "light green",bg = "dark green",font = "Helvetica 16 bold italic").grid(row=row,column=0,pady=10,sticky=W+E); row+=1
+        tk.Label(self.frame_left,anchor=W,text="Show/Hide Layers :",bg="light green").grid(row=row,column=0,sticky=W,padx=0,pady=0); row+=1
+        self.frame_zl_toggle_btn = tk.Frame(self.frame_left, border=0, bg='light green')
+        for i in range(CFG.cover_zl - CFG.default_zl + 1):
+            self.frame_zl_toggle_btn.columnconfigure(i, weight=1)
+        self.frame_zl_toggle_btn.grid(row=row, column=0, columnspan=1, sticky=N + S + W + E)
+        row += 1
+        for btn_zl in range(CFG.default_zl, CFG.cover_zl + 1):
+            col = btn_zl - CFG.default_zl
+            btn = tk.Checkbutton(self.frame_zl_toggle_btn,
+                                 bd=4,
+                                 fg=ZOOM_LEVELS.tkinter_fg_color_of[btn_zl],
+                                 bg=ZOOM_LEVELS.tkinter_color_of[btn_zl],
+                                 activebackground=ZOOM_LEVELS.tkinter_color_of[btn_zl],
+                                 selectcolor=ZOOM_LEVELS.tkinter_color_of[btn_zl],
+                                 height=2,
+                                 indicatoron=0,
+                                 text='ZL' + str(btn_zl),
+                                 command=functools.partial(self.on_toggle_zl_button, btn_zl))
+            btn.grid(row=0, column=col, padx=0, pady=0, sticky=N + S + E + W)
+            btn.toggle()
 
+        # Widgets - Custom ZLs
         tk.Label(self.frame_left,anchor=W,text="Zone params ",fg = "light green",bg = "dark green",font = "Helvetica 16 bold italic").grid(row=row,column=0,pady=10,sticky=W+E); row+=1
         
         tk.Label(self.frame_left,anchor=W,text="Source : ",bg="light green").grid(row=row,column=0,sticky=W,padx=5,pady=10); 
@@ -544,19 +566,19 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         self.frame_zlbtn  =  tk.Frame(self.frame_left, border=0,bg='light green')
         for i in range(5): self.frame_zlbtn.columnconfigure(i,weight=1)
         self.frame_zlbtn.grid(row=row,column=0,columnspan=1,sticky=N+S+W+E); row+=1
-        for zl in ZOOM_LEVELS.custom_levels:
-            col = zl - ZOOM_LEVELS.custom_levels[0]
+        for btn_zl in ZOOM_LEVELS.custom_levels:
+            col = btn_zl - ZOOM_LEVELS.custom_levels[0]
             tk.Radiobutton(self.frame_zlbtn,
                            bd=4,
-                           fg=ZOOM_LEVELS.tkinter_fg_color_of[zl],
-                           bg=ZOOM_LEVELS.tkinter_color_of[zl],
-                           activebackground=ZOOM_LEVELS.tkinter_color_of[zl],
-                           selectcolor=ZOOM_LEVELS.tkinter_color_of[zl],
+                           fg=ZOOM_LEVELS.tkinter_fg_color_of[btn_zl],
+                           bg=ZOOM_LEVELS.tkinter_color_of[btn_zl],
+                           activebackground=ZOOM_LEVELS.tkinter_color_of[btn_zl],
+                           selectcolor=ZOOM_LEVELS.tkinter_color_of[btn_zl],
                            height=2,
                            indicatoron=0,
-                           text='ZL' + str(zl),
+                           text='ZL' + str(btn_zl),
                            variable=self.zlpol,
-                           value=zl,
+                           value=btn_zl,
                            command=self.redraw_poly).grid(row=0, column=col, padx=0, pady=0, sticky=N + S + E + W)
             
         tk.Label(self.frame_left,anchor=W,text="Approx. Add. Size : ",bg="light green").grid(row=row,column=0,padx=5,pady=10,sticky=W)
@@ -572,32 +594,31 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         ttk.Button(self.frame_left,text='    Exit     ',command=self.destroy).grid(row=row,column=0,padx=5,pady=3,sticky=N+S+E+W); row+=1
         self.canvas = tk.Canvas(self.frame_right,bd=0,height=750,width=750)
         self.canvas.grid(row=0,column=0,sticky=N+S+E+W)     
-
+        self._canvas_layers = dict()
 
     ####################################################################################################################
     ####################################################################################################################
     ####################################################################################################################
 
-    def tile_pix_origin(self, lat, lon, zl):
-        tilxleft, tilytop = GEO.wgs84_to_gtile(lat + 1, lon, zl)
-        latmax, lonmin = GEO.gtile_to_wgs84(tilxleft, tilytop, zl)
-        return GEO.wgs84_to_pix(latmax, lonmin, zl)
+    def background_map_layer(self, lat, lon, zl, provider):
+        background_map = Image.open(FNAMES.preview(lat=lat,
+                                                   lon=lon,
+                                                   zoomlevel=zl,
+                                                   provider_code=provider))
 
-    def latlon_to_xy_new(self, pix_origin, lat, lon, zl):
-        pix_x, pix_y = GEO.wgs84_to_pix(lat, lon, zl)
-        return pix_x - pix_origin[0], pix_y - pix_origin[1]
-
-    def draw_tile_boundaries(self, drawer, bg_map_lat, bg_map_lon, bg_map_zl):
-        pix_origin = self.tile_pix_origin(bg_map_lat, bg_map_lon, bg_map_zl)
-        xy_top_left = self.latlon_to_xy_new(pix_origin, bg_map_lat + 1, bg_map_lon, bg_map_zl)
-        xy_bottom_right = self.latlon_to_xy_new(pix_origin, bg_map_lat, bg_map_lon + 1, bg_map_zl)
+        # Draw the tile boundaries of the background map
+        pix_origin = GEO.tile_pix_origin(lat, lon, zl)
+        xy_top_left = GEO.latlon_to_tile_relative_pix(pix_origin, lat + 1, lon, zl)
+        xy_bottom_right = GEO.latlon_to_tile_relative_pix(pix_origin, lat, lon + 1, zl)
+        drawer = ImageDraw.Draw(im=background_map, mode="RGBA")
         drawer.rectangle(xy=[xy_top_left, xy_bottom_right],
                          outline='black',
                          width=2)
 
-    def draw_textures(self, drawer, bg_map_lat, bg_map_lon, bg_map_zl):
-        pix_origin = self.tile_pix_origin(bg_map_lat, bg_map_lon, bg_map_zl)
+        return ImageTk.PhotoImage(image=background_map)
 
+    @staticmethod
+    def progressive_zl_layers(base_layer, bg_map_lat, bg_map_lon, bg_map_zl):
         def screen_res():
             if isinstance(CFG.cover_screen_res, CFG.ScreenRes):
                 return CFG.cover_screen_res.value[0]
@@ -609,57 +630,102 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         xp_tile = APT_SRC.XPlaneTile(bg_map_lat, bg_map_lon)
         airport_collection = APT_SRC.AirportDataSource().airports_in([xp_tile], include_surrounding_tiles=True)
 
-        all_texture_gtiles = collections.defaultdict(list)
-        for zl in range(CFG.cover_zl, CFG.default_zl - 1, -1):
-            zl_gtiles = airport_collection.gtiles(zl=zl,
-                                                  max_zl=CFG.cover_zl,
-                                                  screen_res=screen_res(),
-                                                  fov=CFG.cover_fov,
-                                                  fpa=CFG.cover_fpa,
-                                                  greediness=CFG.cover_greediness,
-                                                  greediness_threshold=CFG.cover_greediness_threshold)
-            for texture_gtile in zl_gtiles:
-                all_texture_gtiles[zl].append(texture_gtile)
+        pix_origin = GEO.tile_pix_origin(bg_map_lat, bg_map_lon, bg_map_zl)
+        layers = dict()
+        for zl in range(CFG.default_zl, CFG.cover_zl + 1):
+            # First compute all the required textures with the current ZL
+            gtiles = airport_collection.gtiles(zl=zl,
+                                               max_zl=CFG.cover_zl,
+                                               screen_res=screen_res(),
+                                               fov=CFG.cover_fov,
+                                               fpa=CFG.cover_fpa,
+                                               greediness=CFG.cover_greediness,
+                                               greediness_threshold=CFG.cover_greediness_threshold)
 
-        for zl in sorted(all_texture_gtiles.keys()):
-            for texture_gtile in all_texture_gtiles[zl]:
+            # Then represent each texture by its own transparent rectangle, all grouped in a single layer (one per ZL)
+            layer = Image.new(mode="RGBA", size=(base_layer.width(), base_layer.height()))
+            drawer = ImageDraw.Draw(im=layer, mode="RGBA")
+            for texture_gtile in gtiles:
                 lat_max, lon_min = GEO.gtile_to_wgs84(texture_gtile.x, texture_gtile.y, texture_gtile.zl)
                 lat_min, lon_max = GEO.gtile_to_wgs84(texture_gtile.x + 16, texture_gtile.y + 16, texture_gtile.zl)
-                xy_top_left = self.latlon_to_xy_new(pix_origin, lat_max, lon_min, bg_map_zl)
-                xy_bottom_right = self.latlon_to_xy_new(pix_origin, lat_min, lon_max, bg_map_zl)
+                xy_top_left = GEO.latlon_to_tile_relative_pix(pix_origin, lat_max, lon_min, bg_map_zl)
+                xy_bottom_right = GEO.latlon_to_tile_relative_pix(pix_origin, lat_min, lon_max, bg_map_zl)
                 drawer.rectangle(xy=[xy_top_left, xy_bottom_right],
-                                 fill=ZoomLevels.color_of[texture_gtile.zl] + (int(0.20 * 0xFF),),
+                                 fill=ZoomLevels.rgba_color_of[texture_gtile.zl],
                                  outline=(0x00, 0x00, 0x00, 0x0F),
                                  width=1)
+            layers[zl] = ImageTk.PhotoImage(image=layer)
 
-    def render_background_image(self, canvas, lat, lon, zl, provider):
-        background_map = Image.open(FNAMES.preview(lat=lat,
-                                                   lon=lon,
-                                                   zoomlevel=zl,
-                                                   provider_code=provider))
-        drawer = ImageDraw.Draw(im=background_map, mode="RGBA")
+        return layers
 
-        self.draw_tile_boundaries(drawer, lat, lon, zl)
+    def render_preview_canvas(self, canvas, lat, lon, zl, provider):
+        # Build the layer images, store them in a {tag: layer} dictionary and render them on the canvas
+        layers = {'map': self.background_map_layer(lat, lon, zl, provider)}
+        canvas.create_image(0, 0, anchor=NW, image=layers['map'], tags='map')
 
         if CFG.cover_airports_with_highres == 'Progressive':
-            self.draw_textures(drawer, lat, lon, zl)
+            zl_layers = self.progressive_zl_layers(layers['map'], lat, lon, zl)
+            for zl in sorted(zl_layers.keys()):
+                tag = 'ZL_{:d}'.format(zl)
+                layer = zl_layers[zl]
+                layers[tag] = layer
+                canvas.create_image(0, 0, anchor=NW, tags=tag, image=layer)
 
-        background_image = ImageTk.PhotoImage(image=background_map)
-        canvas.create_image(0, 0, anchor=NW, image=background_image)
-        return background_image
+        # Return the layers for storage, so they're not garbage collected (or they would be removed from the canvas)
+        return layers
 
-    def on_test_button(self):
-        self.canvas.delete("all")
+    def update_internal_state(self, lat, lon):
+        self.zoomlevel = int(self.zl_combo.get())
+        zoomlevel = self.zoomlevel
+        provider_code = self.map_combo.get()
+        (tilxleft, tilytop) = GEO.wgs84_to_gtile(lat + 1, lon, zoomlevel)
+        (self.latmax, self.lonmin) = GEO.gtile_to_wgs84(tilxleft, tilytop, zoomlevel)
+        (self.xmin, self.ymin) = GEO.wgs84_to_pix(self.latmax, self.lonmin, zoomlevel)
+        (tilxright, tilybot) = GEO.wgs84_to_gtile(lat, lon + 1, zoomlevel)
+        (self.latmin, self.lonmax) = GEO.gtile_to_wgs84(tilxright + 1, tilybot + 1, zoomlevel)
+        (self.xmax, self.ymax) = GEO.wgs84_to_pix(self.latmin, self.lonmax, zoomlevel)
+        self.polygon_list = []
+        self.polyobj_list = []
+        self.poly_curr = []
+
+    def configure_canvas(self):
         self.canvas.config(scrollregion=self.canvas.bbox(ALL))
-        self.canvas.bind("<ButtonPress-3>", self.scroll_start)
-        self.canvas.bind("<B3-Motion>", self.scroll_move)
+        if 'dar' in sys.platform:
+            self.canvas.bind("<ButtonPress-2>", self.scroll_start)
+            self.canvas.bind("<B2-Motion>", self.scroll_move)
+            self.canvas.bind("<Control-ButtonPress-2>", self.delPol)
+        else:
+            self.canvas.bind("<ButtonPress-3>", self.scroll_start)
+            self.canvas.bind("<B3-Motion>", self.scroll_move)
+            self.canvas.bind("<Control-ButtonPress-3>", self.delPol)
+        self.canvas.bind("<ButtonPress-1>", lambda event: self.canvas.focus_set())
+        self.canvas.bind("<Shift-ButtonPress-1>", self.newPoint)
+        self.canvas.bind("<Control-Shift-ButtonPress-1>", self.newPointGrid)
+        self.canvas.bind("<Control-ButtonPress-1>", self.newPol)
         self.canvas.focus_set()
-        background_image = self.render_background_image(canvas=self.canvas,
-                                                        lat=self.lat,
-                                                        lon=self.lon,
-                                                        zl=int(self.zl_combo.get()),
-                                                        provider=self.map_combo.get())
-        self.test_image = background_image
+        self.canvas.bind('p', self.newPoint)
+        self.canvas.bind('d', self.delete_zone_cmd)
+        self.canvas.bind('n', self.save_zone_cmd)
+        self.canvas.bind('<BackSpace>', self.delLast)
+
+    def on_preview_button(self, lat, lon):
+        self.canvas.delete("all")
+        self.update_internal_state(lat, lon)
+        self.configure_canvas()
+        self._canvas_layers = self.render_preview_canvas(canvas=self.canvas,
+                                                         lat=self.lat,
+                                                         lon=self.lon,
+                                                         zl=int(self.zl_combo.get()),
+                                                         provider=self.map_combo.get())
+
+    def on_toggle_zl_button(self, zl):
+        tag = 'ZL_{:d}'.format(zl)
+        if tag in self._canvas_layers:
+            current_config = self.canvas.itemconfigure(tag)
+            if current_config['state'][4] == HIDDEN:
+                self.canvas.itemconfigure(tag, state=NORMAL)
+            else:
+                self.canvas.itemconfigure(tag, state=HIDDEN)
 
     ####################################################################################################################
     ####################################################################################################################
