@@ -546,8 +546,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
             self.frame_zl_toggle_btn.columnconfigure(i, weight=1)
         self.frame_zl_toggle_btn.grid(row=row, column=0, columnspan=1, sticky=N + S + W + E)
         row += 1
-        for btn_zl in range(CFG.default_zl, CFG.cover_zl + 1):
-            col = btn_zl - CFG.default_zl
+        for col, btn_zl in enumerate(ZOOM_LEVELS.custom_levels):
             btn = tk.Checkbutton(self.frame_zl_toggle_btn,
                                  bd=4,
                                  fg=ZOOM_LEVELS.tkinter_fg_color_of[btn_zl],
@@ -570,9 +569,8 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
 
         self.frame_zlbtn  =  tk.Frame(self.frame_left, border=0,bg='light green')
         for i in range(5): self.frame_zlbtn.columnconfigure(i,weight=1)
-        self.frame_zlbtn.grid(row=row,column=0,columnspan=1,sticky=N+S+W+E); row+=1
-        for btn_zl in ZOOM_LEVELS.custom_levels:
-            col = btn_zl - ZOOM_LEVELS.custom_levels[0]
+        self.frame_zlbtn.grid(row=row,column=0,columnspan=1,pady=5,sticky=N+S+W+E); row+=1
+        for col, btn_zl in enumerate(ZOOM_LEVELS.custom_levels):
             tk.Radiobutton(self.frame_zlbtn,
                            bd=4,
                            fg=ZOOM_LEVELS.tkinter_fg_color_of[btn_zl],
@@ -927,10 +925,10 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         try:
             color = ZOOM_LEVELS.tkinter_color_of[self.zlpol.get()]
             if len(self.points)>=4:
-                self.poly_curr=self.canvas.create_polygon(self.points,\
+                self.poly_curr = self.canvas.create_polygon(self.points, outline=color, fill='', width=2)
                            outline=color,fill='', width=2)
             else:
-                self.poly_curr=self.canvas.create_polygon(self.points,\
+                self.poly_curr = self.canvas.create_polygon(self.points, outline=color, fill='', width=5)
                            outline=color,fill='', width=5)
         except:
             pass
