@@ -525,21 +525,21 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
 
         # Widgets - Preview Parameters
         row=0
-        tk.Label(self.frame_left,anchor=W,text="Preview params ",fg = "light green",bg = "dark green",font = "Helvetica 16 bold italic").grid(row=row,column=0,sticky=W+E); row+=1
-        
-        tk.Label(self.frame_left,anchor=W,text="Source : ",bg="light green").grid(row=row,column=0,padx=5,pady=3,sticky=W); 
+        tk.Label(self.frame_left,anchor=W,text="Preview Modes",fg = "light green",bg = "dark green",font = "Helvetica 16 bold italic").grid(row=row,column=0,sticky=W+E); row+=1
+
+        tk.Label(self.frame_left,anchor=W,text="Source : ",bg="light green").grid(row=row,column=0,padx=5,pady=3,sticky=W)
         self.map_combo=  ttk.Combobox(self.frame_left,textvariable=self.map_choice,values=self.map_list,width=10,state='readonly',style='O4.TCombobox')
         self.map_combo.grid(row=row,column=0,padx=5,pady=3,sticky=E); row+=1
-        
-        tk.Label(self.frame_left,anchor=W,text="Zoomlevel : ",bg="light green").grid(row=row,column=0,padx=5,pady=3,sticky=W)
+
+        tk.Label(self.frame_left,anchor=W,text="Base Map ZL : ",bg="light green").grid(row=row,column=0,padx=5,pady=3,sticky=W)
         self.zl_combo = ttk.Combobox(self.frame_left, textvariable=self.zl_choice, values=ZOOM_LEVELS.osm_levels, width=3, state='readonly', style='O4.TCombobox')
         self.zl_combo.grid(row=2,column=0,padx=5,pady=3,sticky=E); row+=1
-        
-        ttk.Button(self.frame_left, text='Preview', command=lambda: self.on_preview_button(lat, lon)).grid(row=row, padx=5, column=0, sticky=N + S + E + W); row+=1
-        ttk.Button(self.frame_left, text='Existing DDS Layout', command=lambda: self.on_dds_layout_button(lat, lon)).grid(row=row, padx=5, column=0, sticky=N + S + E + W); row+=1
 
-        # Widgets - Progressive ZLs
-        tk.Label(self.frame_left,anchor=W,text="Progressive ZLs",fg = "light green",bg = "dark green",font = "Helvetica 16 bold italic").grid(row=row,column=0,pady=10,sticky=W+E); row+=1
+        ttk.Button(self.frame_left, text='Zone List Editor', command=lambda: self.on_preview_button(lat, lon)).grid(row=row, padx=5, column=0, sticky=N + S + E + W); row+=1
+        ttk.Button(self.frame_left, text='Show Existing DDS (if any)', command=lambda: self.on_dds_layout_button(lat, lon)).grid(row=row, padx=5, pady=3, column=0, sticky=N + S + E + W); row+=1
+
+        # Widgets - Layers Controls
+        tk.Label(self.frame_left,anchor=W,text="Layer Controls",fg = "light green",bg = "dark green",font = "Helvetica 16 bold italic").grid(row=row,column=0,pady=0,sticky=W+E); row+=1
         tk.Label(self.frame_left,anchor=W,text="Show/Hide Layers :",bg="light green").grid(row=row,column=0,sticky=W,padx=0,pady=0); row+=1
         self.frame_zl_toggle_btn = tk.Frame(self.frame_left, border=0, bg='light green')
         for i in range(CFG.cover_zl - CFG.default_zl + 1):
@@ -561,13 +561,13 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
             btn.grid(row=0, column=col, padx=0, pady=0, sticky=N + S + E + W)
             btn.toggle()
 
-        # Widgets - Custom ZLs
-        tk.Label(self.frame_left,anchor=W,text="Zone params ",fg = "light green",bg = "dark green",font = "Helvetica 16 bold italic").grid(row=row,column=0,pady=10,sticky=W+E); row+=1
-        
-        tk.Label(self.frame_left,anchor=W,text="Source : ",bg="light green").grid(row=row,column=0,sticky=W,padx=5,pady=10); 
+        # Widgets - Custom Zone Tools
+        tk.Label(self.frame_left,anchor=W,text="Custom Zone Tools",fg = "light green",bg = "dark green",font = "Helvetica 16 bold italic").grid(row=row,column=0,pady=5,sticky=W+E); row+=1
+
+        tk.Label(self.frame_left,anchor=W,text="Source : ",bg="light green").grid(row=row,column=0,sticky=W,padx=5,pady=10)
         self.zmap_combo = ttk.Combobox(self.frame_left,textvariable=self.zmap_choice,values=self.reduced_map_list,width=8,state='readonly',style='O4.TCombobox')
-        self.zmap_combo.grid(row=row,column=0,padx=5,pady=10,sticky=E); row+=1
-        
+        self.zmap_combo.grid(row=row,column=0,padx=5,pady=0,sticky=E); row+=1
+
         self.frame_zlbtn  =  tk.Frame(self.frame_left, border=0,bg='light green')
         for i in range(5): self.frame_zlbtn.columnconfigure(i,weight=1)
         self.frame_zlbtn.grid(row=row,column=0,columnspan=1,sticky=N+S+W+E); row+=1
@@ -586,22 +586,29 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
                            value=btn_zl,
                            command=self.redraw_poly).grid(row=0, column=col, padx=0, pady=0, sticky=N + S + E + W)
 
-        tk.Label(self.frame_left,anchor=W,text="Selected Texture File: ",bg="light green").grid(row=row,column=0,padx=5,pady=0,sticky=W); row+=1
-        tk.Entry(self.frame_left,width=30,justify=RIGHT,bg="white",fg="blue",textvariable=self.last_clicked_texture).grid(row=row,column=0,padx=5,pady=0,sticky=E); row+=1
-            
-        tk.Label(self.frame_left,anchor=W,text="Approx. Add. Size : ",bg="light green").grid(row=row,column=0,padx=5,pady=10,sticky=W)
-        tk.Entry(self.frame_left,width=7,justify=RIGHT,bg="white",fg="blue",textvariable=self.gb).grid(row=row,column=0,padx=5,pady=10,sticky=E); row+=1
-        
+
+
         ttk.Button(self.frame_left,text='  Save zone  ',command=self.save_zone_cmd).grid(row=row,column=0,padx=5,pady=3,sticky=N+S+E+W); row+=1
         ttk.Button(self.frame_left,text='Delete ZL zone',command=self.delete_zone_cmd).grid(row=row,column=0,padx=5,pady=3,sticky=N+S+E+W); row+=1
-        ttk.Button(self.frame_left,text='Make GeoTiffs',command=self.build_geotiffs_ifc).grid(row=row,column=0,padx=5,pady=3,sticky=N+S+E+W); row+=1 
-        ttk.Button(self.frame_left,text='Extract Mesh ',command=self.extract_mesh_ifc).grid(row=row,column=0,padx=5,pady=3,sticky=N+S+E+W); row+=1 
+        ttk.Button(self.frame_left,text='Make GeoTiffs',command=self.build_geotiffs_ifc).grid(row=row,column=0,padx=5,pady=3,sticky=N+S+E+W); row+=1
+        ttk.Button(self.frame_left,text='Extract Mesh ',command=self.extract_mesh_ifc).grid(row=row,column=0,padx=5,pady=3,sticky=N+S+E+W); row+=1
+
         tk.Label(self.frame_left,text="Ctrl+B1 : add texture\nShift+B1: add zone point\nCtrl+B2 : delete zone",bg="light green",justify=LEFT).grid(row=row,column=0,padx=5,pady=20,sticky=N+S+E+W); row+=1
         ttk.Button(self.frame_left,text='    Apply    ',command=self.save_zone_list).grid(row=row,column=0,padx=5,pady=3,sticky=N+S+E+W); row+=1
         ttk.Button(self.frame_left,text='    Reset    ',command=self.delAll).grid(row=row,column=0,padx=5,pady=3,sticky=N+S+E+W); row+=1
-        ttk.Button(self.frame_left,text='    Exit     ',command=self.destroy).grid(row=row,column=0,padx=5,pady=3,sticky=N+S+E+W); row+=1
+
+        # Widgets - Tile Information
+        tk.Label(self.frame_left,anchor=W,text="Tile Infos",fg = "light green",bg = "dark green",font = "Helvetica 16 bold italic").grid(row=row,column=0,pady=10,sticky=W+E); row+=1
+        tk.Label(self.frame_left,anchor=W,text="Selected Texture File: ",bg="light green").grid(row=row,column=0,padx=5,pady=0,sticky=W); row+=1
+        tk.Entry(self.frame_left,width=30,justify=RIGHT,bg="white",fg="blue",textvariable=self.last_clicked_texture).grid(row=row,column=0,padx=5,pady=0,sticky=E); row+=1
+
+        tk.Label(self.frame_left,anchor=W,text="Approx. Add. Size : ",bg="light green").grid(row=row,column=0,padx=5,pady=10,sticky=W)
+        tk.Entry(self.frame_left,width=7,justify=RIGHT,bg="white",fg="blue",textvariable=self.gb).grid(row=row,column=0,padx=5,pady=10,sticky=E); row+=1
+
+        ttk.Button(self.frame_left,text='Close Preview',command=self.destroy).grid(row=row,column=0,padx=5,pady=3,sticky=N+S+E+W); row+=1
+
         self.canvas = tk.Canvas(self.frame_right,bd=0,height=750,width=750)
-        self.canvas.grid(row=0,column=0,sticky=N+S+E+W)     
+        self.canvas.grid(row=0,column=0,sticky=N+S+E+W)
         self._canvas_layers = dict()
 
     ####################################################################################################################
