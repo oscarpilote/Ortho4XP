@@ -6,6 +6,7 @@ import re
 import sys
 import shutil
 from math import floor, cos, pi
+import multiprocessing.pool
 import numpy
 import queue
 import threading
@@ -485,6 +486,8 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
     polyobj_list=[]
 
     def __init__(self,parent,lat,lon):
+        # Start 2 worker processes for async layer building, +1 for gathering and displaying the result
+        self.pool = multiprocessing.pool.ThreadPool(processes=3)
         self.parent=parent
         self.lat=lat
         self.lon=lon 
@@ -621,7 +624,11 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         self._canvas_layers = dict()
 
     @staticmethod
-    def background_map_layer(lat, lon, zl, provider):
+    def async_build_map_layer(lat, lon, zl, provider):
+        result = IMG.create_tile_preview(lat=lat, lon=lon, zoomlevel=zl, provider_code=provider)
+        if result != 1:
+            raise Exception("Couldn't create the background map image")
+
         background_map = Image.open(FNAMES.preview(lat=lat,
                                                    lon=lon,
                                                    zoomlevel=zl,
@@ -639,14 +646,19 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         return ImageTk.PhotoImage(image=background_map)
 
     @staticmethod
-    def _texture_layers(base_layer, bg_map_lat, bg_map_lon, bg_map_zl, gtiles_dict):
+    def _build_texture_layers(bg_map_lat, bg_map_lon, bg_map_zl, gtiles_dict):
+        # Compute the map origin and size
         pix_origin = GEO.tile_pix_origin(bg_map_lat, bg_map_lon, bg_map_zl)
+        til_x_min, til_y_min = GEO.wgs84_to_gtile(bg_map_lat + 1, bg_map_lon, bg_map_zl)
+        til_x_max, til_y_max = GEO.wgs84_to_gtile(bg_map_lat, bg_map_lon + 1, bg_map_zl)
+        size = ((til_x_max + 1 - til_x_min) * 256,
+                (til_y_max + 1 - til_y_min) * 256)
 
         layers = dict()
         for zl in sorted(gtiles_dict.keys()):
             # Represent each texture by its own transparent rectangle, all grouped in a single layer (one per ZL)
             gtiles = gtiles_dict[zl]
-            layer = Image.new(mode="RGBA", size=(base_layer.width(), base_layer.height()))
+            layer = Image.new(mode="RGBA", size=size)
             drawer = ImageDraw.Draw(im=layer, mode="RGBA")
             for texture_gtile in gtiles:
                 lat_max, lon_min = GEO.gtile_to_wgs84(texture_gtile.x, texture_gtile.y, texture_gtile.zl)
@@ -661,7 +673,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
 
         return layers
 
-    def progressive_zl_layers(self, base_layer, bg_map_lat, bg_map_lon, bg_map_zl):
+    def async_build_progressive_zl_layers(self, bg_map_lat, bg_map_lon, bg_map_zl):
         def screen_res():
             if isinstance(CFG.cover_screen_res, CFG.ScreenRes):
                 return CFG.cover_screen_res.value[0]
@@ -684,9 +696,9 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
                                                                    greediness=CFG.cover_greediness,
                                                                    greediness_threshold=CFG.cover_greediness_threshold))
 
-        return self._texture_layers(base_layer, bg_map_lat, bg_map_lon, bg_map_zl, progressive_gtiles)
+        return self._build_texture_layers(bg_map_lat, bg_map_lon, bg_map_zl, progressive_gtiles)
 
-    def dds_layout_layers(self, base_layer, bg_map_lat, bg_map_lon, bg_map_zl):
+    def async_build_dds_layout_layers(self, bg_map_lat, bg_map_lon, bg_map_zl):
         build_dir = os.path.normpath(FNAMES.build_dir(bg_map_lat, bg_map_lon, self.parent.custom_build_dir_entry.get()))
         re_dds_file = re.compile(r'^(?P<y>\d+)_(?P<x>\d+)_(?:.*)(?P<zl>\d{2})\.dds$')
 
@@ -699,43 +711,30 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
                                                              y=int(m.group('y')),
                                                              zl=int(m.group('zl'))))
 
-        return self._texture_layers(base_layer, bg_map_lat, bg_map_lon, bg_map_zl, dds_gtiles)
+        return self._build_texture_layers(bg_map_lat, bg_map_lon, bg_map_zl, dds_gtiles)
 
-    def render_preview_canvas(self, canvas, lat, lon, zl, provider):
-        # Build the layer images, store them in a {tag: layer} dictionary and render them on the canvas
-        layers = {'map': self.background_map_layer(lat, lon, zl, provider)}
-        canvas.create_image(0, 0, anchor=NW, image=layers['map'], tags='map')
+    def _async_render_layers(self, background_map_layer, texture_layers):
+        layers = dict()
 
-        if CFG.cover_airports_with_highres == 'Progressive':
-            zl_layers = self.progressive_zl_layers(layers['map'], lat, lon, zl)
-            for zl in sorted(zl_layers.keys()):
-                tag = 'ZL_{:d}'.format(zl)
-                layer = zl_layers[zl]
-                layers[tag] = layer
-                canvas.create_image(0, 0, anchor=NW, tags=tag, image=layer)
+        # Render the map layer on the canvas (get() will wait until it is available)
+        layers['map'] = background_map_layer.get()
+        self.canvas.create_image(0, 0, anchor=NW, image=layers['map'], tags='map')
 
-                # Also ensure the ZL button is reset to the correct state, as well as any other item with this ZL
-                self._zl_toggle_button_vars[zl].set(1)
-                self.canvas.itemconfigure(tag, state=NORMAL)
-
-        # Return the layers for storage, so they're not garbage collected (or they would be removed from the canvas)
-        return layers
-
-    def render_dds_layout_canvas(self, canvas, lat, lon, zl, provider):
-        # Build the layer images, store them in a {tag: layer} dictionary and render them on the canvas
-        layers = {'map': self.background_map_layer(lat, lon, zl, provider)}
-        canvas.create_image(0, 0, anchor=NW, image=layers['map'], tags='map')
-
-        zl_layers = self.dds_layout_layers(layers['map'], lat, lon, zl)
-        for zl in sorted(zl_layers.keys()):
+        # Render the texture layers on the canvas (get() will wait until they are available)
+        texture_layers = texture_layers.get()
+        for zl in sorted(texture_layers.keys()):
             tag = 'ZL_{:d}'.format(zl)
-            layer = zl_layers[zl]
+            layer = texture_layers[zl]
             layers[tag] = layer
-            canvas.create_image(0, 0, anchor=NW, tags=tag, image=layer)
+            self.canvas.create_image(0, 0, anchor=NW, tags=tag, image=layer)
 
-            # Also ensure the ZL button is reset to the correct state, as well as any other item with this ZL
+        # Render the custom zones
+        self.apply_custom_zone_list()
+
+        # Finally, ensure the ZL toggle buttons are reset to the correct state, and that the items are displayed
+        for zl in ZoomLevels.custom_levels:
             self._zl_toggle_button_vars[zl].set(1)
-            self.canvas.itemconfigure(tag, state=NORMAL)
+            self.canvas.itemconfigure('ZL_{:d}'.format(zl), state=NORMAL)
 
         # Return the layers for storage, so they're not garbage collected (or they would be removed from the canvas)
         return layers
@@ -788,30 +787,53 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
             self.save_zone_cmd()
 
     def on_preview_button(self, lat, lon):
+        # Reset the canvas and update the internal state with respect to the configuration (in case it has changed)
         self.canvas.delete("all")
         self.update_internal_state(lat, lon)
         self.configure_canvas()
-        self._canvas_layers = self.render_preview_canvas(canvas=self.canvas,
-                                                         lat=self.lat,
-                                                         lon=self.lon,
-                                                         zl=int(self.zl_combo.get()),
-                                                         provider=self.map_combo.get())
-        self.apply_custom_zone_list()
+
+        # Asynchronously build the map layer
+        background_map_layer = self.pool.apply_async(self.async_build_map_layer,
+                                                     (lat, lon, int(self.zl_combo.get()), self.map_combo.get()))
+
+        # Asynchronously build the texture layers
+        if CFG.cover_airports_with_highres == 'Progressive':
+            texture_layers = self.pool.apply_async(self.async_build_progressive_zl_layers,
+                                                   (lat, lon, int(self.zl_combo.get())))
+        else:
+            texture_layers = dict()
+
+        # Finally, asynchronously render them on the canvas when they're available
+        def _store_canvas_layers(canvas_layers):
+            self._canvas_layers = canvas_layers
+        self._canvas_layers = self.pool.apply_async(func=self._async_render_layers,
+                                                    args=(background_map_layer, texture_layers),
+                                                    callback=_store_canvas_layers)
 
     def on_dds_layout_button(self, lat, lon):
+        # Reset the canvas and update the internal state with respect to the configuration (in case it has changed)
         self.canvas.delete("all")
         self.update_internal_state(lat, lon)
         self.configure_canvas()
-        self._canvas_layers = self.render_dds_layout_canvas(canvas=self.canvas,
-                                                            lat=self.lat,
-                                                            lon=self.lon,
-                                                            zl=int(self.zl_combo.get()),
-                                                            provider=self.map_combo.get())
-        self.apply_custom_zone_list()
+
+        # Asynchronously build the map layer
+        background_map_layer = self.pool.apply_async(self.async_build_map_layer,
+                                                     (lat, lon, int(self.zl_combo.get()), self.map_combo.get()))
+
+        # Asynchronously build the texture layers
+        texture_layers = self.pool.apply_async(self.async_build_dds_layout_layers,
+                                               (lat, lon, int(self.zl_combo.get())))
+
+        # Finally, asynchronously render them on the canvas when they're available
+        def _store_canvas_layers(canvas_layers):
+            self._canvas_layers = canvas_layers
+        self._canvas_layers = self.pool.apply_async(func=self._async_render_layers,
+                                                    args=(background_map_layer, texture_layers),
+                                                    callback=_store_canvas_layers)
 
     def on_toggle_zl_button(self, zl):
         tag = 'ZL_{:d}'.format(zl)
-        if tag in self._canvas_layers:
+        if tag in self._canvas_layers if isinstance(self._canvas_layers, dict) else self._canvas_layers.get():
             if self._zl_toggle_button_vars[zl].get() == 0:
                 self.canvas.itemconfigure(tag, state=HIDDEN)
             elif self._zl_toggle_button_vars[zl].get() == 1:
