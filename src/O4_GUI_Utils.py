@@ -556,6 +556,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
             self.frame_zl_toggle_btn.columnconfigure(i, weight=1)
         self.frame_zl_toggle_btn.grid(row=row, column=0, columnspan=1, sticky=N + S + W + E)
         row += 1
+        self._zl_toggle_button_vars = collections.defaultdict(tk.IntVar)
         for col, btn_zl in enumerate(ZOOM_LEVELS.custom_levels):
             btn = tk.Checkbutton(self.frame_zl_toggle_btn,
                                  bd=4,
@@ -566,9 +567,9 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
                                  height=2,
                                  indicatoron=0,
                                  text='ZL' + str(btn_zl),
-                                 command=functools.partial(self.on_toggle_zl_button, btn_zl))
+                                 command=functools.partial(self.on_toggle_zl_button, btn_zl),
+                                 var=self._zl_toggle_button_vars[btn_zl])
             btn.grid(row=0, column=col, padx=0, pady=0, sticky=N + S + E + W)
-            btn.toggle()
 
         # Widgets - Custom Zone Tools
         tk.Label(self.frame_left,anchor=W,text="Custom Zone Tools",fg = "light green",bg = "dark green",font = "Helvetica 16 bold italic").grid(row=row,column=0,pady=5,sticky=W+E); row+=1
@@ -713,6 +714,10 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
                 layers[tag] = layer
                 canvas.create_image(0, 0, anchor=NW, tags=tag, image=layer)
 
+                # Also ensure the ZL button is reset to the correct state, as well as any other item with this ZL
+                self._zl_toggle_button_vars[zl].set(1)
+                self.canvas.itemconfigure(tag, state=NORMAL)
+
         # Return the layers for storage, so they're not garbage collected (or they would be removed from the canvas)
         return layers
 
@@ -727,6 +732,10 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
             layer = zl_layers[zl]
             layers[tag] = layer
             canvas.create_image(0, 0, anchor=NW, tags=tag, image=layer)
+
+            # Also ensure the ZL button is reset to the correct state, as well as any other item with this ZL
+            self._zl_toggle_button_vars[zl].set(1)
+            self.canvas.itemconfigure(tag, state=NORMAL)
 
         # Return the layers for storage, so they're not garbage collected (or they would be removed from the canvas)
         return layers
@@ -803,11 +812,10 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
     def on_toggle_zl_button(self, zl):
         tag = 'ZL_{:d}'.format(zl)
         if tag in self._canvas_layers:
-            current_config = self.canvas.itemconfigure(tag)
-            if current_config['state'][4] == HIDDEN:
-                self.canvas.itemconfigure(tag, state=NORMAL)
-            else:
+            if self._zl_toggle_button_vars[zl].get() == 0:
                 self.canvas.itemconfigure(tag, state=HIDDEN)
+            elif self._zl_toggle_button_vars[zl].get() == 1:
+                self.canvas.itemconfigure(tag, state=NORMAL)
 
     def on_map_click(self, event):
         map_zl = self.zoomlevel
