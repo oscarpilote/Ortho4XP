@@ -10,12 +10,14 @@ from PIL import Image, ImageDraw
 from collections import defaultdict
 import struct
 import hashlib
+
+import O4_Common_Types
 import O4_File_Names as FNAMES
 import O4_Geo_Utils as GEO
 import O4_Mask_Utils as MASK
 import O4_UI_Utils as UI
 import O4_Config_Utils as CFG
-import O4_AirportDataSource as APT_SRC
+import O4_Airport_Data_Source as APT_SRC
 import shapely.geometry
 import shapely.prepared
 
@@ -100,36 +102,6 @@ class QuadTree(dict):
 
 
 ##############################################################################
-# TODO: move that to the AirportCollection class
-def progressive_zone_list(lat, lon, screen_res, fov, fpa, provider, max_zl, min_zl, greediness=3, greediness_threshold=0.70):
-    xp_tile = APT_SRC.XPlaneTile(lat, lon)
-    arpt_collection = APT_SRC.AirportDataSource().airports_in([xp_tile], include_surrounding_tiles=True)
-    if isinstance(screen_res, CFG.ScreenRes):
-        horiz_screen_value = screen_res.value[0]
-    elif isinstance(screen_res, int):
-        horiz_screen_value = screen_res
-    else:
-        horiz_screen_value = CFG.ScreenRes.from_config_value(screen_res)[0]
-
-    tile_poly = shapely.prepared.prep(xp_tile.polygon())
-    tile_zones = []
-    for zl in range(max_zl, min_zl - 1, -1):
-        for polygon in arpt_collection.as_polygons(arpt_collection.gtiles(zl=zl,
-                                                                          max_zl=max_zl,
-                                                                          screen_res=horiz_screen_value,
-                                                                          fov=fov,
-                                                                          fpa=fpa,
-                                                                          greediness=greediness,
-                                                                          greediness_threshold=greediness_threshold)):
-            if not tile_poly.disjoint(polygon):
-                coords = []
-                for (x, y) in polygon.exterior.coords:
-                    coords.extend([y, x])
-                tile_zones.append([coords, zl, provider])
-    return tile_zones
-
-
-##############################################################################
 def zone_list_to_ortho_dico(tile):
     def _sorted_zones(*_zone_lists):
         # Sort order is :
@@ -175,11 +147,11 @@ def zone_list_to_ortho_dico(tile):
             ymax+=1000*tile.cover_extent*GEO.m_to_lat
             ymin-=1000*tile.cover_extent*GEO.m_to_lat
             # round off to texture boundaries at tile.cover_zl zoomlevel
-            (til_x_left,til_y_top)=GEO.wgs84_to_orthogrid(ymax+tile.lat,xmin+tile.lon,tile.cover_zl)
-            (ymax,xmin)=GEO.gtile_to_wgs84(til_x_left,til_y_top,tile.cover_zl)
+            (til_x_left,til_y_top)=GEO.wgs84_to_orthogrid(ymax+tile.lat,xmin+tile.lon,tile.cover_zl.default)
+            (ymax,xmin)=GEO.gtile_to_wgs84(til_x_left,til_y_top,tile.cover_zl.default)
             ymax-=tile.lat; xmin-=tile.lon
-            (til_x_left2,til_y_top2)=GEO.wgs84_to_orthogrid(ymin+tile.lat,xmax+tile.lon,tile.cover_zl)
-            (ymin,xmax)=GEO.gtile_to_wgs84(til_x_left2+16,til_y_top2+16,tile.cover_zl)
+            (til_x_left2,til_y_top2)=GEO.wgs84_to_orthogrid(ymin+tile.lat,xmax+tile.lon,tile.cover_zl.default)
+            (ymin,xmax)=GEO.gtile_to_wgs84(til_x_left2+16,til_y_top2+16,tile.cover_zl.default)
             ymin-=tile.lat; xmax-=tile.lon
             xmin=max(0,xmin); xmax=min(1,xmax); ymin=max(0,ymin); ymax=min(1,ymax)
             # mark to airport_array
@@ -192,16 +164,17 @@ def zone_list_to_ortho_dico(tile):
     elif tile.cover_airports_with_highres == 'Progressive':
         UI.vprint(1,"-> Auto-generating custom ZL zones along the runways of each airport.")
         wall_time = time.clock()
-        progressive_zones = progressive_zone_list(lat=tile.lat,
-                                                  lon=tile.lon,
-                                                  screen_res=tile.cover_screen_res,
-                                                  fov=tile.cover_fov,
-                                                  fpa=tile.cover_fpa,
-                                                  provider=tile.default_website,
-                                                  max_zl=tile.cover_zl,
-                                                  min_zl=tile.default_zl,
-                                                  greediness=tile.cover_greediness,
-                                                  greediness_threshold=tile.cover_greediness_threshold)
+        xp_tile = APT_SRC.XPlaneTile(tile.lat, tile.lon)
+        airports = APT_SRC.AirportDataSource().airports_in([xp_tile], include_surrounding_tiles=True)
+        progressive_zones = airports.progressive_zone_list(xp_tile=xp_tile,
+                                                           screen_res=tile.cover_screen_res,
+                                                           fov=tile.cover_fov,
+                                                           fpa=tile.cover_fpa,
+                                                           provider=tile.default_website,
+                                                           base_zl=tile.default_zl,
+                                                           cover_zl=tile.cover_zl,
+                                                           greediness=tile.cover_greediness,
+                                                           greediness_threshold=tile.cover_greediness_threshold)
         wall_time_delta = datetime.timedelta(seconds=(time.clock() - wall_time))
         UI.lvprint(0, "ZL zones computed in {}s".format(wall_time_delta))
 
@@ -224,7 +197,7 @@ def zone_list_to_ortho_dico(tile):
             y=round((tile.lat+1-latp)*4095)
             (zoomlevel,provider_code)=dico_tmp[masks_im.getpixel((x,y))]
             if airport_array[y,x]:
-                zoomlevel=max(zoomlevel,tile.cover_zl)
+                zoomlevel=max(zoomlevel,tile.cover_zl.default)
             til_x_text=16*(int(til_x/2**(tile.mesh_zl-zoomlevel))//16)
             til_y_text=16*(int(til_y/2**(tile.mesh_zl-zoomlevel))//16)
             dico_customzl[(til_x,til_y)]=(til_x_text,til_y_text,zoomlevel,provider_code)

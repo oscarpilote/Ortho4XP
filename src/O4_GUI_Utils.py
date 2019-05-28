@@ -7,13 +7,14 @@ import sys
 import shutil
 from math import floor, cos, pi
 import multiprocessing.pool
-import numpy
 import queue
 import threading
 import tkinter as tk
 from   tkinter import RIDGE,N,S,E,W,NW,ALL,END,LEFT,RIGHT,CENTER,HORIZONTAL,filedialog,NORMAL,HIDDEN
 import tkinter.ttk as ttk
 from PIL import Image, ImageDraw, ImageTk
+
+import O4_Common_Types
 import O4_Version
 import O4_Imagery_Utils as IMG
 import O4_File_Names as FNAMES
@@ -25,112 +26,11 @@ import O4_Mask_Utils as MASK
 import O4_Tile_Utils as TILE
 import O4_UI_Utils as UI
 import O4_Config_Utils as CFG
-import O4_AirportDataSource as APT_SRC
+import O4_Airport_Data_Source as APT_SRC
 
 
 # Set OsX=True if you prefer the OsX way of drawing existing tiles but are on Linux or Windows.
 OsX='dar' in sys.platform
-
-
-class ZoomLevels:
-    """Container class for Zoom Level constants, colors and utilities :
-
-    Zoom level ranges :
-    - ZOOM_LEVELS.levels        : return all the safe zoom levels (excluding the overkill zl 20 and 21)
-    - ZOOM_LEVELS.osm_levels    : return zoom levels for the OSM layer of the Custom Zones window
-    - ZOOM_LEVELS.custom_levels : return zoom levels available for the Custom Zones
-
-    Zoom level colors :
-    - ZOOM_LEVELS.rgba_color_of        : a dict of {zl: (red, green, blue, alpha)}
-    - ZOOM_LEVELS.rgba_border_color_of : a dict of {zl: (red, green, blue, alpha)}
-    - ZOOM_LEVELS.tkinter_fg_color_of  : a dict of {zl: '#rrggbb'}
-    - ZOOM_LEVELS.tkinter_color_of     : a dict of {zl: '#rrggbb'}
-
-    Utilities :
-    - ZOOM_LEVELS.normalized(zl) : ensure __ZL_MIN__ <= zl <= __ZL_MAX__
-    """
-
-    # Constants
-    __ZL_MIN__ = 12
-    __ZL_LOW__ = 15
-    __ZL_HIGH__ = 18
-    __ZL_MAX__ = 19
-    __ZL_OVERKILL__ = 21
-
-    # Common zoom level ranges
-    all = list(range(__ZL_MIN__, __ZL_MAX__ + 1))
-    osm_levels = [11, 12, 13]
-    custom_levels = list(range(__ZL_LOW__, __ZL_MAX__ + 1))
-
-    # For IDE inspection
-    rgba_color_of = None
-    rgba_border_color_of = None
-    tkinter_fg_color_of = None
-    tkiniter_color_of = None
-
-    def __new__(cls, *args, **kwargs):
-        """Dynamically build a gradient of fg/bg colors for each Zoom Level."""
-        cls._rgb_color_of = {zl: color
-                             for (zl, color) in cls._heat_map(cold_zls=range(cls.__ZL_MIN__, cls.__ZL_LOW__),
-                                                              temperate_zls=range(cls.__ZL_LOW__, cls.__ZL_HIGH__),
-                                                              warm_zls=range(cls.__ZL_HIGH__, cls.__ZL_MAX__ + 1),
-                                                              blazing_zls=range(cls.__ZL_MAX__ + 1,
-                                                                                cls.__ZL_OVERKILL__ + 1))}
-
-        max_opacity = 0xFF * 0.70
-        zl_diff_max = cls.__ZL_OVERKILL__ - cls.__ZL_MIN__
-        cls.rgba_color_of = {zl: (r, g, b, int(max_opacity * (zl - cls.__ZL_MIN__) / zl_diff_max))
-                             for zl in range(cls.__ZL_MIN__, cls.__ZL_OVERKILL__ + 1)
-                             for (r, g, b) in [cls._rgb_color_of[zl]]}
-
-        cls.rgba_border_color_of = {zl: (0x00, 0x00, 0x00, int(max_opacity - max_opacity * (zl - cls.__ZL_MIN__) / zl_diff_max))
-                                    for zl in range(cls.__ZL_MIN__, cls.__ZL_OVERKILL__ + 1)}
-
-        cls.tkinter_fg_color_of = {zl: ('#000000' if cls.__ZL_MIN__ <= zl <= cls.__ZL_MAX__ else '#FFFFFF')
-                                   for zl in range(cls.__ZL_MIN__, cls.__ZL_OVERKILL__ + 1)}
-
-        cls.tkinter_color_of = {zl: '#{0[0]:02X}{0[1]:02X}{0[2]:02X}'.format(cls._rgb_color_of[zl])
-                                for zl in range(cls.__ZL_MIN__, cls.__ZL_OVERKILL__ + 1)}
-
-        return super(ZoomLevels, cls).__new__(cls, *args, **kwargs)
-
-    @classmethod
-    def normalized(cls, zl, min_zl=None, max_zl=None):
-        """Ensure the provided ZL is between __ZL_MIN__ and __ZL_MAX."""
-        return max(min(int(zl) + 1,
-                       max_zl or cls.__ZL_MAX__),
-                   min_zl or cls.__ZL_MIN__)
-
-    @staticmethod
-    def _heat_map(cold_zls, temperate_zls, warm_zls, blazing_zls):
-        """Return a gradient of colors for the provided groups of zoom levels"""
-        cold_range = ((0x00, 0xFF, 0xFF),  # cyan
-                      (0x66, 0xCD, 0xAA))  # medium aquamarine
-        temperate_range = ((0x66, 0xCD, 0xAA),  # medium aquamarine
-                           (0x00, 0x80, 0x00))  # green
-        warm_range = ((0xFF, 0xA5, 0x00),  # orange
-                      (0xFF, 0x00, 0x00))  # red
-        blazing_range = ((0x80, 0x00, 0x00),  # dark red
-                         (0x00, 0x00, 0x00))  # black
-
-        cold = zip(*(numpy.linspace(x[0], x[1], len(cold_zls), dtype=int)
-                     for x in zip(*cold_range)))
-
-        temperate = zip(*(numpy.linspace(x[0], x[1], len(temperate_zls), dtype=int)
-                          for x in zip(*temperate_range)))
-
-        warm = zip(*(numpy.linspace(x[0], x[1], len(warm_zls), dtype=int)
-                   for x in zip(*warm_range)))
-
-        blazing = zip(*(numpy.linspace(x[0], x[1], len(blazing_zls), dtype=int)
-                      for x in zip(*blazing_range)))
-
-        hm = list(zip(list(cold_zls) + list(temperate_zls) + list(warm_zls) + list(blazing_zls),
-                      list(cold) + list(temperate) + list(warm) + list(blazing)))
-        return hm
-
-
-ZOOM_LEVELS = ZoomLevels()
 
 
 ############################################################################################
@@ -209,7 +109,7 @@ class Ortho4XP_GUI(tk.Tk):
         self.default_zl = tk.StringVar()
         self.default_zl.trace("w", self.update_cfg)
         tk.Label(self.frame_tile,anchor=W,text='Zoomlevel:',bg="light green").grid(row=0,column=6, padx=5, pady=5,sticky=E+W)
-        self.zl_combo=ttk.Combobox(self.frame_tile, values=ZOOM_LEVELS.all, textvariable=self.default_zl, state='readonly', width=3, style='O4.TCombobox')
+        self.zl_combo=ttk.Combobox(self.frame_tile, values=O4_Common_Types.ZoomLevels.ALL, textvariable=self.default_zl, state='readonly', width=3, style='O4.TCombobox')
         self.zl_combo.grid(row=0,column=7, padx=5, pady=5,sticky=W)
 
         # Second row (Base Folder)
@@ -511,7 +411,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         self.map_choice      = tk.StringVar()
         self.map_choice.set('OSM')
         self.zl_choice=tk.StringVar()
-        self.zl_choice.set(str(ZOOM_LEVELS.osm_levels[0]))
+        self.zl_choice.set(str(O4_Common_Types.ZoomLevels.OSM_LEVELS[0]))
         self.progress_preview = tk.IntVar()
         self.progress_preview.set(0)
         self.zmap_choice      = tk.StringVar()
@@ -519,7 +419,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
 
         self.zlpol=tk.IntVar()
         try: # default_zl might still be empty 
-            self.zlpol.set(ZOOM_LEVELS.normalized(self.parent.default_zl.get()), min_zl=15)
+            self.zlpol.set(O4_Common_Types.ZoomLevels.normalized(self.parent.default_zl.get(), min_zl=15))
         except:
             self.zlpol.set(17)
         self.gb = tk.StringVar()
@@ -545,7 +445,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         self.map_combo.grid(row=row,column=0,padx=5,pady=3,sticky=E); row+=1
 
         tk.Label(self.frame_left,anchor=W,text="Base Map ZL : ",bg="light green").grid(row=row,column=0,padx=5,pady=3,sticky=W)
-        self.zl_combo = ttk.Combobox(self.frame_left, textvariable=self.zl_choice, values=ZOOM_LEVELS.osm_levels, width=3, state='readonly', style='O4.TCombobox')
+        self.zl_combo = ttk.Combobox(self.frame_left, textvariable=self.zl_choice, values=O4_Common_Types.ZoomLevels.OSM_LEVELS, width=3, state='readonly', style='O4.TCombobox')
         self.zl_combo.grid(row=2,column=0,padx=5,pady=3,sticky=E); row+=1
 
         ttk.Button(self.frame_left, text='Zone List Editor', command=lambda: self.on_preview_button(lat, lon)).grid(row=row, padx=5, column=0, sticky=N + S + E + W); row+=1
@@ -555,18 +455,18 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         tk.Label(self.frame_left,anchor=W,text="Layer Controls",fg = "light green",bg = "dark green",font = "Helvetica 16 bold italic").grid(row=row,column=0,pady=0,sticky=W+E); row+=1
         tk.Label(self.frame_left,anchor=W,text="Show/Hide Layers :",bg="light green").grid(row=row,column=0,sticky=W,padx=0,pady=0); row+=1
         self.frame_zl_toggle_btn = tk.Frame(self.frame_left, border=0, bg='light green')
-        for i in range(CFG.cover_zl - CFG.default_zl + 1):
+        for i in range(CFG.cover_zl.max - CFG.default_zl + 1):
             self.frame_zl_toggle_btn.columnconfigure(i, weight=1)
         self.frame_zl_toggle_btn.grid(row=row, column=0, columnspan=1, sticky=N + S + W + E)
         row += 1
         self._zl_toggle_button_vars = collections.defaultdict(tk.IntVar)
-        for col, btn_zl in enumerate(ZOOM_LEVELS.custom_levels):
+        for col, btn_zl in enumerate(O4_Common_Types.ZoomLevels.CUSTOM_LEVELS):
             btn = tk.Checkbutton(self.frame_zl_toggle_btn,
                                  bd=4,
-                                 fg=ZOOM_LEVELS.tkinter_fg_color_of[btn_zl],
-                                 bg=ZOOM_LEVELS.tkinter_color_of[btn_zl],
-                                 activebackground=ZOOM_LEVELS.tkinter_color_of[btn_zl],
-                                 selectcolor=ZOOM_LEVELS.tkinter_color_of[btn_zl],
+                                 fg=O4_Common_Types.ZoomLevels.tkinter_fg_color_of(btn_zl),
+                                 bg=O4_Common_Types.ZoomLevels.tkinter_color_of(btn_zl),
+                                 activebackground=O4_Common_Types.ZoomLevels.tkinter_color_of(btn_zl),
+                                 selectcolor=O4_Common_Types.ZoomLevels.tkinter_color_of(btn_zl),
                                  height=2,
                                  indicatoron=0,
                                  text='ZL' + str(btn_zl),
@@ -584,13 +484,13 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         self.frame_zlbtn  =  tk.Frame(self.frame_left, border=0,bg='light green')
         for i in range(5): self.frame_zlbtn.columnconfigure(i,weight=1)
         self.frame_zlbtn.grid(row=row,column=0,columnspan=1,pady=5,sticky=N+S+W+E); row+=1
-        for col, btn_zl in enumerate(ZOOM_LEVELS.custom_levels):
+        for col, btn_zl in enumerate(O4_Common_Types.ZoomLevels.CUSTOM_LEVELS):
             tk.Radiobutton(self.frame_zlbtn,
                            bd=4,
-                           fg=ZOOM_LEVELS.tkinter_fg_color_of[btn_zl],
-                           bg=ZOOM_LEVELS.tkinter_color_of[btn_zl],
-                           activebackground=ZOOM_LEVELS.tkinter_color_of[btn_zl],
-                           selectcolor=ZOOM_LEVELS.tkinter_color_of[btn_zl],
+                           fg=O4_Common_Types.ZoomLevels.tkinter_fg_color_of(btn_zl),
+                           bg=O4_Common_Types.ZoomLevels.tkinter_color_of(btn_zl),
+                           activebackground=O4_Common_Types.ZoomLevels.tkinter_color_of(btn_zl),
+                           selectcolor=O4_Common_Types.ZoomLevels.tkinter_color_of(btn_zl),
                            height=2,
                            indicatoron=0,
                            text='ZL' + str(btn_zl),
@@ -666,31 +566,23 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
                 xy_top_left = GEO.latlon_to_tile_relative_pix(pix_origin, lat_max, lon_min, bg_map_zl)
                 xy_bottom_right = GEO.latlon_to_tile_relative_pix(pix_origin, lat_min, lon_max, bg_map_zl)
                 drawer.rectangle(xy=[xy_top_left, xy_bottom_right],
-                                 fill=ZoomLevels.rgba_color_of[texture_gtile.zl],
-                                 outline=ZoomLevels.rgba_border_color_of[texture_gtile.zl],
+                                 fill=O4_Common_Types.ZoomLevels.rgba_color_of(texture_gtile.zl),
+                                 outline=O4_Common_Types.ZoomLevels.rgba_border_color_of(texture_gtile.zl),
                                  width=1)
             layers[zl] = ImageTk.PhotoImage(image=layer)
 
         return layers
 
     def async_build_progressive_zl_layers(self, bg_map_lat, bg_map_lon, bg_map_zl):
-        def screen_res():
-            if isinstance(CFG.cover_screen_res, CFG.ScreenRes):
-                return CFG.cover_screen_res.value[0]
-            elif isinstance(CFG.cover_screen_res, int):
-                return CFG.cover_screen_res
-            else:
-                return CFG.ScreenRes.from_config_value(CFG.cover_screen_res)[0]
-
         xp_tile = APT_SRC.XPlaneTile(bg_map_lat, bg_map_lon)
         airport_collection = APT_SRC.AirportDataSource().airports_in([xp_tile], include_surrounding_tiles=True)
 
         # Compute all the required textures for each ZL
         progressive_gtiles = dict()
-        for zl in range(CFG.default_zl, CFG.cover_zl + 1):
+        for zl in range(CFG.default_zl, CFG.cover_zl.max + 1):
             progressive_gtiles[zl] = set(airport_collection.gtiles(zl=zl,
-                                                                   max_zl=CFG.cover_zl,
-                                                                   screen_res=screen_res(),
+                                                                   cover_zl=CFG.cover_zl,
+                                                                   screen_res=CFG.cover_screen_res,
                                                                    fov=CFG.cover_fov,
                                                                    fpa=CFG.cover_fpa,
                                                                    greediness=CFG.cover_greediness,
@@ -732,7 +624,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         self.apply_custom_zone_list()
 
         # Finally, ensure the ZL toggle buttons are reset to the correct state, and that the items are displayed
-        for zl in ZoomLevels.custom_levels:
+        for zl in O4_Common_Types.ZoomLevels.CUSTOM_LEVELS:
             self._zl_toggle_button_vars[zl].set(1)
             self.canvas.itemconfigure('ZL_{:d}'.format(zl), state=NORMAL)
 
@@ -867,7 +759,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         except:
             pass
         try:
-            color = ZOOM_LEVELS.tkinter_color_of[self.zlpol.get()]
+            color = O4_Common_Types.ZoomLevels.tkinter_color_of(self.zlpol.get())
             if len(self.points)>=4:
                 self.poly_curr = self.canvas.create_polygon(self.points, outline=color, fill='', width=2)
                            outline=color,fill='', width=2)
@@ -1218,7 +1110,7 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
                             tmpf.close()
                             if not prov: prov='?'
                             if zl:
-                                color=ZOOM_LEVELS.tkinter_color_of[zl]
+                                color = O4_Common_Types.ZoomLevels.tkinter_color_of(zl)
                             else:
                                 zl='?'
                             content=prov+'\n'+str(zl)
@@ -1264,7 +1156,7 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
                         tmpf.close()
                         if not prov: prov='?'
                         if zl:
-                            color=ZOOM_LEVELS.tkinter_color_of[zl]
+                            color=O4_Common_Types.ZoomLevels.tkinter_color_of(zl)
                         else:
                             zl='?'
                         content=prov+'\n'+str(zl)

@@ -13,6 +13,7 @@ import shapely.prepared
 import O4_File_Names as FNAMES
 import O4_Config_Utils as CFG
 import O4_Geo_Utils as GEO
+from O4_Common_Types import IcaoCode
 
 ########################################################################################################################
 #
@@ -485,7 +486,7 @@ class Airport:
 
     def __init__(self, airport_data):
         self.type = airport_data['type']
-        self.icao = airport_data['icao']
+        self.icao = IcaoCode(airport_data['icao'])
         self.name = airport_data['name']
         self.elevation = airport_data['elevation']
         self.runways = {rw.name(): rw for rw in [Runway(rw_data) for rw_data in airport_data['runways']]}
@@ -522,7 +523,7 @@ class Airport:
     def to_json(self):
         return {
             'type': self.type,
-            'icao': self.icao,
+            'icao': str(self.icao),
             'name': self.name,
             'elevation': self.elevation,
             'runways': [rw.to_json() for rw in self.runways.values()]
@@ -692,7 +693,7 @@ class AirportCollection:
     def to_json(self):
         return {icao: arpt.to_json() for (icao, arpt) in self.airports.items()}
 
-    def gtiles(self, zl, max_zl, screen_res, fov, fpa, greediness, greediness_threshold):
+    def gtiles(self, zl, cover_zl, screen_res, fov, fpa, greediness, greediness_threshold):
         """Return the ZL gtiles needed to cover this airport collection.
         This list does NOT include any gtile for higher ZLs, only for the requested ZL"""
 
@@ -707,12 +708,12 @@ class AirportCollection:
                  for airport in self.airports.values()
                  for tile in airport.gtiles(zl, screen_res, fov, fpa)]
 
-        if zl < max_zl:
+        if zl < cover_zl.max:
             # If we're not at ZLmax, compute the ZLn+1 gtiles, and "compact" them
             # When compacted, this list will then also include any ZLn gtiles that were fully covered by ZLn+1 gtiles
             # We'll then exclude any such ZLn tile from the final list, thus creating "holes" for the ZLn+1 gtiles
             sub_gtiles = set(self._compacted_tiles(self.gtiles(zl=zl + 1,
-                                                               max_zl=max_zl,
+                                                               cover_zl=cover_zl,
                                                                screen_res=screen_res,
                                                                fov=fov,
                                                                fpa=fpa,
@@ -747,6 +748,24 @@ class AirportCollection:
             return polys
         else:
             return polys
+
+    def progressive_zone_list(self, xp_tile, screen_res, fov, fpa, provider, base_zl, cover_zl, greediness=3, greediness_threshold=0.70):
+        tile_poly = shapely.prepared.prep(xp_tile.polygon())
+        tile_zones = []
+        for zl in range(cover_zl.max, base_zl - 1, -1):
+            for polygon in self.as_polygons(self.gtiles(zl=zl,
+                                                        cover_zl=cover_zl,
+                                                        screen_res=screen_res,
+                                                        fov=fov,
+                                                        fpa=fpa,
+                                                        greediness=greediness,
+                                                        greediness_threshold=greediness_threshold)):
+                if not tile_poly.disjoint(polygon):
+                    coords = []
+                    for (x, y) in polygon.exterior.coords:
+                        coords.extend([y, x])
+                    tile_zones.append([coords, zl, provider])
+        return tile_zones
 
 
 ########################################################################################################################
@@ -859,7 +878,7 @@ class XPlaneAptDatParser:
                     if m:
                         current_airport = Airport({
                             'type': airport_types[m.group('airport_type')],
-                            'icao': m.group('airport_ICAO'),
+                            'icao': IcaoCode(m.group('airport_ICAO')),
                             'name': m.group('airport_name'),
                             'elevation': m.group('airport_elevation'),
                             'runways': []
