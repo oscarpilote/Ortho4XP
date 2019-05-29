@@ -1,4 +1,5 @@
 import enum
+import json
 import re
 
 import numpy
@@ -243,24 +244,44 @@ class CoverZLConfig:
     """Used to parse and represent the 'cover_zl' configuration value, which can be either an int (simple case), or a
     dictionary to customize the 'cover_zl' per kind of airport (ICAO vs non-ICAO), or even per airport (ICAO code)
     """
-    def __init__(self, cover_zl_cfg):
-        _cover_zl_cfg = int(cover_zl_cfg) if isinstance(cover_zl_cfg, str) else cover_zl_cfg
-        if isinstance(_cover_zl_cfg, int):
-            self.default = _cover_zl_cfg
-            self.icao = _cover_zl_cfg
-            self.non_icao = _cover_zl_cfg
+    def __init__(self, cover_zl_value):
+        if isinstance(cover_zl_value, int):
+            self._value = cover_zl_value
+        elif isinstance(cover_zl_value, str):
+            try:
+                self._value = int(cover_zl_value)
+            except ValueError:
+                dict_value = json.loads(cover_zl_value)
+                if not isinstance(dict_value, dict):
+                    raise ValueError("Invalid dictionary for the CoverZL value: {}".format(cover_zl_value))
+                self._value = dict_value
+        elif isinstance(cover_zl_value, dict):
+            self._value = cover_zl_value
+        else:
+            raise ValueError("Invalid CoverZL value : {}".format(cover_zl_value))
+
+        if isinstance(self._value, int):
+            self.non_icao = self._value
+            self.icao = self._value
             self.by_icao = dict()
-            self.max = _cover_zl_cfg
-        elif isinstance(_cover_zl_cfg, dict):
-            if 'default' not in _cover_zl_cfg:
-                raise Exception('CoverZL must be either an int, or a dict which MUST contain a "default" item')
-            self.default = _cover_zl_cfg.pop('default')
-            self.icao = _cover_zl_cfg.pop('icao') if 'icao' in _cover_zl_cfg else self.default
-            self.non_icao = _cover_zl_cfg.pop('non_icao') if 'non_icao' in _cover_zl_cfg else self.default
-            self.by_icao = {IcaoCode(k): v for (k, v) in _cover_zl_cfg.items()}
-            self.max = max(self.default, self.icao, self.non_icao, *list(self.by_icao.values()))
+            self.max = self._value
+        elif isinstance(self._value, dict):
+            if 'icao' not in self._value or not ('non-icao' in self._value or 'non_icao' in self._value):
+                raise Exception('CoverZL must be either an int, or a dict which MUST contain at least an "icao" and a "non-icao" item')
+
+            by_icao_dict = dict(self._value)
+            self.non_icao = by_icao_dict.pop('non-icao') if 'non-icao' in by_icao_dict else by_icao_dict.pop('non_icao')
+            self.icao = by_icao_dict.pop('icao')
+            self.by_icao = {IcaoCode(k): v for (k, v) in by_icao_dict.items()}
+            self.max = max(self.non_icao, self.icao, *list(self.by_icao.values()))
         else:
             raise Exception('CoverZL must be either an int, or a dict which MUST contain a "default" item')
+
+    def __str__(self):
+        if isinstance(self._value, dict):
+            return json.dumps(self._value)
+        else:
+            return str(self._value)
 
     def max_cover_zl_for(self, airport_icao: IcaoCode):
         """
@@ -272,47 +293,23 @@ class CoverZLConfig:
         >>> [cfg.max_cover_zl_for(airport) for airport in airports]
         [15, 15, 15, 15]
 
-        >>> cfg = CoverZLConfig({'default': 15})
-        >>> cfg.max
-        15
-        >>> [cfg.max_cover_zl_for(airport) for airport in airports]
-        [15, 15, 15, 15]
-
-        >>> cfg = CoverZLConfig({'default': 15, 'non_icao': 16})
+        >>> cfg = CoverZLConfig({'non-icao': 15, 'icao': 16})
         >>> cfg.max
         16
         >>> [cfg.max_cover_zl_for(airport) for airport in airports]
-        [15, 15, 16, 16]
+        [16, 16, 15, 15]
 
-        >>> cfg = CoverZLConfig({'default': 15, 'icao': 17})
-        >>> cfg.max
-        17
-        >>> [cfg.max_cover_zl_for(airport) for airport in airports]
-        [17, 17, 15, 15]
-
-        >>> cfg = CoverZLConfig({'default': 15, 'non_icao':16, 'icao': 17})
-        >>> cfg.max
-        17
-        >>> [cfg.max_cover_zl_for(airport) for airport in airports]
-        [17, 17, 16, 16]
-
-        >>> cfg = CoverZLConfig({'default': 15, 'non_icao': 16, 'L52': 19})
+        >>> cfg = CoverZLConfig({'non-icao': 15, 'icao': 16, 'L52': 19})
         >>> cfg.max
         19
         >>> [cfg.max_cover_zl_for(airport) for airport in airports]
-        [15, 15, 19, 16]
+        [16, 16, 19, 15]
 
-        >>> cfg = CoverZLConfig({'default': 15, 'icao': 17, 'KSBP': 19})
+        >>> cfg = CoverZLConfig({'non-icao': 15, 'icao': 17, 'KSBP': 19})
         >>> cfg.max
         19
         >>> [cfg.max_cover_zl_for(airport) for airport in airports]
         [19, 17, 15, 15]
-
-        >>> cfg = CoverZLConfig({'default': 15, 'non_icao':16, 'icao': 17, 'L52': 19, 'KSBP': 19})
-        >>> cfg.max
-        19
-        >>> [cfg.max_cover_zl_for(airport) for airport in airports]
-        [19, 17, 19, 16]
         """
         if airport_icao in self.by_icao:
             return self.by_icao[airport_icao]
