@@ -275,7 +275,7 @@ class Ortho4XP_Config(tk.Toplevel):
                     values=[True,False] if cfg_vars[item]['type']==bool else [str(x) for x in cfg_vars[item]['values']]
                     self.entry_[item]=ttk.Combobox(self.frame_cfg,values=values,textvariable=self.v_[item],width=11,state='readonly',style='O4.TCombobox')
                 else:
-                    self.entry_[item]=ttk.Entry(self.frame_cfg,textvariable=self.v_[item],width=7)
+                    self.entry_[item]=ttk.Entry(self.frame_cfg,textvariable=self.v_[item],width=12)
                 self.entry_[item].grid(row=row,column=col+1,padx=(0,20),pady=2,sticky=N+S+W)
                 row+=1
             next_row=max(next_row,row)
