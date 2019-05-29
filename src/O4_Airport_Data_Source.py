@@ -706,7 +706,8 @@ class AirportCollection:
         # First compute the tiles for the current zl
         tiles = [tile
                  for airport in self.airports.values()
-                 for tile in airport.gtiles(zl, screen_res, fov, fpa)]
+                 for tile in airport.gtiles(zl, screen_res, fov, fpa)
+                 if zl <= cover_zl.max_cover_zl_for(airport.icao)]
 
         if zl < cover_zl.max:
             # If we're not at ZLmax, compute the ZLn+1 gtiles, and "compact" them
