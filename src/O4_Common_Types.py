@@ -325,37 +325,27 @@ class CoverZLConfig:
 
 class ScreenRes(enum.Enum):
     """An enum for the 'cover_screen_res' configuration value"""
-    res_720p = (1280, 720)
-    SD = res_720p
-    res_1080p = (1920, 1080)
-    HD = res_1080p
-    res_1440p = (2560, 1440)
-    QHD = res_1440p
-    res_2160p = (3840, 2160)
-    res_4K = res_2160p
-    res_4320p = (7680, 4320)
-    res_8K = res_4320p
-    OculusRift = (1080, 1200)  # Per eye
-    HtcVive = (1080, 1200)  # Per eye
-    HtcVivePro = (1440, 1600)  # Per eye
+    RES_SD_720p = 'SD_720p'
+    RES_HD_1080p = 'HD_1080p'
+    RES_QHD_1440p = 'QHD_1440p'
+    RES_4K_2160p = '4K_2160p'
+    RES_8K_4320p = '8K_4320p'
+    RES_OCULUS_RIFT = 'OculusRift'
+    RES_HTC_VIVE = 'HtcVive'
+    RES_HTC_VIVE_PRO = 'HtcVivePro'
 
-    __FROM_STR__ = {'SD_720p': res_720p,
-                    'HD_1080p': res_1080p,
-                    'QHD_1440p': res_1440p,
-                    '4K_2160p': res_2160p,
-                    'OculusRift': OculusRift,
-                    'HtcVive': HtcVive,
-                    'HtcVivePro': HtcVivePro}
+    __TO_RES_TUPLE__ = {RES_SD_720p: (1280, 720),
+                        RES_HD_1080p: (1920, 1080),
+                        RES_QHD_1440p: (2560, 1440),
+                        RES_4K_2160p: (3840, 2160),
+                        RES_8K_4320p: (7680, 4320),
+                        RES_OCULUS_RIFT: (1080, 1200),  # Per eye
+                        RES_HTC_VIVE: (1080, 1200),  # Per eye
+                        RES_HTC_VIVE_PRO: (1440, 1600)}  # Per eye
 
-    @classmethod
-    def from_config_value(cls, config_value):
-        """Parse the config value, and return the horizontal part of the corresponding screen resolution"""
-        if isinstance(config_value, ScreenRes):
-            return config_value[0]
-        if isinstance(config_value, int):
-            return config_value
-        elif isinstance(config_value, str) and config_value in cls.__FROM_STR__:
-            return cls.__FROM_STR__[config_value][0]
-        else:
-            raise ValueError("Unsupported ScreenRes value. Accepted values are {}, "
-                             "or an integer (horizontal resolution)".format(sorted(cls.__FROM_STR__.keys())))
+    def __str__(self):
+        return str(self.value)
+
+    def __int__(self):
+        """When casted to an int, return the horizontal component"""
+        return self.__TO_RES_TUPLE__[self.value][0]

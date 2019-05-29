@@ -176,7 +176,7 @@ def height_to_mpx(height, fov, screen_res):
     >>> '{:.15f}'.format(height_to_mpx(170267, math.radians(60), 3840))
     '51.199842856307299'
     """
-    return height_to_visible_ground_dist(height, fov) / screen_res
+    return height_to_visible_ground_dist(height, fov) / int(screen_res)
 
 
 def mpx_to_height(mpx, fov, screen_res):
@@ -209,7 +209,7 @@ def mpx_to_height(mpx, fov, screen_res):
     >>> '{:.15f}'.format(mpx_to_height(102.4, math.radians(60), 3840))
     '340535.045174501836300'
     """
-    return visible_ground_dist_to_height(mpx * screen_res, fov)
+    return visible_ground_dist_to_height(mpx * int(screen_res), fov)
 
 
 def height_to_ground_dist(height, fpa):
