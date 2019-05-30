@@ -610,7 +610,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         self.canvas.create_image(0, 0, anchor=NW, image=layers['map'], tags='map')
 
         # Render the texture layers on the canvas (get() will wait until they are available)
-        texture_layers = texture_layers.get()
+        texture_layers = texture_layers if isinstance(texture_layers, dict) else texture_layers.get()
         for zl in sorted(texture_layers.keys()):
             tag = 'ZL_{:d}'.format(zl)
             layer = texture_layers[zl]
