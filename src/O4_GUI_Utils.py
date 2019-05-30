@@ -539,9 +539,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         xy_top_left = GEO.latlon_to_tile_relative_pix(pix_origin, lat + 1, lon, zl)
         xy_bottom_right = GEO.latlon_to_tile_relative_pix(pix_origin, lat, lon + 1, zl)
         drawer = ImageDraw.Draw(im=background_map, mode="RGBA")
-        drawer.rectangle(xy=[xy_top_left, xy_bottom_right],
-                         outline='black',
-                         width=2)
+        drawer.rectangle(xy=[xy_top_left, xy_bottom_right], outline='black')
 
         return ImageTk.PhotoImage(image=background_map)
 
@@ -567,8 +565,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
                 xy_bottom_right = GEO.latlon_to_tile_relative_pix(pix_origin, lat_min, lon_max, bg_map_zl)
                 drawer.rectangle(xy=[xy_top_left, xy_bottom_right],
                                  fill=O4_Common_Types.ZoomLevels.rgba_color_of(texture_gtile.zl),
-                                 outline=O4_Common_Types.ZoomLevels.rgba_border_color_of(texture_gtile.zl),
-                                 width=1)
+                                 outline=O4_Common_Types.ZoomLevels.rgba_border_color_of(texture_gtile.zl))
             layers[zl] = ImageTk.PhotoImage(image=layer)
 
         return layers
