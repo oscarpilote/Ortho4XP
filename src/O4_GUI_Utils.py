@@ -440,7 +440,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         row=0
         tk.Label(self.frame_left,anchor=W,text="Preview Modes",fg = "light green",bg = "dark green",font = "Helvetica 16 bold italic").grid(row=row,column=0,sticky=W+E); row+=1
 
-        tk.Label(self.frame_left,anchor=W,text="Source : ",bg="light green").grid(row=row,column=0,padx=5,pady=3,sticky=W)
+        tk.Label(self.frame_left,anchor=W,text="Base Map Source : ",bg="light green").grid(row=row,column=0,padx=5,pady=3,sticky=W)
         self.map_combo=  ttk.Combobox(self.frame_left,textvariable=self.map_choice,values=self.map_list,width=10,state='readonly',style='O4.TCombobox')
         self.map_combo.grid(row=row,column=0,padx=5,pady=3,sticky=E); row+=1
 
@@ -477,7 +477,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         # Widgets - Custom Zone Tools
         tk.Label(self.frame_left,anchor=W,text="Custom Zone Tools",fg = "light green",bg = "dark green",font = "Helvetica 16 bold italic").grid(row=row,column=0,pady=5,sticky=W+E); row+=1
 
-        tk.Label(self.frame_left,anchor=W,text="Source : ",bg="light green").grid(row=row,column=0,sticky=W,padx=5,pady=10)
+        tk.Label(self.frame_left,anchor=W,text="Source : ",bg="light green").grid(row=row,column=0,sticky=W,padx=5,pady=0)
         self.zmap_combo = ttk.Combobox(self.frame_left,textvariable=self.zmap_choice,values=self.reduced_map_list,width=8,state='readonly',style='O4.TCombobox')
         self.zmap_combo.grid(row=row,column=0,padx=5,pady=0,sticky=E); row+=1
 
@@ -757,12 +757,10 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
             pass
         try:
             color = O4_Common_Types.ZoomLevels.tkinter_color_of(self.zlpol.get())
-            if len(self.points)>=4:
-                self.poly_curr = self.canvas.create_polygon(self.points, outline=color, fill='', width=2)
-                           outline=color,fill='', width=2)
+            if len(self.points) >= 4:
+                self.poly_curr = self.canvas.create_polygon(self.points, outline=color, fill='', width=2, tags='ZL_{:d}'.format(self.zlpol.get()))
             else:
-                self.poly_curr = self.canvas.create_polygon(self.points, outline=color, fill='', width=5)
-                           outline=color,fill='', width=5)
+                self.poly_curr = self.canvas.create_polygon(self.points, outline=color, fill='', width=5, tags='ZL_{:d}'.format(self.zlpol.get()))
         except:
             pass
         return
@@ -872,7 +870,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         if len(self.points)<6:
             return
         self.polyobj_list.append(self.poly_curr)
-        self.polygon_list.append([self.points,self.coords,self.zlpol.get(),\
+        self.polygon_list.append([self.points,self.coords,self.zlpol.get(),
                                  self.zmap_combo.get()])
         self.compute_size()
         self.poly_curr=[]
@@ -1114,8 +1112,8 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
                         else:
                             content='?'
                         self.dico_tiles_done[(lat,lon)]=(\
-                                self.canvas.create_rectangle(x0,y0,x1,y1,fill=color,stipple='gray12'),\
-                                self.canvas.create_text((x0+x1)//2,(y0+y1)//2,justify=CENTER,text=content)\
+                                self.canvas.create_rectangle(x0,y0,x1,y1,fill=color,stipple='gray12') if not OsX else self.canvas.create_rectangle(x0,y0,x1,y1,outline='black'),\
+                                self.canvas.create_text((x0+x1)//2,(y0+y1)//2,justify=CENTER,text=content,fill='black',font=('Helvetica','12','normal')),\
                                 dir_name\
                                 )
                         link=os.path.join(CFG.xplane_install_dir,'Custom Scenery','zOrtho4XP_'+FNAMES.short_latlon(lat,lon))
@@ -1159,9 +1157,9 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
                         content=prov+'\n'+str(zl)
                     else:
                         content='?'
-                            self.dico_tiles_done[(lat,lon)]=(\
-                                self.canvas.create_rectangle(x0,y0,x1,y1,fill=color,stipple='gray12'),\
-                                self.canvas.create_text((x0+x1)//2,(y0+y1)//2,justify=CENTER,text=content)\
+                    self.dico_tiles_done[(lat,lon)]=(\
+                                self.canvas.create_rectangle(x0,y0,x1,y1,fill=color,stipple='gray12') if not OsX else self.canvas.create_rectangle(x0,y0,x1,y1,outline='black'),\
+                                self.canvas.create_text((x0+x1)//2,(y0+y1)//2,justify=CENTER,text=content,fill='black',font=('Helvetica','12','normal')),\
                                 dir_name\
                                 )
 

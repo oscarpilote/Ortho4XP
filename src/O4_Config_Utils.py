@@ -88,7 +88,7 @@ cfg_vars={
 
 list_app_vars=['verbosity','cleaning_level','overpass_server_choice',
                'skip_downloads','skip_converts','max_convert_slots','check_tms_response',
-               'http_timeout','max_connect_retries','max_baddata_retries','ovl_exclude_pol','ovl_exclude_net','custom_scenery_dir','custom_overlay_src']
+               'http_timeout','max_connect_retries','max_baddata_retries','ovl_exclude_pol','ovl_exclude_net','xplane_install_dir','custom_overlay_src']
 gui_app_vars_short=list_app_vars[:-2]
 gui_app_vars_long=list_app_vars[-2:]
 
