@@ -691,7 +691,7 @@ class AirportCollection:
     #
 
     def to_json(self):
-        return {icao: arpt.to_json() for (icao, arpt) in self.airports.items()}
+        return {str(icao): arpt.to_json() for (icao, arpt) in self.airports.items()}
 
     def gtiles(self, zl, cover_zl, screen_res, fov, fpa, greediness, greediness_threshold):
         """Return the ZL gtiles needed to cover this airport collection.
