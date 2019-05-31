@@ -11,14 +11,14 @@ gui=None
 log=True
 
 ##############################################################################
-def progress_bar(nbr,percentage,message=None): 
+def progress_bar(nbr,percentage,message=None):
     if gui:
         gui.pgrbv[nbr].set(percentage)
 ##############################################################################
 
 ##############################################################################
 def vprint(min_verbosity,*args):
-    if verbosity>=min_verbosity: 
+    if verbosity>=min_verbosity:
         print(*args)
 ##############################################################################
 
@@ -34,7 +34,7 @@ def logprint(*args):
 
 ##############################################################################
 def lvprint(min_verbosity,*args):
-    if verbosity>=min_verbosity: 
+    if verbosity>=min_verbosity:
         print(*args)
     if log: logprint(*args)
 ##############################################################################
@@ -48,7 +48,7 @@ def bug_report(*args):
 ##############################################################################
 def exit_message_and_bottom_line(*args):
     global is_working
-    if not args: args=("Process interrupted",)  
+    if not args: args=("Process interrupted",)
     if args[0]:
         logprint(*args)
         print(*args)

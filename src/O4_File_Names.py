@@ -105,7 +105,7 @@ def preview(lat, lon, zoomlevel, provider_code):
 def custom_coastline(lat, lon):
     return os.path.join(OSM_dir,long_latlon(lat,lon),short_latlon(lat,lon)+'_custom_coastline.osm.bz2')
 def custom_coastline_dir(lat, lon):
-    return os.path.join(OSM_dir,long_latlon(lat,lon),'custom_coastline')    
+    return os.path.join(OSM_dir,long_latlon(lat,lon),'custom_coastline')
 def custom_water(lat, lon):
     return os.path.join(OSM_dir,long_latlon(lat,lon),short_latlon(lat,lon)+'_custom_water.osm.bz2')
 def custom_water_dir(lat, lon):
@@ -133,7 +133,7 @@ def elevation_data(source,lat, lon):
     elif source=='NED1/3':
         return base_file_name(lat,lon)+'_NED13.img'
     elif source=='NED1':
-        return os.path.join(Elevation_dir,long_latlon(lat,lon)+'_NED1','w001001.adf') 
+        return os.path.join(Elevation_dir,long_latlon(lat,lon)+'_NED1','w001001.adf')
 ##############################################################################
 
 ##############################################################################
@@ -200,4 +200,3 @@ def geotiff_file_name_from_attributes(til_x_left,til_y_top,zoomlevel,provider_co
 
 def cached_arpt_data(lat, lon):
     return os.path.join(Airport_dir, round_latlon(lat, lon), short_latlon(lat, lon) + '.json')
-

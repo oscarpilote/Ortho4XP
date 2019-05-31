@@ -750,7 +750,8 @@ class AirportCollection:
         else:
             return polys
 
-    def progressive_zone_list(self, xp_tile, screen_res, fov, fpa, provider, base_zl, cover_zl, greediness=3, greediness_threshold=0.70):
+    def progressive_zone_list(self, xp_tile, screen_res, fov, fpa, provider, base_zl, cover_zl, greediness=3,
+                              greediness_threshold=0.70):
         tile_poly = shapely.prepared.prep(xp_tile.polygon())
         tile_zones = []
         for zl in range(cover_zl.max, base_zl - 1, -1):
@@ -793,64 +794,64 @@ class XPlaneAptDatParser:
     - http://developer.x-plane.com/wp-content/uploads/2017/02/XP-APT1050-Spec.pdf
     """
     # A few regexes to extract relevant information from an X-Plane apt.dat files
-    __RE_ARPT__ = re.compile('\s+'.join(['^(?P<airport_type>1|16|17)',
-                                         '(?P<airport_elevation>\S+)',
-                                         '(?P<airport_deprecated_1>\S+)',
-                                         '(?P<airport_deprecated_2>\S+)',
-                                         '(?P<airport_ICAO>\S+)',
-                                         '(?P<airport_name>.*)']))
+    __RE_ARPT__ = re.compile(r'\s+'.join([r'^(?P<airport_type>1|16|17)',
+                                          r'(?P<airport_elevation>\S+)',
+                                          r'(?P<airport_deprecated_1>\S+)',
+                                          r'(?P<airport_deprecated_2>\S+)',
+                                          r'(?P<airport_ICAO>\S+)',
+                                          r'(?P<airport_name>.*)']))
 
-    __RE_IS_RWY__ = re.compile('^10[012]\s+')
+    __RE_IS_RWY__ = re.compile(r'^10[012]\s+')
 
-    __RE_LAND_RWY__ = re.compile('\s+'.join(['^100',
-                                             '(?P<runway_width>\S+)',
-                                             '(?P<runway_surface>\S+)',
-                                             '(?P<runway_shoulder_surface>\S+)',
-                                             '(?P<runway_smoothness>\S+)',
-                                             '(?P<runway_centerline_lights>\S+)',
-                                             '(?P<runway_edge_lights>\S+)',
-                                             '(?P<runway_distance_signs>\S+)',
-                                             '(?P<runway_end_1_number>\S+)',
-                                             '(?P<runway_end_1_latitude>\S+)',
-                                             '(?P<runway_end_1_longitude>\S+)',
-                                             '(?P<runway_end_1_displaced_threshold_length>\S+)',
-                                             '(?P<runway_end_1_blastpad_length>\S+)',
-                                             '(?P<runway_end_1_markings>\S+)',
-                                             '(?P<runway_end_1_approach_lights>\S+)',
-                                             '(?P<runway_end_1_touchdown_lights>\S+)',
-                                             '(?P<runway_end_1_id_lights>\S+)',
-                                             '(?P<runway_end_2_number>\S+)',
-                                             '(?P<runway_end_2_latitude>\S+)',
-                                             '(?P<runway_end_2_longitude>\S+)',
-                                             '(?P<runway_end_2_displaced_threshold_length>\S+)',
-                                             '(?P<runway_end_2_blastpad_length>\S+)',
-                                             '(?P<runway_end_2_markings>\S+)',
-                                             '(?P<runway_end_2_approach_lights>\S+)',
-                                             '(?P<runway_end_2_touchdown_lights>\S+)',
-                                             '(?P<runway_end_2_id_lights>\S+)']))
+    __RE_LAND_RWY__ = re.compile(r'\s+'.join([r'^100',
+                                              r'(?P<runway_width>\S+)',
+                                              r'(?P<runway_surface>\S+)',
+                                              r'(?P<runway_shoulder_surface>\S+)',
+                                              r'(?P<runway_smoothness>\S+)',
+                                              r'(?P<runway_centerline_lights>\S+)',
+                                              r'(?P<runway_edge_lights>\S+)',
+                                              r'(?P<runway_distance_signs>\S+)',
+                                              r'(?P<runway_end_1_number>\S+)',
+                                              r'(?P<runway_end_1_latitude>\S+)',
+                                              r'(?P<runway_end_1_longitude>\S+)',
+                                              r'(?P<runway_end_1_displaced_threshold_length>\S+)',
+                                              r'(?P<runway_end_1_blastpad_length>\S+)',
+                                              r'(?P<runway_end_1_markings>\S+)',
+                                              r'(?P<runway_end_1_approach_lights>\S+)',
+                                              r'(?P<runway_end_1_touchdown_lights>\S+)',
+                                              r'(?P<runway_end_1_id_lights>\S+)',
+                                              r'(?P<runway_end_2_number>\S+)',
+                                              r'(?P<runway_end_2_latitude>\S+)',
+                                              r'(?P<runway_end_2_longitude>\S+)',
+                                              r'(?P<runway_end_2_displaced_threshold_length>\S+)',
+                                              r'(?P<runway_end_2_blastpad_length>\S+)',
+                                              r'(?P<runway_end_2_markings>\S+)',
+                                              r'(?P<runway_end_2_approach_lights>\S+)',
+                                              r'(?P<runway_end_2_touchdown_lights>\S+)',
+                                              r'(?P<runway_end_2_id_lights>\S+)']))
 
-    __RE_WATER_RWY__ = re.compile('\s+'.join(['^101',
-                                              '(?P<waterway_width>\S+)',
-                                              '(?P<waterway_buoys>\S+)',
-                                              '(?P<waterway_end_1_number>\S+)',
-                                              '(?P<waterway_end_1_latitude>\S+)',
-                                              '(?P<waterway_end_1_longitude>\S+)',
-                                              '(?P<waterway_end_2_number>\S+)',
-                                              '(?P<waterway_end_2_latitude>\S+)',
-                                              '(?P<waterway_end_2_longitude>\S+)']))
+    __RE_WATER_RWY__ = re.compile(r'\s+'.join(['^101',
+                                               r'(?P<waterway_width>\S+)',
+                                               r'(?P<waterway_buoys>\S+)',
+                                               r'(?P<waterway_end_1_number>\S+)',
+                                               r'(?P<waterway_end_1_latitude>\S+)',
+                                               r'(?P<waterway_end_1_longitude>\S+)',
+                                               r'(?P<waterway_end_2_number>\S+)',
+                                               r'(?P<waterway_end_2_latitude>\S+)',
+                                               r'(?P<waterway_end_2_longitude>\S+)']))
 
-    __RE_HELIPAD__ = re.compile('\s+'.join(['^102',
-                                            '(?P<helipad_designator>\S+)',
-                                            '(?P<helipad_center_latitude>\S+)',
-                                            '(?P<helipad_center_longitude>\S+)',
-                                            '(?P<helipad_orientation>\S+)',
-                                            '(?P<helipad_length>\S+)',
-                                            '(?P<helipad_width>\S+)',
-                                            '(?P<helipad_surface>\S+)',
-                                            '(?P<helipad_markings>\S+)',
-                                            '(?P<helipad_shoulder_surface>\S+)',
-                                            '(?P<helipad_smoothness>\S+)',
-                                            '(?P<helipad_edge_lights>\S+)']))
+    __RE_HELIPAD__ = re.compile(r'\s+'.join([r'^102',
+                                             r'(?P<helipad_designator>\S+)',
+                                             r'(?P<helipad_center_latitude>\S+)',
+                                             r'(?P<helipad_center_longitude>\S+)',
+                                             r'(?P<helipad_orientation>\S+)',
+                                             r'(?P<helipad_length>\S+)',
+                                             r'(?P<helipad_width>\S+)',
+                                             r'(?P<helipad_surface>\S+)',
+                                             r'(?P<helipad_markings>\S+)',
+                                             r'(?P<helipad_shoulder_surface>\S+)',
+                                             r'(?P<helipad_smoothness>\S+)',
+                                             r'(?P<helipad_edge_lights>\S+)']))
 
     @staticmethod
     def _apt_dat_files_in(xp_dir):
