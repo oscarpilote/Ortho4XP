@@ -95,6 +95,11 @@ class IcaoCode:
     def __hash__(self):
         return hash(str(self))
 
+    def __lt__(self, other):
+        if not isinstance(other, IcaoCode):
+            return NotImplemented
+        return str(self._icao) < str(other._icao)
+
     def __eq__(self, other):
         if not isinstance(other, IcaoCode):
             return NotImplemented
