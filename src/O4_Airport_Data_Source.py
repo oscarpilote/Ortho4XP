@@ -1,4 +1,5 @@
 import bisect
+import collections
 import glob
 import json
 import math
@@ -631,33 +632,31 @@ class AirportCollection:
                         yield tile
 
     @staticmethod
-    def _optimized_tiles(tiles, greediness, greediness_threshold):
-        zl_n = tiles[0].zl  # we assume tiles to all be at the same zoom level, ZLn
-
+    def _optimized_tiles(tiles, zl, greediness, greediness_threshold):
         # Group the input tiles by their lower ZL tile (in a dict of {ZLn-1: [ZLn]})
-        zl_n_tiles = dict()
-        for tile in set(tiles):
-            zl_n_tiles.setdefault(tile.lower_zl_tile(), []).append(tile)
+        zl_n_tiles = collections.defaultdict(list)
+        for tile in tiles:
+            zl_n_tiles[tile.lower_zl_tile()].append(tile)
 
         # For each ZL from ZLn-1 up to ZLmin, check if it's already 70% covered by ZLn tiles
         # Note that if ZLn <= ZLmin, then this loop will be skipped
-        zl_optim_limit = max(__ZL_OPTIM_LIMIT__, (zl_n - greediness))
-        for threshold_len in [greediness_threshold * 2 ** (2 * (zl_n - i))
-                              for i in range(zl_n - 1, zl_optim_limit - 1, -1)]:
+        zl_optim_limit = max(__ZL_OPTIM_LIMIT__, (zl - greediness))
+        for threshold_len in [greediness_threshold * 2 ** (2 * (zl - i))
+                              for i in range(zl - 1, zl_optim_limit - 1, -1)]:
             for zl_optim_tile in zl_n_tiles.keys():
                 if len(zl_n_tiles[zl_optim_tile]) >= threshold_len:
                     # If so, add the remaining ZLn tiles
-                    zl_n_tiles[zl_optim_tile] = zl_optim_tile.higher_zl_subtiles(target_zl=zl_n)
+                    zl_n_tiles[zl_optim_tile] = zl_optim_tile.higher_zl_subtiles(target_zl=zl)
 
             # Prepare a new dict for the next iteration, reuse the existing tiles
-            zl_n_tiles_new = dict()
+            zl_n_tiles_new = collections.defaultdict(list)
             for (zl_optim_tile, zl_n_group) in zl_n_tiles.items():
-                zl_n_tiles_new.setdefault(zl_optim_tile.lower_zl_tile(), []).extend(zl_n_group)
+                zl_n_tiles_new[zl_optim_tile.lower_zl_tile()].extend(zl_n_group)
             zl_n_tiles = zl_n_tiles_new
 
-        return [tile
+        return {tile
                 for tile_group in zl_n_tiles.values()
-                for tile in tile_group]
+                for tile in tile_group}
 
     @staticmethod
     def _compacted_tiles(tiles):
@@ -678,8 +677,11 @@ class AirportCollection:
                 else:
                     siblings = set(tile.zl_siblings())
                     if len(siblings.intersection(previous_tiles)) == 4:
-                        # They're already all in : replace them with their common lower zl tile
+                        # They're already all in : add their common lower zl tile
                         current_tiles.add(tile.lower_zl_tile())
+                        # Re-add them so they are kept
+                        current_tiles.update(siblings)
+                        # Optim: mark them as 'rejected', so the siblings are just skipped
                         rejected_tiles.update(siblings)
                     else:
                         # Nothing wrong with this one : add it as-is
@@ -695,7 +697,7 @@ class AirportCollection:
 
     def gtiles(self, zl, cover_zl, screen_res, fov, fpa, greediness, greediness_threshold):
         """Return the ZL gtiles needed to cover this airport collection.
-        This list does NOT include any gtile for higher ZLs, only for the requested ZL"""
+        This list ALSO includes all the (interior) higher ZL sub-tiles, down to cover_zl"""
 
         def _margin_width():
             """Decide on a margin width, arbitrarily based on 1/16th of the width of a ZLn tile"""
@@ -704,37 +706,43 @@ class AirportCollection:
             return shapely.geometry.Point(lon_1, lat_1).distance(shapely.geometry.Point(lon_2, lat_2))
 
         # First compute the tiles for the current zl
-        tiles = [tile
-                 for airport in self.airports.values()
-                 for tile in airport.gtiles(zl, screen_res, fov, fpa)
-                 if zl <= cover_zl.max_cover_zl_for(airport.icao)]
+        gtiles = {gtile
+                  for airport in self.airports.values()
+                  for gtile in airport.gtiles(zl, screen_res, fov, fpa)
+                  if zl <= cover_zl.max_cover_zl_for(airport.icao)}
 
         if zl < cover_zl.max:
             # If we're not at ZLmax, compute the ZLn+1 gtiles, and "compact" them
             # When compacted, this list will then also include any ZLn gtiles that were fully covered by ZLn+1 gtiles
             # We'll then exclude any such ZLn tile from the final list, thus creating "holes" for the ZLn+1 gtiles
-            sub_gtiles = set(self._compacted_tiles(self.gtiles(zl=zl + 1,
-                                                               cover_zl=cover_zl,
-                                                               screen_res=screen_res,
-                                                               fov=fov,
-                                                               fpa=fpa,
-                                                               greediness=greediness,
-                                                               greediness_threshold=greediness_threshold)))
-
-            # Take a margin around each of the ZLn+1 polygons, and add the corresponding ZLn gtiles
-            # We need this margin to ensure that the zones are progressive, to prevent jumps from ZLn to ZLn+2.
-            tiles.extend(self._sub_zl_margin(zl,
-                                             self.as_polygons(sub_gtiles),
-                                             _margin_width()))
+            all_sub_gtiles = self.gtiles(zl=zl + 1,
+                                         cover_zl=cover_zl,
+                                         screen_res=screen_res,
+                                         fov=fov,
+                                         fpa=fpa,
+                                         greediness=greediness,
+                                         greediness_threshold=greediness_threshold)
+            compacted_sub_gtiles = self._compacted_tiles(all_sub_gtiles)
         else:
-            sub_gtiles = set()
+            all_sub_gtiles = set()
+            compacted_sub_gtiles = set()
+
+        # Take a margin around each of the ZLn+1 polygons, and add the corresponding ZLn gtiles
+        # We need this margin to ensure that the zones are progressive, to prevent jumps from ZLn to ZLn+2.
+        if all_sub_gtiles:
+            gtiles.update(self._sub_zl_margin(zl,
+                                              self.as_polygons(all_sub_gtiles),
+                                              _margin_width()))
 
         # Optimize texture usage, but "eating" up any lower zl being "greediness_threshold"-percent covered by this zl
         # Will look up to 'greediness' lower levels
-        tiles = self._optimized_tiles(tiles, greediness, greediness_threshold)
+        optimized_gtiles = self._optimized_tiles(gtiles, zl, greediness, greediness_threshold)
 
-        # Finally, remove any ZLn gtile that is fully covered by ZLn+1 gtiles
-        return list(set(tiles) - sub_gtiles)
+        # Only keep useful ZLn gtiles : remove the gtiles that are fully covered by ZLn+1
+        own_zl_gtiles = optimized_gtiles - compacted_sub_gtiles
+
+        # Finally, return the remaining ZLn tiles + all the previously computed ZLn+1..ZLmax subtiles
+        return set(own_zl_gtiles).union(all_sub_gtiles)
 
     @staticmethod
     def as_polygons(gtiles):

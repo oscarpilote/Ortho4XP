@@ -575,15 +575,15 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         airport_collection = APT_SRC.AirportDataSource().airports_in([xp_tile], include_surrounding_tiles=True)
 
         # Compute all the required textures for each ZL
-        progressive_gtiles = dict()
-        for zl in range(CFG.default_zl, CFG.cover_zl.max + 1):
-            progressive_gtiles[zl] = set(airport_collection.gtiles(zl=zl,
-                                                                   cover_zl=CFG.cover_zl,
-                                                                   screen_res=CFG.cover_screen_res,
-                                                                   fov=CFG.cover_fov,
-                                                                   fpa=CFG.cover_fpa,
-                                                                   greediness=CFG.cover_greediness,
-                                                                   greediness_threshold=CFG.cover_greediness_threshold))
+        progressive_gtiles = collections.defaultdict(set)
+        for gtile in airport_collection.gtiles(zl=CFG.default_zl,
+                                               cover_zl=CFG.cover_zl,
+                                               screen_res=CFG.cover_screen_res,
+                                               fov=CFG.cover_fov,
+                                               fpa=CFG.cover_fpa,
+                                               greediness=CFG.cover_greediness,
+                                               greediness_threshold=CFG.cover_greediness_threshold):
+            progressive_gtiles[gtile.zl].add(gtile)
 
         return self._build_texture_layers(bg_map_lat, bg_map_lon, bg_map_zl, progressive_gtiles)
 
