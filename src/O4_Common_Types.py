@@ -11,6 +11,8 @@ class IcaoCode:
     Useful to distinguish between major airports with valid ICAO code, versus local aerodromes, or even fictional ones.
     The list of ICAO region prefixes comes from Wikipedia as of 2019-05-27 (good enough for our non-operational use)
     """
+    __RE_ICAO_FORMAT__ = re.compile(r'[A-Z]{4}')
+
     __TWO_CHARS_ICAO_REGIONS__ = {
         # A - Western South Pacific
         "AG", "AN", "AY",
@@ -66,12 +68,12 @@ class IcaoCode:
         "Y"
     }
 
-    __RE_ICAO_REGION__ = re.compile('(' + '|'.join([
+    __RE_ICAO_REGION__ = re.compile(r'(' + r'|'.join([
         # Russia (except UA, UB, UC, UD, UG, UK, UM and UT)
-        "U[^ABCDGKMT][A-Z]{2}",
+        r"U[^ABCDGKMT][A-Z]{2}",
         # Mainland China (except ZK and ZM)
-        "Z[^KM][A-Z]{2}"
-    ]) + ')')
+        r"Z[^KM][A-Z]{2}"
+    ]) + r')')
 
     def __init__(self, icao_str):
         if isinstance(icao_str, IcaoCode):
@@ -114,7 +116,8 @@ class IcaoCode:
         # Standard robustness
         if not isinstance(self._icao, str):
             return False
-        if len(self._icao) != 4:
+
+        if not self.__RE_ICAO_FORMAT__.match(self._icao):
             return False
 
         # Test order is important here : first two-chars, then one-char, then regex
