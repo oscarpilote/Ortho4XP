@@ -11,7 +11,7 @@ import O4_Vector_Map as VMAP
 import O4_Imagery_Utils as IMG
 import O4_Tile_Utils as TILE
 import O4_Overlay_Utils as OVL
-from O4_Common_Types import CoverZLConfig, ScreenRes
+from O4_Common_Types import CoverZLConfig, DecalConfig, ScreenRes
 
 
 cfg_vars={
@@ -80,7 +80,15 @@ cfg_vars={
     'normal_map_strength': {'type':float,'default':1,'hint':'Orthophotos by essence already contain the part of the shading burned in (here by shading we mean the amount of reflected light in the camera direction as a function of the terrain slope, not the shadows). This option allows to tweak the normal coordinates of the mesh in the DSF to avoid "overshading", but it has side effects on the way X-Plane computes scenery shadows. Used to be 0.3 by default in earlier versions, the default is now 1 which means exact normals.},      '},
     'terrain_casts_shadows':{'type':bool,'default':True,'hint':'If unset, the terrain itself will not cast (but still receive!) shadows. This option is only meaningful if scenery shadows are opted for in the X-Plane graphics settings.','short_name':'terrain_casts_shadow'},
     'overlay_lod':         {'type':float,'default':25000,'hint':'Distance until which overlay imageries (that is orthophotos over water) are drawn. Lower distances have a positive impact on frame rate and VRAM usage, and IFR flyers will probably need a higher value than VFR ones.'},
-    'use_decal_on_terrain':{'type':bool,'default':False,'hint':'Terrain files for all but water triangles will contain the maquify_1_green_key.dcl decal directive. The effect is noticeable at very low altitude and helps to overcome the orthophoto blur at such levels. Can be slightly distracting at higher altitude.'},
+    'use_decal_on_terrain': {'type': DecalConfig, 'default': True, 'hint': '\n'.join(['Terrain files for all but water triangles will or will not contain a decal directive according to this value.',
+                                                                                      'The effect is noticeable at very low altitude and helps to overcome the orthophoto blur at such levels.',
+                                                                                      'Can be slightly distracting at higher altitude.',
+                                                                                      'Can be either :',
+                                                                                      '- a boolean : if True, apply default decals according to the ZL',
+                                                                                      '- an int : if the ZL is at or above this value, a default decal is applied',
+                                                                                      '- a dict of {"zl": "<dcl_file_from_XP11/Resources/default scenery/1000 decals>"} :',
+                                                                                      '  => both zl and the decal file must be enclosed in double-quotes',
+                                                                                      '  => the corresponding decal is applied to each specified zl, or no decal if omitted'])},
     # Other
     'custom_dem':          {'type':str,'default':'','hint':'Path to an elevation data file to be used instead of the default Viewfinderpanoramas.org ones (J. de Ferranti). The raster must be in geopgraphical coordinates (EPSG:4326) but the extent need not match the tile boundary (requires Gdal). Regions of the tile that are not covered by the raster are mapped to zero altitude (can be useful for high resolution data over islands in particular).     '},
     'fill_nodata':         {'type':bool,'default':True,'hint':'When set, the no_data values in the raster will be filled by a nearest neighbour algorithm. If unset, they are turned into zero (can be useful for rasters with no_data over the whole oceanic part or partial LIDAR data).'}

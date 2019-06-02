@@ -328,6 +328,68 @@ class CoverZLConfig:
         return self.non_icao
 
 
+class DecalConfig:
+    """Used to parse and represent the 'use_decal_on_terrain' configuration value.
+    Can be either
+    - a boolean : if True, apply default decals according to the ZL
+    - an int : if the ZL is at or above this value, a default decal is applied
+    - a dict of {zl: 'decal_file'} : the corresponding decal is applied to each specified zl, or no decal if omitted"""
+    __DEFAULT_DECAL__ = "maquify_2_green_key.dcl"  # shrub_and_dirt_1.dcl
+
+    def __init__(self, config_value):
+        if isinstance(config_value, int) or isinstance(config_value, bool) or isinstance(config_value, dict):
+            self._value = config_value
+        elif isinstance(config_value, str):
+            try:
+                self._value = int(config_value)
+            except ValueError:
+                if config_value == 'True':
+                    self._value = True
+                elif config_value == 'False':
+                    self._value = False
+                else:
+                    dict_value = json.loads(config_value)
+                    if not isinstance(dict_value, dict):
+                        raise ValueError("Invalid dictionary for the DecalConfig value: {}".format(config_value))
+                    self._value = {int(zl): decal for (zl, decal) in dict_value.items()}
+        else:
+            raise ValueError("Invalid DecalConfig value : {}".format(config_value))
+
+        if isinstance(self._value, bool) and self._value is True:
+            # If decals are enabled, in boolean mode, choose default decals for each ZL
+            self._zl_decal = dict()
+            for zl in range(ZoomLevels.__ZL_MIN__, ZoomLevels.__ZL_HIGH__):
+                self._zl_decal[zl] = None
+            for zl in range(ZoomLevels.__ZL_HIGH__, ZoomLevels.__ZL_OVERKILL__ + 1):
+                self._zl_decal[zl] = self.__DEFAULT_DECAL__
+
+        elif (isinstance(self._value, int) and
+              self._value in range(ZoomLevels.__ZL_MIN__, ZoomLevels.__ZL_OVERKILL__ + 1)):
+            # If decals are enabled, in int mode, choose a default decal for each ZL at or above that int
+            self._zl_decal = {zl: None if zl < self._value else self.__DEFAULT_DECAL__
+                              for zl in range(ZoomLevels.__ZL_MIN__, ZoomLevels.__ZL_OVERKILL__ + 1)}
+
+        elif isinstance(self._value, dict):
+            # If decals are enabled, in dict mode, choose the provided decals, defaults to None if omitted
+            self._zl_decal = {zl: None if zl not in self._value else self._value[zl]
+                              for zl in range(ZoomLevels.__ZL_MIN__, ZoomLevels.__ZL_OVERKILL__ + 1)}
+
+        else:
+            # All other cases : doesn't enable any decal
+            self._zl_decal = {zl: None for zl in range(ZoomLevels.__ZL_MIN__, ZoomLevels.__ZL_OVERKILL__ + 1)}
+
+        self.tmp_break = 1
+
+    def __str__(self):
+        if isinstance(self._value, dict):
+            return json.dumps(self._value)
+        else:
+            return str(self._value)
+
+    def decal_for(self, zl):
+        return self._zl_decal[zl]
+
+
 class ScreenRes(enum.Enum):
     """An enum for the 'cover_screen_res' configuration value"""
     RES_SD_720p = 'SD_720p'

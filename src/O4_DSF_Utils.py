@@ -256,8 +256,10 @@ def create_terrain_file(tile,texture_file_name,til_x_left,til_y_top,zoomlevel,pr
             if not os.path.exists(os.path.join(tile.build_dir,'textures','water_normal_map.dds')):
                 shutil.copy(os.path.join(FNAMES.Utils_dir,'water_normal_map.dds'),os.path.join(tile.build_dir,'textures'))
             pass
-        if not tri_type and tile.use_decal_on_terrain:
-            f.write('DECAL_LIB lib/g10/decals/maquify_2_green_key.dcl\n')
+        if not tri_type:
+            decal = tile.use_decal_on_terrain.decal_for(zoomlevel)
+            if decal:
+                f.write('DECAL_LIB lib/g10/decals/{}\n'.format(decal))
         if tri_type in (1,2):
             f.write('WET\n')
         else:
