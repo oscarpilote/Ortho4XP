@@ -4,6 +4,7 @@ import os
 Ortho4XP_dir='..' if getattr(sys,'frozen',False) else '.'
 sys.path.append(os.path.join(Ortho4XP_dir,'src'))
 
+import O4_Airport_Data_Source as APT_SRC
 import O4_File_Names as FNAMES
 sys.path.append(FNAMES.Provider_dir)
 import O4_Imagery_Utils as IMG
@@ -35,11 +36,13 @@ if __name__ == '__main__':
     IMG.initialize_color_filters_dict()
     IMG.initialize_providers_dict()
     IMG.initialize_combined_providers_dict()
+    APT_SRC.AirportDataSource.update_cache()
+
     if len(sys.argv)==1: # switch to the graphical interface
         Ortho4XP = GUI.Ortho4XP_GUI()
-
         Ortho4XP.mainloop()
         print("Bon vol!")
+
     else: # sequel is only concerned with command line
         if len(sys.argv)<3:
             print(cmd_line); sys.exit()

@@ -572,7 +572,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
 
     def async_build_progressive_zl_layers(self, bg_map_lat, bg_map_lon, bg_map_zl):
         xp_tile = APT_SRC.XPlaneTile(bg_map_lat, bg_map_lon)
-        airport_collection = APT_SRC.AirportDataSource().airports_in([xp_tile], include_surrounding_tiles=True)
+        airport_collection = APT_SRC.AirportDataSource.airports_in(xp_tile, include_surrounding_tiles=True)
 
         # Compute all the required textures for each ZL
         progressive_gtiles = collections.defaultdict(set)

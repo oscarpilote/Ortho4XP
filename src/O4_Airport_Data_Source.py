@@ -10,6 +10,7 @@ import re
 import shapely.geometry
 import shapely.ops
 import shapely.prepared
+import sys
 
 import O4_File_Names as FNAMES
 import O4_Config_Utils as CFG
@@ -862,62 +863,57 @@ class XPlaneAptDatParser:
                                              r'(?P<helipad_edge_lights>\S+)']))
 
     @staticmethod
-    def _apt_dat_files_in(xp_dir):
+    def apt_dat_files():
         """Return the list of all the apt.dat files within the given X-Plane installation.
         The order is important : airports in the first files will be overwritten by those in the last ones (as in XP)"""
+        xp_dir = CFG.xplane_install_dir
         apt_dat = os.path.join('Earth nav data', 'apt.dat')
         default_scenery = os.path.join(xp_dir, 'Resources', 'default scenery', 'default apt dat', apt_dat)
         global_airports = os.path.join(xp_dir, 'Custom Scenery', 'Global Airports', apt_dat)
         custom_airports = set(glob.glob(os.path.join(xp_dir, 'Custom Scenery', '*', apt_dat))) - {global_airports}
         return [default_scenery, global_airports] + sorted(custom_airports)
 
-    def parse(self, *tiles):
-        """Return one AirportCollection for each provided tile, will all the relevant airport data."""
-
+    @staticmethod
+    def parse(apt_dat_file):
         # Translation dicts
         airport_types = {'1': 'airport', '16': 'seaplane_base', '17': 'heliport'}
 
-        # We'll only parse each file once, so we'll collect the airports in these AirportCollections along the way
-        tile_airports = {tile: AirportCollection() for tile in tiles}
+        with open(apt_dat_file, encoding='latin9') as apt_dat:
+            # Group the source lines by airport
+            current_airport_data = None
+            for src_line in apt_dat:
+                m = XPlaneAptDatParser.__RE_ARPT__.match(src_line)
+                if m:
+                    new_airport_data = {
+                        'type': airport_types[m.group('airport_type')],
+                        'icao': IcaoCode(m.group('airport_ICAO')),
+                        'name': m.group('airport_name'),
+                        'elevation': m.group('airport_elevation'),
+                        'runways': list()
+                    }
+                    if current_airport_data is None:
+                        # First airport : start collecting its runways
+                        current_airport_data = new_airport_data
+                    else:
+                        # New airport : yield the current one and its runways
+                        yield Airport(current_airport_data)
+                        # Start collecting the runways for this new airport
+                        current_airport_data = new_airport_data
 
-        for apt_dat_file in self._apt_dat_files_in(CFG.xplane_install_dir):
-            with open(apt_dat_file, encoding='latin9') as apt_dat:
-                current_airport = None  # We'll only add an airport to 'parsed_airport' if it has a relevant runway
-                for src_line in apt_dat:
-                    m = XPlaneAptDatParser.__RE_ARPT__.match(src_line)
-                    if m:
-                        current_airport = Airport({
-                            'type': airport_types[m.group('airport_type')],
-                            'icao': IcaoCode(m.group('airport_ICAO')),
-                            'name': m.group('airport_name'),
-                            'elevation': m.group('airport_elevation'),
-                            'runways': []
-                        })
-
-                    elif XPlaneAptDatParser.__RE_IS_RWY__.match(src_line):
-                        # TODO: XPlaneAptDatParser: also parse seaplane bases et heliports
-                        m = XPlaneAptDatParser.__RE_LAND_RWY__.match(src_line)
-                        if m:
-                            runway = Runway({
-                                'end_1_id': m.group('runway_end_1_number'),
-                                'end_1_lat': numpy.float(m.group('runway_end_1_latitude')),
-                                'end_1_lon': numpy.float(m.group('runway_end_1_longitude')),
-                                'end_2_id': m.group('runway_end_2_number'),
-                                'end_2_lat': numpy.float(m.group('runway_end_2_latitude')),
-                                'end_2_lon': numpy.float(m.group('runway_end_2_longitude')),
-                                'width': numpy.float(m.group('runway_width'))})
-
-                            # Check if this runway is relevant to each tile.
-                            # If so :
-                            # - ensure the airport is in the corresponding AirportCollection
-                            # - add the runway to the airport
-                            for rw_tile in runway.relevant_xp_tiles(include_surrounding_tiles=False):
-                                if rw_tile in tile_airports:
-                                    # If old airport information was already there, it will be overwritten here :
-                                    # this is intentional (same behavior as X-Plane).
-                                    tile_airports[rw_tile][current_airport.icao] = current_airport
-                                    tile_airports[rw_tile][current_airport.icao][runway.name()] = runway
-        return tile_airports
+                elif XPlaneAptDatParser.__RE_IS_RWY__.match(src_line):
+                    # TODO: XPlaneAptDatParser: also parse seaplane bases et heliports
+                    m = XPlaneAptDatParser.__RE_LAND_RWY__.match(src_line)
+                    if m and current_airport_data is not None:
+                        current_airport_data['runways'].append({
+                            'end_1_id': m.group('runway_end_1_number'),
+                            'end_1_lat': numpy.float(m.group('runway_end_1_latitude')),
+                            'end_1_lon': numpy.float(m.group('runway_end_1_longitude')),
+                            'end_2_id': m.group('runway_end_2_number'),
+                            'end_2_lat': numpy.float(m.group('runway_end_2_latitude')),
+                            'end_2_lon': numpy.float(m.group('runway_end_2_longitude')),
+                            'width': numpy.float(m.group('runway_width'))})
+                else:
+                    pass  # skip any other line
 
 
 ########################################################################################################################
@@ -925,7 +921,6 @@ class XPlaneAptDatParser:
 # Main class of this module : AirportDataSource
 #
 ########################################################################################################################
-
 
 class AirportDataSource:
     """Represents a source of airport data (be it X-Plane apt.dat files, OSM data, or whatever other service).
@@ -940,58 +935,51 @@ class AirportDataSource:
     """
 
     __PARSER_CLASSES__ = [XPlaneAptDatParser]  # [OSMAirportsParser, XPlaneAptDatParser]
+    __TILE_AIRPORTS__ = dict()
 
-    def __init__(self):
-        self._index_by_tile = {}
-
-    def airports_in(self, tiles, include_surrounding_tiles=False):
+    @classmethod
+    def airports_in(cls, tile, include_surrounding_tiles=False):
         """Return an AirportCollection of all the airports in the given tile(s)."""
 
         # Optionally add the surrounding tiles to the search range
-        search_range = set(tiles)
+        search_range = {tile}
         if include_surrounding_tiles:
-            for t in tiles:
-                search_range.update(t.surrounding_tiles())
+            search_range.update(tile.surrounding_tiles())
 
-        # For now, skip the tiles that already are in the in-memory index
-        missing_tiles = []
-        for tile in filter(lambda x: x not in self._index_by_tile, search_range):
-            # Try looking at the filesystem cache : this will load it in the in-memory index
-            try:
-                self._read_cached_tile(tile)
-            except (FileNotFoundError, json.decoder.JSONDecodeError):
-                # If we can't find or decode the cached data for whatever reason, then just add it to the rebuild list
-                missing_tiles.append(tile)
+        # Load the airport data from the filesystem cache (check if already loaded first)
+        for t in filter(lambda x: x not in cls.__TILE_AIRPORTS__, search_range):
+            cls.__TILE_AIRPORTS__[t] = cls._read_cached_tile(t)
 
-        # (Re-)build the missing cache files, if any (this will also load them in the in-memory index)
-        if missing_tiles:
-            self._rebuild_tile_cache(*missing_tiles)
+        # Now we should have all the tiles loaded, return the corresponding airports
+        return AirportCollection([cls.__TILE_AIRPORTS__[t] for t in search_range])
 
-        # Now we should have all the tiles in memory, return their airports
-        return AirportCollection([self._index_by_tile[tile] for tile in search_range])
+    @classmethod
+    def _read_cached_tile(cls, tile):
+        with open(FNAMES.cached_arpt_data(lat=tile.lat, lon=tile.lon)) as f:
+            return AirportCollection([Airport(a) for a in json.load(f).values()])
 
-    def _read_cached_tile(self, tile):
-        """Read the given tile airports from the filesystem cache"""
-        with open(FNAMES.cached_arpt_data(lat=tile.lat, lon=tile.lon)) as fd:
-            # First read the airports from the cache file
-            airports = AirportCollection([Airport(a) for a in json.load(fd).values()])
-            # Then load them in the in-memory index and return them
-            return self._index_by_tile.setdefault(tile, airports)
+    @staticmethod
+    def update_cache():
+        print("[AirportDataSource] Parsing the apt.dat files :")
+        apt_dat_parser = XPlaneAptDatParser()
+        parsed_airport_data = collections.defaultdict(AirportCollection)
+        for apt_dat_file in apt_dat_parser.apt_dat_files():
+            print("[AirportDataSource] => {}".format(apt_dat_file))
+            for airport in apt_dat_parser.parse(apt_dat_file):
+                for runway in airport.values():
+                    for tile in runway.relevant_xp_tiles(include_surrounding_tiles=False):
+                        if airport.icao not in parsed_airport_data[tile].keys():
+                            parsed_airport_data[tile][airport.icao] = airport
 
-    def _rebuild_tile_cache(self, *tiles):
-        """(Re-)Build the filesystem cache for the given tile(s).
-        And while we're at it, also rebuilt the surrounding tiles cache, we'll probably need them soon."""
-
-        # Invoke each parser on the list of tiles, and update the in-memory index with the results
-        for parser in [parser_class() for parser_class in AirportDataSource.__PARSER_CLASSES__]:
-            self._index_by_tile.update({tile: airport_collection
-                                        for (tile, airport_collection) in parser.parse(*tiles).items()})
-
-        # Finally, cache the parsed data to the filesystem
-        for tile in tiles:
+        sys.stdout.write("[AirportDataSource] Updating the cache")
+        for (i, (tile, airport_collection)) in enumerate(parsed_airport_data.items(), start=1):
             tile_cache_file = FNAMES.cached_arpt_data(lat=tile.lat, lon=tile.lon)
             os.makedirs(os.path.dirname(tile_cache_file), exist_ok=True)
             with open(tile_cache_file, 'w') as f:
-                json.dump(self._index_by_tile[tile].to_json(), f, sort_keys=True, indent=True)
-
-# eof
+                json.dump(airport_collection.to_json(), f, sort_keys=True, indent=True)
+            if (i % 100) == 0:
+                sys.stdout.write('.')
+            if (i % 12000) == 0:
+                sys.stdout.write('\n[AirportDataSource] ')
+        sys.stdout.write('\n')
+        print("[AirportDataSource] Done")
