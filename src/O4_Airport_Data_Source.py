@@ -1,5 +1,6 @@
 import bisect
 import collections
+import concurrent.futures
 import glob
 import json
 import math
@@ -10,7 +11,6 @@ import re
 import shapely.geometry
 import shapely.ops
 import shapely.prepared
-import sys
 
 import O4_File_Names as FNAMES
 import O4_Config_Utils as CFG
@@ -936,6 +936,9 @@ class AirportDataSource:
 
     __PARSER_CLASSES__ = [XPlaneAptDatParser]  # [OSMAirportsParser, XPlaneAptDatParser]
     __TILE_AIRPORTS__ = dict()
+    _cache_update_pool = None
+    _cache_updater_main_job = None
+    _cache_updater_tile_jobs = dict()
 
     @classmethod
     def airports_in(cls, tile, include_surrounding_tiles=False):
@@ -955,31 +958,74 @@ class AirportDataSource:
 
     @classmethod
     def _read_cached_tile(cls, tile):
-        with open(FNAMES.cached_arpt_data(lat=tile.lat, lon=tile.lon)) as f:
+        # Ensure the tile cache file has been built : first waits for the main job to parse the apt.dat.
+        # We need that because the tile updater jobs won't be started until that part is done.
+        if cls._cache_updater_main_job is not None and not cls._cache_updater_main_job.done():
+            concurrent.futures.wait([cls._cache_updater_main_job])
+
+        # If we don't have an updater job for this tile, then it means there wasn't any airport data for it,
+        # just return an empty collection
+        if cls._cache_updater_tile_jobs is not None and tile not in cls._cache_updater_tile_jobs:
+            return AirportCollection()
+        if cls._cache_updater_tile_jobs is not None:
+            concurrent.futures.wait([cls._cache_updater_tile_jobs[tile]])
+
+        tile_cache_file = FNAMES.cached_arpt_data(lat=tile.lat, lon=tile.lon)
+        if not os.path.exists(tile_cache_file):
+            raise O4AirportDataSourceException("Couldn't find {}, please rebuild the cache manually, "
+                                               "or restart Ortho4XP".format(tile_cache_file))
+
+        with open(tile_cache_file) as f:
             return AirportCollection([Airport(a) for a in json.load(f).values()])
 
     @staticmethod
-    def update_cache():
-        print("[AirportDataSource] Parsing the apt.dat files :")
+    def _parse_apt_dat(_apt_dat_file):
         apt_dat_parser = XPlaneAptDatParser()
-        parsed_airport_data = collections.defaultdict(AirportCollection)
-        for apt_dat_file in apt_dat_parser.apt_dat_files():
-            print("[AirportDataSource] => {}".format(apt_dat_file))
-            for airport in apt_dat_parser.parse(apt_dat_file):
-                for runway in airport.values():
-                    for tile in runway.relevant_xp_tiles(include_surrounding_tiles=False):
-                        if airport.icao not in parsed_airport_data[tile].keys():
-                            parsed_airport_data[tile][airport.icao] = airport
+        _apt_data = collections.defaultdict(AirportCollection)
+        for _arpt in apt_dat_parser.parse(_apt_dat_file):
+            for _rw in _arpt.values():
+                for _t in _rw.relevant_xp_tiles(include_surrounding_tiles=False):
+                    if _arpt.icao not in _apt_data[_t].keys():
+                        _apt_data[_t][_arpt.icao] = _arpt
+        return _apt_data
 
-        sys.stdout.write("[AirportDataSource] Updating the cache")
-        for (i, (tile, airport_collection)) in enumerate(parsed_airport_data.items(), start=1):
-            tile_cache_file = FNAMES.cached_arpt_data(lat=tile.lat, lon=tile.lon)
-            os.makedirs(os.path.dirname(tile_cache_file), exist_ok=True)
-            with open(tile_cache_file, 'w') as f:
-                json.dump(airport_collection.to_json(), f, sort_keys=True, indent=True)
-            if (i % 100) == 0:
-                sys.stdout.write('.')
-            if (i % 12000) == 0:
-                sys.stdout.write('\n[AirportDataSource] ')
-        sys.stdout.write('\n')
-        print("[AirportDataSource] Done")
+    @staticmethod
+    def _write_tile_cache(tile, airport_collection):
+        tile_cache_file = FNAMES.cached_arpt_data(lat=tile.lat, lon=tile.lon)
+        os.makedirs(os.path.dirname(tile_cache_file), exist_ok=True)
+        with open(tile_cache_file, 'w') as f:
+            json.dump(airport_collection.to_json(), f, sort_keys=True, indent=True)
+        # Also ensure we have all the
+
+    @classmethod
+    def _main_updater_job(cls):
+        # First parse all the apt.dat files available
+        # This part will block until we're done (but this function is also running in a thread)
+        parsed_airport_data = collections.defaultdict(AirportCollection)
+        for apt_data in [cls._cache_update_pool.submit(cls._parse_apt_dat, apt_file)
+                         for apt_file in XPlaneAptDatParser.apt_dat_files()]:
+            for (tile, airport_collection) in apt_data.result().items():
+                for (icao, airport) in airport_collection.items():
+                    # Intentionally overwrite global airport data with custom scenery ones
+                    parsed_airport_data[tile][icao] = airport
+
+        # Then start writing the tile cache files in the background
+        cls._cache_updater_tile_jobs = {tile: cls._cache_update_pool.submit(cls._write_tile_cache,
+                                                                            tile,
+                                                                            airport_collection)
+                                        for (tile, airport_collection) in parsed_airport_data.items()}
+
+    @classmethod
+    def wait_for_cache_update(cls):
+        # Just waits for all the other updater jobs to complete
+        concurrent.futures.wait([cls._cache_updater_main_job])
+        concurrent.futures.wait(list(cls._cache_updater_tile_jobs.values()))
+
+    @classmethod
+    def cache_update_in_progress(cls):
+        return cls._cache_updater_tile_jobs is not None
+
+    @classmethod
+    def update_cache(cls):
+        cls._cache_update_pool = concurrent.futures.ThreadPoolExecutor()
+        cls._cache_updater_main_job = cls._cache_update_pool.submit(cls._main_updater_job)

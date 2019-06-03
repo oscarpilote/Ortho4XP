@@ -1,12 +1,13 @@
 import collections
+import concurrent.futures
 import functools
 import glob
 import os
 import re
 import sys
 import shutil
+import traceback
 from math import floor, cos, pi
-import multiprocessing.pool
 import queue
 import threading
 import tkinter as tk
@@ -386,8 +387,8 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
     polyobj_list=[]
 
     def __init__(self,parent,lat,lon):
-        # Start 2 worker processes for async layer building, +1 for gathering and displaying the result
-        self.pool = multiprocessing.pool.ThreadPool(processes=3)
+        # Start 2 worker processes for async layer building, +1 for gathering and displaying the result, +1 for the banner
+        self.pool = concurrent.futures.ThreadPoolExecutor(max_workers=4)
         self.parent=parent
         self.lat=lat
         self.lon=lon
@@ -433,7 +434,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
 
         self.frame_right  =  tk.Frame(self, border=4, relief=RIDGE,bg='light green')
         self.frame_right.grid(row=0,column=1,sticky=N+S+W+E)
-        self.frame_right.rowconfigure(0,weight=1)
+        self.frame_right.rowconfigure(1,weight=1)
         self.frame_right.columnconfigure(0,weight=1)
 
         # Widgets - Preview Parameters
@@ -519,29 +520,51 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
 
         ttk.Button(self.frame_left,text='Close Preview',command=self.destroy).grid(row=row,column=0,padx=5,pady=3,sticky=N+S+E+W); row+=1
 
-        self.canvas = tk.Canvas(self.frame_right,bd=0,height=750,width=750)
-        self.canvas.grid(row=0,column=0,sticky=N+S+E+W)
-        self._canvas_layers = dict()
+        right_row = 0
+        if APT_SRC.AirportDataSource.cache_update_in_progress():
+            self.apt_data_cache_banner = tk.Label(self.frame_right,
+                                                  anchor=N,
+                                                  text="Parsing X-Plane Airport data, please wait...",
+                                                  fg="light green",
+                                                  bg="dark green",
+                                                  font="Helvetica 12 bold italic")
+            self.apt_data_cache_banner.grid(row=right_row, column=0, sticky=N+S+W+E)
+            self.pool.submit(self.async_hide_banner_when_done)
+            right_row += 1
+        else:
+            self.apt_data_cache_banner = None
+        self.canvas = tk.Canvas(self.frame_right, bd=0, height=750, width=750)
+        self.canvas.grid(row=right_row, column=0, sticky=N+S+E+W)
+        self._canvas_layers = None
+
+    def async_hide_banner_when_done(self):
+        APT_SRC.AirportDataSource.wait_for_cache_update()
+        if self.apt_data_cache_banner is not None:
+            self.apt_data_cache_banner.grid_remove()
 
     @staticmethod
     def async_build_map_layer(lat, lon, zl, provider):
-        result = IMG.create_tile_preview(lat=lat, lon=lon, zoomlevel=zl, provider_code=provider)
-        if result != 1:
-            raise Exception("Couldn't create the background map image")
+        try:
+            result = IMG.create_tile_preview(lat=lat, lon=lon, zoomlevel=zl, provider_code=provider)
+            if result != 1:
+                raise Exception("Couldn't create the background map image")
 
-        background_map = Image.open(FNAMES.preview(lat=lat,
-                                                   lon=lon,
-                                                   zoomlevel=zl,
-                                                   provider_code=provider))
+            background_map = Image.open(FNAMES.preview(lat=lat,
+                                                       lon=lon,
+                                                       zoomlevel=zl,
+                                                       provider_code=provider))
 
-        # Draw the tile boundaries of the background map
-        pix_origin = GEO.tile_pix_origin(lat, lon, zl)
-        xy_top_left = GEO.latlon_to_tile_relative_pix(pix_origin, lat + 1, lon, zl)
-        xy_bottom_right = GEO.latlon_to_tile_relative_pix(pix_origin, lat, lon + 1, zl)
-        drawer = ImageDraw.Draw(im=background_map, mode="RGBA")
-        drawer.rectangle(xy=[xy_top_left, xy_bottom_right], outline='black')
+            # Draw the tile boundaries of the background map
+            pix_origin = GEO.tile_pix_origin(lat, lon, zl)
+            xy_top_left = GEO.latlon_to_tile_relative_pix(pix_origin, lat + 1, lon, zl)
+            xy_bottom_right = GEO.latlon_to_tile_relative_pix(pix_origin, lat, lon + 1, zl)
+            drawer = ImageDraw.Draw(im=background_map, mode="RGBA")
+            drawer.rectangle(xy=[xy_top_left, xy_bottom_right], outline='black')
 
-        return ImageTk.PhotoImage(image=background_map)
+            return ImageTk.PhotoImage(image=background_map)
+        except Exception as e:
+            traceback.print_exc()
+            raise e
 
     @staticmethod
     def _build_texture_layers(bg_map_lat, bg_map_lon, bg_map_zl, gtiles_dict):
@@ -571,62 +594,78 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         return layers
 
     def async_build_progressive_zl_layers(self, bg_map_lat, bg_map_lon, bg_map_zl):
-        xp_tile = APT_SRC.XPlaneTile(bg_map_lat, bg_map_lon)
-        airport_collection = APT_SRC.AirportDataSource.airports_in(xp_tile, include_surrounding_tiles=True)
+        try:
+            xp_tile = APT_SRC.XPlaneTile(bg_map_lat, bg_map_lon)
+            airport_collection = APT_SRC.AirportDataSource.airports_in(xp_tile, include_surrounding_tiles=True)
 
-        # Compute all the required textures for each ZL
-        progressive_gtiles = collections.defaultdict(set)
-        for gtile in airport_collection.gtiles(zl=CFG.default_zl,
-                                               cover_zl=CFG.cover_zl,
-                                               screen_res=CFG.cover_screen_res,
-                                               fov=CFG.cover_fov,
-                                               fpa=CFG.cover_fpa,
-                                               greediness=CFG.cover_greediness,
-                                               greediness_threshold=CFG.cover_greediness_threshold):
-            progressive_gtiles[gtile.zl].add(gtile)
+            # Compute all the required textures for each ZL
+            progressive_gtiles = collections.defaultdict(set)
+            for gtile in airport_collection.gtiles(zl=CFG.default_zl,
+                                                   cover_zl=CFG.cover_zl,
+                                                   screen_res=CFG.cover_screen_res,
+                                                   fov=CFG.cover_fov,
+                                                   fpa=CFG.cover_fpa,
+                                                   greediness=CFG.cover_greediness,
+                                                   greediness_threshold=CFG.cover_greediness_threshold):
+                progressive_gtiles[gtile.zl].add(gtile)
 
-        return self._build_texture_layers(bg_map_lat, bg_map_lon, bg_map_zl, progressive_gtiles)
+            return self._build_texture_layers(bg_map_lat, bg_map_lon, bg_map_zl, progressive_gtiles)
+        except Exception as e:
+            traceback.print_exc()
+            raise e
 
     def async_build_dds_layout_layers(self, bg_map_lat, bg_map_lon, bg_map_zl):
-        build_dir = os.path.normpath(FNAMES.build_dir(bg_map_lat, bg_map_lon, self.parent.custom_build_dir_entry.get()))
-        re_dds_file = re.compile(r'^(?P<y>\d+)_(?P<x>\d+)_(?:.*)(?P<zl>\d{2})\.dds$')
+        try:
+            build_dir = os.path.normpath(FNAMES.build_dir(bg_map_lat, bg_map_lon, self.parent.custom_build_dir_entry.get()))
+            re_dds_file = re.compile(r'^(?P<y>\d+)_(?P<x>\d+)_(?:.*)(?P<zl>\d{2})\.dds$')
 
-        dds_gtiles = collections.defaultdict(set)
-        for dds_file in glob.glob(os.path.join(build_dir, 'textures', '*.dds')):
-            m = re_dds_file.match(os.path.basename(dds_file))
-            if not m:
-                raise Exception("Couldn't parse the dds filename : {}".format(dds_file))
-            dds_gtiles[int(m.group('zl'))].add(APT_SRC.GTile(x=int(m.group('x')),
-                                                             y=int(m.group('y')),
-                                                             zl=int(m.group('zl'))))
+            dds_gtiles = collections.defaultdict(set)
+            for dds_file in glob.glob(os.path.join(build_dir, 'textures', '*.dds')):
+                m = re_dds_file.match(os.path.basename(dds_file))
+                if not m:
+                    raise Exception("Couldn't parse the dds filename : {}".format(dds_file))
+                dds_gtiles[int(m.group('zl'))].add(APT_SRC.GTile(x=int(m.group('x')),
+                                                                 y=int(m.group('y')),
+                                                                 zl=int(m.group('zl'))))
 
-        return self._build_texture_layers(bg_map_lat, bg_map_lon, bg_map_zl, dds_gtiles)
+            return self._build_texture_layers(bg_map_lat, bg_map_lon, bg_map_zl, dds_gtiles)
+        except Exception as e:
+            traceback.print_exc()
+            raise e
 
     def _async_render_layers(self, background_map_layer, texture_layers):
-        layers = dict()
+        try:
+            layers = dict()
 
-        # Render the map layer on the canvas (get() will wait until it is available)
-        layers['map'] = background_map_layer.get()
-        self.canvas.create_image(0, 0, anchor=NW, image=layers['map'], tags='map')
+            # Render the map layer on the canvas (.result() will wait until it is available)
+            layers['map'] = background_map_layer.result()
+            self.canvas.create_image(0, 0, anchor=NW, image=layers['map'], tags='map')
 
-        # Render the texture layers on the canvas (get() will wait until they are available)
-        texture_layers = texture_layers if isinstance(texture_layers, dict) else texture_layers.get()
-        for zl in sorted(texture_layers.keys()):
-            tag = 'ZL_{:d}'.format(zl)
-            layer = texture_layers[zl]
-            layers[tag] = layer
-            self.canvas.create_image(0, 0, anchor=NW, tags=tag, image=layer)
+            # Render the texture layers on the canvas (.result() will wait until they are available)
+            if texture_layers is not None:
+                texture_layers = texture_layers.result()
+                for zl in sorted(texture_layers.keys()):
+                    tag = 'ZL_{:d}'.format(zl)
+                    layer = texture_layers[zl]
+                    layers[tag] = layer
+                    self.canvas.create_image(0, 0, anchor=NW, tags=tag, image=layer)
 
-        # Render the custom zones
-        self.apply_custom_zone_list()
+            # Render the custom zones
+            self.apply_custom_zone_list()
 
-        # Finally, ensure the ZL toggle buttons are reset to the correct state, and that the items are displayed
-        for zl in O4_Common_Types.ZoomLevels.CUSTOM_LEVELS:
-            self._zl_toggle_button_vars[zl].set(1)
-            self.canvas.itemconfigure('ZL_{:d}'.format(zl), state=NORMAL)
+            # Finally, ensure the ZL toggle buttons are reset to the correct state, and that the items are displayed
+            for zl in O4_Common_Types.ZoomLevels.CUSTOM_LEVELS:
+                self._zl_toggle_button_vars[zl].set(1)
+                self.canvas.itemconfigure('ZL_{:d}'.format(zl), state=NORMAL)
 
-        # Return the layers for storage, so they're not garbage collected (or they would be removed from the canvas)
-        return layers
+            # Return the layers for storage, so they're not garbage collected (or they would be removed from the canvas)
+            return layers
+
+        except tk.TclError:
+            pass  # can happen when closing/reopening the ZL window too quickly : the image may no longer exist
+        except Exception as e:
+            traceback.print_exc()
+            raise e
 
     def update_internal_state(self, lat, lon):
         self.zoomlevel = int(self.zl_combo.get())
@@ -682,22 +721,19 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         self.configure_canvas()
 
         # Asynchronously build the map layer
-        background_map_layer = self.pool.apply_async(self.async_build_map_layer,
-                                                     (lat, lon, int(self.zl_combo.get()), self.map_combo.get()))
+        background_map_layer = self.pool.submit(self.async_build_map_layer,
+                                                lat, lon, int(self.zl_combo.get()), self.map_combo.get())
 
         # Asynchronously build the texture layers
         if CFG.cover_airports_with_highres == 'Progressive':
-            texture_layers = self.pool.apply_async(self.async_build_progressive_zl_layers,
-                                                   (lat, lon, int(self.zl_combo.get())))
+            texture_layers = self.pool.submit(self.async_build_progressive_zl_layers,
+                                              lat, lon, int(self.zl_combo.get()))
         else:
-            texture_layers = dict()
+            texture_layers = None
 
         # Finally, asynchronously render them on the canvas when they're available
-        def _store_canvas_layers(canvas_layers):
-            self._canvas_layers = canvas_layers
-        self._canvas_layers = self.pool.apply_async(func=self._async_render_layers,
-                                                    args=(background_map_layer, texture_layers),
-                                                    callback=_store_canvas_layers)
+        self._canvas_layers = self.pool.submit(self._async_render_layers,
+                                               background_map_layer, texture_layers)
 
     def on_dds_layout_button(self, lat, lon):
         # Reset the canvas and update the internal state with respect to the configuration (in case it has changed)
@@ -706,23 +742,20 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         self.configure_canvas()
 
         # Asynchronously build the map layer
-        background_map_layer = self.pool.apply_async(self.async_build_map_layer,
-                                                     (lat, lon, int(self.zl_combo.get()), self.map_combo.get()))
+        background_map_layer = self.pool.submit(self.async_build_map_layer,
+                                                lat, lon, int(self.zl_combo.get()), self.map_combo.get())
 
         # Asynchronously build the texture layers
-        texture_layers = self.pool.apply_async(self.async_build_dds_layout_layers,
-                                               (lat, lon, int(self.zl_combo.get())))
+        texture_layers = self.pool.submit(self.async_build_dds_layout_layers,
+                                          lat, lon, int(self.zl_combo.get()))
 
         # Finally, asynchronously render them on the canvas when they're available
-        def _store_canvas_layers(canvas_layers):
-            self._canvas_layers = canvas_layers
-        self._canvas_layers = self.pool.apply_async(func=self._async_render_layers,
-                                                    args=(background_map_layer, texture_layers),
-                                                    callback=_store_canvas_layers)
+        self._canvas_layers = self.pool.submit(self._async_render_layers,
+                                               background_map_layer, texture_layers)
 
     def on_toggle_zl_button(self, zl):
         tag = 'ZL_{:d}'.format(zl)
-        if tag in self._canvas_layers if isinstance(self._canvas_layers, dict) else self._canvas_layers.get():
+        if tag in self._canvas_layers.result():
             if self._zl_toggle_button_vars[zl].get() == 0:
                 self.canvas.itemconfigure(tag, state=HIDDEN)
             elif self._zl_toggle_button_vars[zl].get() == 1:
