@@ -235,11 +235,14 @@ def zl_to_height(zl, screen_res, fov):
 
 class XPlaneTile:
     """Utility class to work with X-Plane tiles"""
-    __slots__ = ['lat', 'lon']
+
+    # We won't dynmically add any attribute : optimize RAM usage
+    __slots__ = ['lat', 'lon', '_hash']
 
     def __init__(self, lat, lon):
         self.lat = int(math.floor(lat))
         self.lon = int(math.floor(lon))
+        self._hash = hash((self.lat, self.lon))
 
     def __eq__(self, other):
         return (self.lat, self.lon) == (other.lat, other.lon) if isinstance(other, XPlaneTile) else NotImplemented
@@ -248,7 +251,7 @@ class XPlaneTile:
         return (self.lat, self.lon) < (other.lat, other.lon) if isinstance(other, XPlaneTile) else NotImplemented
 
     def __hash__(self):
-        return hash((self.lat, self.lon))
+        return self._hash
 
     def __repr__(self):
         return '<XPlaneTile {:+03d}{:+04d}>'.format(self.lat, self.lon)
@@ -279,6 +282,9 @@ class GTile:
     - O4_Geo_Utils.py
     - https://developers.google.com/maps/documentation/javascript/coordinates"""
 
+    # We won't dynmically add any attribute : optimize RAM usage
+    __slots__ = ['x', 'y', 'zl', '_hash']
+
     __INSTANCES_CACHE__ = {}
     __INSTANCES_CACHE_HITS__ = 0
     __INSTANCES_CACHE_MISSES__ = 0
@@ -296,6 +302,7 @@ class GTile:
         self.x = x
         self.y = y
         self.zl = zl
+        self._hash = hash((self.x, self.y, self.zl))
 
     def __lt__(self, other):
         return (self.x, self.y, self.zl) < (other.x, other.y, other.zl) if isinstance(other, GTile) else NotImplemented
@@ -304,7 +311,7 @@ class GTile:
         return (self.x, self.y, self.zl) == (other.x, other.y, other.zl) if isinstance(other, GTile) else NotImplemented
 
     def __hash__(self):
-        return hash((self.x, self.y, self.zl))
+        return self._hash
 
     def __repr__(self):
         return '<GTile ({}, {})@ZL{}>'.format(self.x, self.y, self.zl)
@@ -360,6 +367,12 @@ class Runway:
     and to export itself to various formats : currently to json, and to a Shapely polygon.
     """
 
+    # We won't dynmically add any attribute : optimize RAM usage
+    __slots__ = ['width',
+                 'end_1_id', 'end_1_lat', 'end_1_lon',
+                 'end_2_id', 'end_2_lat', 'end_2_lon',
+                 '_hash']
+
     def __init__(self, runway_data):
         self.width = runway_data['width']
         self.end_1_id = runway_data['end_1_id']
@@ -368,18 +381,18 @@ class Runway:
         self.end_2_id = runway_data['end_2_id']
         self.end_2_lat = runway_data['end_2_lat']
         self.end_2_lon = runway_data['end_2_lon']
+        self._hash = (self.end_1_id, self.end_2_id)
 
     def __repr__(self):
         return '<Runway: {} / {}>'.format(self.end_1_id, self.end_2_id)
 
     def __eq__(self, other):
-        return other.name() == self.name() if isinstance(other, Runway) else NotImplemented
+        if not isinstance(other, Runway):
+            return NotImplemented
+        return self.end_1_id == other.end_1_id and self.end_2_id == other.end_2_id
 
     def __hash__(self):
-        return hash(self.name())
-
-    def name(self):
-        return tuple((self.end_1_id, self.end_2_id))
+        return self._hash
 
     def to_json(self):
         return {
@@ -486,12 +499,16 @@ class Airport:
     Runway information are stored in children instances of the Runway class.
     """
 
+    # We won't dynmically add any attribute : optimize RAM usage
+    __slots__ = ['type', 'icao', 'name', 'elevation', 'runways']
+
     def __init__(self, airport_data):
         self.type = airport_data['type']
         self.icao = IcaoCode(airport_data['icao'])
         self.name = airport_data['name']
         self.elevation = airport_data['elevation']
-        self.runways = {rw.name(): rw for rw in [Runway(rw_data) for rw_data in airport_data['runways']]}
+        self.runways = {(rw.end_1_id, rw.end_2_id): rw
+                        for rw in [Runway(rw_data) for rw_data in airport_data['runways']]}
 
     def __repr__(self):
         return '<Airport: {} "{}">'.format(self.icao, self.name)
@@ -994,8 +1011,9 @@ class AirportDataSource:
         tile_cache_file = FNAMES.cached_arpt_data(lat=tile.lat, lon=tile.lon)
         os.makedirs(os.path.dirname(tile_cache_file), exist_ok=True)
         with open(tile_cache_file, 'w') as f:
-            json.dump(airport_collection.to_json(), f, sort_keys=True, indent=True)
-        # Also ensure we have all the
+            # See https://bugs.python.org/issue12134, it's a lot faster to first dump to a json string, and only then
+            # writing it as a whole, instead of just calling json.dump()
+            f.write(json.dumps(airport_collection.to_json(), sort_keys=True, indent=True))
 
     @classmethod
     def _main_updater_job(cls):

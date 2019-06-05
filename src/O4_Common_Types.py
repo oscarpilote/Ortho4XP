@@ -11,6 +11,10 @@ class IcaoCode:
     Useful to distinguish between major airports with valid ICAO code, versus local aerodromes, or even fictional ones.
     The list of ICAO region prefixes comes from Wikipedia as of 2019-05-27 (good enough for our non-operational use)
     """
+
+    # We won't dynmically add any attribute : optimize RAM usage
+    __slots__ = ['_icao', '_hash']
+
     __RE_ICAO_FORMAT__ = re.compile(r'[A-Z]{4}')
 
     __TWO_CHARS_ICAO_REGIONS__ = {
@@ -75,13 +79,14 @@ class IcaoCode:
         r"Z[^KM][A-Z]{2}"
     ]) + r')')
 
-    def __init__(self, icao_str):
-        if isinstance(icao_str, IcaoCode):
-            self._icao = icao_str._icao
-        elif isinstance(icao_str, str):
-            self._icao = icao_str.upper()
+    def __init__(self, icao):
+        if isinstance(icao, IcaoCode):
+            self._icao = icao._icao
+        elif isinstance(icao, str):
+            self._icao = icao.upper()
         else:
             raise ValueError("The ICAO code must be either an str, or another instance of IcaoCode")
+        self._hash = hash(self._icao)
 
     def __repr__(self):
         if self.is_valid:
@@ -90,33 +95,28 @@ class IcaoCode:
             return '<ICAO: {} (Invalid)>'.format(self._icao)
 
     def __str__(self):
-        if not isinstance(self._icao, str):
-            return NotImplemented
         return self._icao
 
     def __hash__(self):
-        return hash(str(self))
+        return self._hash
 
     def __lt__(self, other):
-        if not isinstance(other, IcaoCode):
-            return NotImplemented
-        return str(self._icao) < str(other._icao)
+        if isinstance(other, IcaoCode):
+            return self._icao < other._icao
+        if isinstance(other, str):
+            return self._icao < other
+        return NotImplemented
 
     def __eq__(self, other):
-        if not isinstance(other, IcaoCode):
-            return NotImplemented
-        return self._icao == other._icao
-
-    @property
-    def icao(self):
-        return self._icao
+        if isinstance(other, IcaoCode):
+            return self._icao == other._icao
+        if isinstance(other, str):
+            return self._icao == other
+        return NotImplemented
 
     @property
     def is_valid(self):
         # Standard robustness
-        if not isinstance(self._icao, str):
-            return False
-
         if not self.__RE_ICAO_FORMAT__.match(self._icao):
             return False
 
