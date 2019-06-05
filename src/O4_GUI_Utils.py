@@ -791,9 +791,9 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         try:
             color = O4_Common_Types.ZoomLevels.tkinter_color_of(self.zlpol.get())
             if len(self.points) >= 4:
-                self.poly_curr = self.canvas.create_polygon(self.points, outline=color, fill='', width=2, tags='ZL_{:d}'.format(self.zlpol.get()))
+                self.poly_curr = self.canvas.create_polygon(self.points, outline=color, fill='', width=2, tags='Custom_ZL_{:d}'.format(self.zlpol.get()))
             else:
-                self.poly_curr = self.canvas.create_polygon(self.points, outline=color, fill='', width=5, tags='ZL_{:d}'.format(self.zlpol.get()))
+                self.poly_curr = self.canvas.create_polygon(self.points, outline=color, fill='', width=5, tags='Custom_ZL_{:d}'.format(self.zlpol.get()))
         except:
             pass
         return
