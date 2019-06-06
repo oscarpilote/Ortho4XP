@@ -11,6 +11,8 @@ import O4_Vector_Map as VMAP
 import O4_Imagery_Utils as IMG
 import O4_Tile_Utils as TILE
 import O4_Overlay_Utils as OVL
+import O4_Airport_Data_Source as APT_SRC
+
 from O4_Common_Types import CoverZLConfig, DecalConfig, ScreenRes
 
 
@@ -483,6 +485,9 @@ class Ortho4XP_Config(tk.Toplevel):
         if errors:
             error_text="The following variables had wrong type\nand were reset to their default value!\n\n* "+'\n* '.join(errors)
             self.popup("ERROR",error_text)
+
+        # Trigger a cache update (will only run if needed)
+        APT_SRC.AirportDataSource.update_cache()
 
     def popup(self,header,input_text):
         self.popupwindow = tk.Toplevel()

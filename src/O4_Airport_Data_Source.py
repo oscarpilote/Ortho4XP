@@ -951,6 +951,7 @@ class AirportDataSource:
     Only XPlaneAptDatParser is implemented for now, but an OSM parser should probably come next.
     """
 
+    __CACHE_FORMAT_VERSION__ = 0
     __PARSER_CLASSES__ = [XPlaneAptDatParser]  # [OSMAirportsParser, XPlaneAptDatParser]
     __TILE_AIRPORTS__ = dict()
     _cache_update_pool = None
@@ -1034,7 +1035,7 @@ class AirportDataSource:
 
         # Finally, rewrite the cache info file
         with open(os.path.join(FNAMES.Airport_dir, 'cache_info.json'), 'w') as f:
-            f.write(json.dumps({'cache_format_ver': 0,
+            f.write(json.dumps({'cache_format_ver': cls.__CACHE_FORMAT_VERSION__,
                                 'apt_dat_files': {apt_dat: {'mtime': os.path.getmtime(apt_dat)}
                                                   for apt_dat in apt_dat_files}},
                                sort_keys=True,
@@ -1054,6 +1055,10 @@ class AirportDataSource:
             cache_info = json.load(f)
 
         apt_dat_files = XPlaneAptDatParser.apt_dat_files()
+
+        if cache_info['cache_format_ver'] != cls.__CACHE_FORMAT_VERSION__:
+            return apt_dat_files
+
         if set(apt_dat_files) != set(cache_info['apt_dat_files']):
             return apt_dat_files
 
