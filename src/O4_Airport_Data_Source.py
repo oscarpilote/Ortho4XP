@@ -979,22 +979,33 @@ class AirportDataSource:
 
     @classmethod
     def _read_cached_tile(cls, tile):
+        cache_was_rebuilt = False
+
         # Ensure the tile cache file has been built : first waits for the main job to parse the apt.dat.
         # We need that because the tile updater jobs won't be started until that part is done.
         if cls._cache_updater_main_job is not None and cls._cache_updater_main_job.running():
+            cache_was_rebuilt = True
             concurrent.futures.wait([cls._cache_updater_main_job])
 
         # If we don't have an updater job for this tile, then it means there wasn't any airport data for it,
         # just return an empty collection
         if cls._cache_updater_tile_jobs is not None and tile not in cls._cache_updater_tile_jobs:
             return AirportCollection()
+
         if cls.cache_update_in_progress():
+            cache_was_rebuilt = True
             concurrent.futures.wait([cls._cache_updater_tile_jobs[tile]])
 
         tile_cache_file = FNAMES.cached_arpt_data(lat=tile.lat, lon=tile.lon)
+
         if not os.path.exists(tile_cache_file):
-            raise O4AirportDataSourceException("Couldn't find {}, please rebuild the cache manually, "
-                                               "or restart Ortho4XP".format(tile_cache_file))
+            if cache_was_rebuilt:
+                raise O4AirportDataSourceException("Couldn't find {}, please rebuild the cache manually, "
+                                                   "or restart Ortho4XP".format(tile_cache_file))
+            else:
+                # If we don't have that tile, and no cache update was triggered this turn, then it means we don't have
+                # any airport data for it, just return an empty collection
+                return AirportCollection()
 
         with open(tile_cache_file) as f:
             return AirportCollection([Airport(a) for a in json.load(f).values()])
