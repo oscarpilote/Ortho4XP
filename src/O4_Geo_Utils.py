@@ -1,3 +1,4 @@
+import functools
 from math import log, tan, pi, atan, exp, cos, sin, sqrt, atan2
 import pyproj
 
@@ -31,6 +32,7 @@ def transform(s_epsg, t_epsg, s_x, s_y):
 ##############################################################################
 
 ##############################################################################
+@functools.lru_cache(maxsize=2**14)
 def gtile_to_wgs84(til_x,til_y,zoomlevel):
     """
     Returns the latitude and longitude of the top left corner of the tile

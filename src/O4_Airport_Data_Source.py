@@ -1,6 +1,7 @@
 import bisect
 import collections
 import concurrent.futures
+import functools
 import glob
 import json
 import math
@@ -290,12 +291,14 @@ class GTile:
     __INSTANCES_CACHE_MISSES__ = 0
 
     def __new__(cls, x, y, zl, *args, **kwargs):
-        try:
-            inst = cls.__INSTANCES_CACHE__[(x, y, zl)]
+        _id = (x, y, zl)
+
+        if _id in cls.__INSTANCES_CACHE__:
             cls.__INSTANCES_CACHE_HITS__ += 1
-        except KeyError:
-            cls.__INSTANCES_CACHE__[(x, y, zl)] = inst = super(GTile, cls).__new__(cls, *args, **kwargs)
-            cls.__INSTANCES_CACHE_MISSES__ += 1
+            return cls.__INSTANCES_CACHE__[_id]
+
+        cls.__INSTANCES_CACHE__[_id] = inst = super(GTile, cls).__new__(cls, *args, **kwargs)
+        cls.__INSTANCES_CACHE_MISSES__ += 1
         return inst
 
     def __init__(self, x, y, zl):
@@ -335,29 +338,34 @@ class GTile:
 
         zl = target_zl or (self.zl + 1)
         zl_diff = zl - self.zl
-        return (GTile(x, y, zl)
+        return [GTile(x, y, zl)
                 for x in range(self.x * 2 ** zl_diff, (self.x + 16) * 2 ** zl_diff, 16)
-                for y in range(self.y * 2 ** zl_diff, (self.y + 16) * 2 ** zl_diff, 16))
+                for y in range(self.y * 2 ** zl_diff, (self.y + 16) * 2 ** zl_diff, 16)]
 
     def zl_siblings(self):
         return self.lower_zl_tile().higher_zl_subtiles()
 
     def surrounding_tiles(self, include_self=False):
-        return (tile
+        return [tile
                 for x_offset in [-16, 0, 16]
                 for y_offset in [-16, 0, 16]
                 for tile in [GTile(self.x + x_offset,
                                    self.y + y_offset,
                                    self.zl)]
-                if tile != self or include_self)
+                if not (x_offset == 0 and y_offset == 0) or include_self]
 
-    def polygon(self):
-        (lat_max, lon_min) = GEO.gtile_to_wgs84(self.x, self.y, self.zl)
-        (lat_min, lon_max) = GEO.gtile_to_wgs84(self.x + 16, self.y + 16, self.zl)
+    @staticmethod
+    @functools.lru_cache(maxsize=2 ** 13)  # 8192
+    def _cached_polygon(x, y, zl):
+        (lat_max, lon_min) = GEO.gtile_to_wgs84(x, y, zl)
+        (lat_min, lon_max) = GEO.gtile_to_wgs84(x + 16, y + 16, zl)
         return shapely.geometry.Polygon([(lon_min, lat_min),
                                          (lon_max, lat_min),
                                          (lon_max, lat_max),
                                          (lon_min, lat_max)])
+
+    def polygon(self):
+        return self._cached_polygon(self.x, self.y, self.zl)
 
 
 class Runway:
@@ -549,12 +557,9 @@ class Airport:
         }
 
     def gtiles(self, zl, screen_res, fov, fpa):
-        tiles = set()
-        for rw in self.runways.values():
-            for tile in rw.gtiles(zl, screen_res, fov, fpa):
-                if tile not in tiles:
-                    tiles.add(tile)
-                    yield tile
+        return set([tile
+                    for rw in self.runways.values()
+                    for tile in rw.gtiles(zl, screen_res, fov, fpa)])
 
 
 class AirportCollection:
@@ -621,7 +626,7 @@ class AirportCollection:
     #
 
     @staticmethod
-    def _sub_zl_margin(zl, sub_zl_polygon, margin_width):
+    def _sub_zl_margin_set(zl, sub_zl_polygon, margin_width):
         """Take a margin, 1 ZLn tile wide, around each ZLn+1 polygon. Return the corresponding ZLn tiles."""
         margin_tiles = set()
         for zl_n1_polygon in sub_zl_polygon:
@@ -641,16 +646,14 @@ class AirportCollection:
             x_max, y_max = GEO.wgs84_to_orthogrid(lat_min, lon_max, zl)
 
             # Only keep the ZLn tiles intersecting the margin polygon
-            for tile in (GTile(x, y, zl)
-                         for x in range(x_min, x_max + 16, 16)
-                         for y in range(y_min, y_max + 16, 16)):
-                if margin_polygon.intersects(tile.polygon()):
-                    if tile not in margin_tiles:
-                        margin_tiles.add(tile)
-                        yield tile
+            margin_tiles.update([t for t in [GTile(x, y, zl)
+                                             for x in range(x_min, x_max + 16, 16)
+                                             for y in range(y_min, y_max + 16, 16)]
+                                 if margin_polygon.intersects(t.polygon())])
+        return margin_tiles
 
     @staticmethod
-    def _optimized_tiles(tiles, zl, greediness, greediness_threshold):
+    def _optimized_tile_set(tiles: set, zl, greediness, greediness_threshold):
         # Group the input tiles by their lower ZL tile (in a dict of {ZLn-1: [ZLn]})
         zl_n_tiles = collections.defaultdict(list)
         for tile in tiles:
@@ -672,15 +675,15 @@ class AirportCollection:
                 zl_n_tiles_new[zl_optim_tile.lower_zl_tile()].extend(zl_n_group)
             zl_n_tiles = zl_n_tiles_new
 
-        return {tile
-                for tile_group in zl_n_tiles.values()
-                for tile in tile_group}
+        return set([tile
+                    for tile_group in zl_n_tiles.values()
+                    for tile in tile_group])
 
     @staticmethod
-    def _compacted_tiles(tiles):
+    def _compacted_tile_set(tiles: set):
         """Compact the tiles into as few instances as possible, by replacing a group of ZLn tiles with their common
         ZLn-1 tile, if all the ZLn tiles of the group are present."""
-        current_tiles = set(tiles)
+        current_tiles = tiles
         previous_tiles = set()
         # Repeat the process until a full iteration went without changing anything (meaning: until we're done)
         while current_tiles != previous_tiles:
@@ -724,10 +727,10 @@ class AirportCollection:
             return shapely.geometry.Point(lon_1, lat_1).distance(shapely.geometry.Point(lon_2, lat_2))
 
         # First compute the tiles for the current zl
-        gtiles = {gtile
-                  for airport in self.airports.values()
-                  for gtile in airport.gtiles(zl, screen_res, fov, fpa)
-                  if zl <= cover_zl.max_cover_zl_for(airport.icao)}
+        gtiles = functools.reduce(lambda s1, s2: s1.union(s2),
+                                  map(lambda a: a.gtiles(zl, screen_res, fov, fpa),
+                                      filter(lambda a: zl <= cover_zl.max_cover_zl_for(a.icao),
+                                             self.airports.values())))
 
         if zl < cover_zl.max:
             # If we're not at ZLmax, compute the ZLn+1 gtiles, and "compact" them
@@ -740,7 +743,7 @@ class AirportCollection:
                                          fpa=fpa,
                                          greediness=greediness,
                                          greediness_threshold=greediness_threshold)
-            compacted_sub_gtiles = self._compacted_tiles(all_sub_gtiles)
+            compacted_sub_gtiles = self._compacted_tile_set(all_sub_gtiles)
         else:
             all_sub_gtiles = set()
             compacted_sub_gtiles = set()
@@ -748,19 +751,19 @@ class AirportCollection:
         # Take a margin around each of the ZLn+1 polygons, and add the corresponding ZLn gtiles
         # We need this margin to ensure that the zones are progressive, to prevent jumps from ZLn to ZLn+2.
         if all_sub_gtiles:
-            gtiles.update(self._sub_zl_margin(zl,
-                                              self.as_polygons(all_sub_gtiles),
-                                              _margin_width()))
+            gtiles.update(self._sub_zl_margin_set(zl,
+                                                  self.as_polygons(all_sub_gtiles),
+                                                  _margin_width()))
 
         # Optimize texture usage, but "eating" up any lower zl being "greediness_threshold"-percent covered by this zl
         # Will look up to 'greediness' lower levels
-        optimized_gtiles = self._optimized_tiles(gtiles, zl, greediness, greediness_threshold)
+        optimized_gtiles = self._optimized_tile_set(gtiles, zl, greediness, greediness_threshold)
 
         # Only keep useful ZLn gtiles : remove the gtiles that are fully covered by ZLn+1
         own_zl_gtiles = optimized_gtiles - compacted_sub_gtiles
 
         # Finally, return the remaining ZLn tiles + all the previously computed ZLn+1..ZLmax subtiles
-        return set(own_zl_gtiles).union(all_sub_gtiles)
+        return own_zl_gtiles.union(all_sub_gtiles)
 
     @staticmethod
     def as_polygons(gtiles):
