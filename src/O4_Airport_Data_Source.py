@@ -955,7 +955,7 @@ class AirportDataSource:
     __TILE_AIRPORTS__ = dict()
     _cache_update_pool = None
     _cache_updater_main_job = None
-    _cache_updater_tile_jobs = dict()
+    _cache_updater_tile_jobs = None
 
     @classmethod
     def airports_in(cls, tile, include_surrounding_tiles=False):
@@ -977,14 +977,14 @@ class AirportDataSource:
     def _read_cached_tile(cls, tile):
         # Ensure the tile cache file has been built : first waits for the main job to parse the apt.dat.
         # We need that because the tile updater jobs won't be started until that part is done.
-        if cls._cache_updater_main_job is not None and not cls._cache_updater_main_job.done():
+        if cls._cache_updater_main_job is not None and cls._cache_updater_main_job.running():
             concurrent.futures.wait([cls._cache_updater_main_job])
 
         # If we don't have an updater job for this tile, then it means there wasn't any airport data for it,
         # just return an empty collection
         if cls._cache_updater_tile_jobs is not None and tile not in cls._cache_updater_tile_jobs:
             return AirportCollection()
-        if cls._cache_updater_tile_jobs is not None:
+        if cls.cache_update_in_progress():
             concurrent.futures.wait([cls._cache_updater_tile_jobs[tile]])
 
         tile_cache_file = FNAMES.cached_arpt_data(lat=tile.lat, lon=tile.lon)
@@ -1016,12 +1016,11 @@ class AirportDataSource:
             f.write(json.dumps(airport_collection.to_json(), sort_keys=True, indent=True))
 
     @classmethod
-    def _main_updater_job(cls):
+    def _main_updater_job(cls, apt_dat_files):
         # First parse all the apt.dat files available
         # This part will block until we're done (but this function is also running in a thread)
         parsed_airport_data = collections.defaultdict(AirportCollection)
-        for apt_data in [cls._cache_update_pool.submit(cls._parse_apt_dat, apt_file)
-                         for apt_file in XPlaneAptDatParser.apt_dat_files()]:
+        for apt_data in [cls._cache_update_pool.submit(cls._parse_apt_dat, apt_file) for apt_file in apt_dat_files]:
             for (tile, airport_collection) in apt_data.result().items():
                 for (icao, airport) in airport_collection.items():
                     # Intentionally overwrite global airport data with custom scenery ones
@@ -1033,17 +1032,54 @@ class AirportDataSource:
                                                                             airport_collection)
                                         for (tile, airport_collection) in parsed_airport_data.items()}
 
+        # Finally, rewrite the cache info file
+        with open(os.path.join(FNAMES.Airport_dir, 'cache_info.json'), 'w') as f:
+            f.write(json.dumps({'cache_format_ver': 0,
+                                'apt_dat_files': {apt_dat: {'mtime': os.path.getmtime(apt_dat)}
+                                                  for apt_dat in apt_dat_files}},
+                               sort_keys=True,
+                               indent=True))
+
+    @classmethod
+    def apt_dat_files(cls):
+        """Compare the current list of apt.dat files against what we used last time.
+        If any of the apt.dat file were changed/added/removed, then return the new list.
+        Otherwise, just return an empty list so that cache rebuilding is skipped."""
+        cache_info_file = os.path.join(FNAMES.Airport_dir, 'cache_info.json')
+
+        if not os.path.exists(cache_info_file):
+            return XPlaneAptDatParser.apt_dat_files()
+
+        with open(cache_info_file) as f:
+            cache_info = json.load(f)
+
+        apt_dat_files = XPlaneAptDatParser.apt_dat_files()
+        if set(apt_dat_files) != set(cache_info['apt_dat_files']):
+            return apt_dat_files
+
+        for apt_dat in apt_dat_files:
+            if os.path.getmtime(apt_dat) != cache_info['apt_dat_files'][apt_dat]['mtime']:
+                return apt_dat_files
+
+        return list()
+
     @classmethod
     def wait_for_cache_update(cls):
         # Just waits for all the other updater jobs to complete
         concurrent.futures.wait([cls._cache_updater_main_job])
-        concurrent.futures.wait(list(cls._cache_updater_tile_jobs.values()))
+        if cls.cache_update_in_progress():
+            concurrent.futures.wait(list(cls._cache_updater_tile_jobs.values()))
 
     @classmethod
     def cache_update_in_progress(cls):
-        return cls._cache_updater_tile_jobs is not None
+        return ((cls._cache_updater_main_job is not None and
+                 cls._cache_updater_main_job.running()) or
+                (cls._cache_updater_tile_jobs is not None and
+                 any([j.running() for j in cls._cache_updater_tile_jobs.values()])))
 
     @classmethod
     def update_cache(cls):
-        cls._cache_update_pool = concurrent.futures.ThreadPoolExecutor()
-        cls._cache_updater_main_job = cls._cache_update_pool.submit(cls._main_updater_job)
+        apt_dat_files = cls.apt_dat_files()
+        if apt_dat_files:
+            cls._cache_update_pool = concurrent.futures.ThreadPoolExecutor()
+            cls._cache_updater_main_job = cls._cache_update_pool.submit(cls._main_updater_job, apt_dat_files)

@@ -521,24 +521,22 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         ttk.Button(self.frame_left,text='Close Preview',command=self.destroy).grid(row=row,column=0,padx=5,pady=3,sticky=N+S+E+W); row+=1
 
         right_row = 0
-        if APT_SRC.AirportDataSource.cache_update_in_progress():
-            self.apt_data_cache_banner = tk.Label(self.frame_right,
-                                                  anchor=N,
-                                                  text="Parsing X-Plane Airport data, please wait...",
-                                                  fg="light green",
-                                                  bg="dark green",
-                                                  font="Helvetica 12 bold italic")
-            self.apt_data_cache_banner.grid(row=right_row, column=0, sticky=N+S+W+E)
-            self.pool.submit(self.async_hide_banner_when_done)
-            right_row += 1
-        else:
-            self.apt_data_cache_banner = None
+        self.apt_data_cache_banner = tk.Label(self.frame_right,
+                                              anchor=N,
+                                              text="Parsing X-Plane Airport data, please wait...",
+                                              fg="light green",
+                                              bg="dark green",
+                                              font="Helvetica 12 bold italic")
+        self.apt_data_cache_banner.grid(row=right_row, column=0, sticky=N+S+W+E)
+        self.pool.submit(self.async_hide_banner_when_done)
+        right_row += 1
         self.canvas = tk.Canvas(self.frame_right, bd=0, height=750, width=750)
         self.canvas.grid(row=right_row, column=0, sticky=N+S+E+W)
         self._canvas_layers = None
 
     def async_hide_banner_when_done(self):
-        APT_SRC.AirportDataSource.wait_for_cache_update()
+        if APT_SRC.AirportDataSource.cache_update_in_progress():
+            APT_SRC.AirportDataSource.wait_for_cache_update()
         if self.apt_data_cache_banner is not None:
             self.apt_data_cache_banner.grid_remove()
 
