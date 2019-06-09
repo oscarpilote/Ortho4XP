@@ -424,7 +424,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         except:
             self.zlpol.set(17)
         self.gb = tk.StringVar()
-        self.gb.set('0Gb')
+        self.gb.set('0 GiB')
         self.last_clicked_texture = tk.StringVar()
         self.last_clicked_texture.set('<no texture clicked yet>')
 
@@ -515,8 +515,8 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         tk.Label(self.frame_left,anchor=W,text="Selected Texture File: ",bg="light green").grid(row=row,column=0,padx=5,pady=0,sticky=W); row+=1
         tk.Entry(self.frame_left,width=30,justify=RIGHT,bg="white",fg="blue",textvariable=self.last_clicked_texture).grid(row=row,column=0,padx=5,pady=0,sticky=E); row+=1
 
-        tk.Label(self.frame_left,anchor=W,text="Approx. Add. Size : ",bg="light green").grid(row=row,column=0,padx=5,pady=10,sticky=W)
-        tk.Entry(self.frame_left,width=7,justify=RIGHT,bg="white",fg="blue",textvariable=self.gb).grid(row=row,column=0,padx=5,pady=10,sticky=E); row+=1
+        tk.Label(self.frame_left,anchor=W,text="Estimated Size : ",bg="light green").grid(row=row,column=0,padx=5,pady=10,sticky=W)
+        tk.Entry(self.frame_left,width=10,justify=RIGHT,bg="white",fg="blue",textvariable=self.gb).grid(row=row,column=0,padx=5,pady=10,sticky=E); row+=1
 
         ttk.Button(self.frame_left,text='Close Preview',command=self.destroy).grid(row=row,column=0,padx=5,pady=3,sticky=N+S+E+W); row+=1
 
@@ -907,7 +907,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
                                                             greediness=CFG.cover_greediness,
                                                             greediness_threshold=CFG.cover_greediness_threshold) / 2 ** 30
 
-        self.gb.set('{:0.1f}'.format(total_size)+"GiB")
+        self.gb.set('{:0.1f}'.format(total_size) + " GiB")
 
     def save_zone_cmd(self):
         if len(self.points)<6:
