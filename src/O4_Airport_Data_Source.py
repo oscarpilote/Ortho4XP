@@ -292,6 +292,7 @@ class GTile:
 
     @classmethod
     def cache_info(cls):
+        # LRU cache size tailored for heavy use case = Tile +42-089 (max airports), ZL 15 to 19
         return {'instances': 'hits={}, misses={}'.format(cls.__INSTANCES_CACHE_HITS__, cls.__INSTANCES_CACHE_MISSES__),
                 'lower_zl_tile': str(cls.lower_zl_tile.cache_info()),
                 'higher_zl_subtiles': str(cls.higher_zl_subtiles.cache_info()),
@@ -327,7 +328,7 @@ class GTile:
     def __repr__(self):
         return '<GTile ({}, {})@ZL{}>'.format(self.x, self.y, self.zl)
 
-    @functools.lru_cache(maxsize=2 ** 13)
+    @functools.lru_cache(maxsize=2 ** 14)
     def lower_zl_tile(self, target_zl=None):
         if target_zl and target_zl >= self.zl:
             return self
@@ -341,7 +342,7 @@ class GTile:
         else:
             return lower
 
-    @functools.lru_cache(maxsize=2 ** 12)
+    @functools.lru_cache(maxsize=2 ** 13)
     def higher_zl_subtiles(self, target_zl=None):
         if target_zl and target_zl <= self.zl:
             return [self]
@@ -366,7 +367,7 @@ class GTile:
                 if not (x_offset == 0 and y_offset == 0) or include_self]
 
     @staticmethod
-    @functools.lru_cache(maxsize=2 ** 13)  # 8192
+    @functools.lru_cache(maxsize=2 ** 15)
     def _cached_polygon(x, y, zl):
         (lat_max, lon_min) = GEO.gtile_to_wgs84(x, y, zl)
         (lat_min, lon_max) = GEO.gtile_to_wgs84(x + 16, y + 16, zl)
@@ -624,22 +625,28 @@ class AirportCollection:
     # gtiles utilities
     #
 
+    @staticmethod
+    def _margin_width(zl, fraction):
+        lat_1, lon_1 = GEO.gtile_to_wgs84(0, 0, zl)
+        lat_2, lon_2 = GEO.gtile_to_wgs84(int(16 / fraction), 0, zl)
+        return shapely.geometry.Point(lon_1, lat_1).distance(shapely.geometry.Point(lon_2, lat_2))
+
+    def _tile_margin_poly(self, zl, greediness):
+        margin_width = self._margin_width(max(__ZL_OPTIM_LIMIT__, (zl - greediness)), 1)
+        tile_poly = self.xp_tile.polygon()
+        margin_poly = tile_poly.exterior.buffer(distance=margin_width,
+                                                cap_style=shapely.geometry.CAP_STYLE.square,
+                                                join_style=shapely.geometry.JOIN_STYLE.mitre)
+        return shapely.prepared.prep(margin_poly.union(tile_poly))
+
     def _sub_zl_margin_set(self, zl, sub_zl_gtiles):
         """Take a margin, 1 ZLn tile wide, around each ZLn+1 polygon. Return the corresponding ZLn tiles."""
-
-        def _margin_width():
-            """Decide on a margin width, arbitrarily based on 1/16th of the width of a ZLn tile"""
-            lat_1, lon_1 = GEO.gtile_to_wgs84(0, 0, zl)
-            lat_2, lon_2 = GEO.gtile_to_wgs84(1, 0, zl)  # Next tile is at (x+16, 0), so 1/16th is (x+1, 0)
-            return shapely.geometry.Point(lon_1, lat_1).distance(shapely.geometry.Point(lon_2, lat_2))
-
-        margin_width = _margin_width()
         margin_tiles = set()
         for zl_n1_polygon in self.as_polygons(sub_zl_gtiles):
             # Build the margin polygon :
             # - exterior: parallel to ZLn+1 exterior, at margin_width distance
             # - interior: ZLn+1 exterior
-            zl_n_margin = zl_n1_polygon.exterior.buffer(distance=margin_width,
+            zl_n_margin = zl_n1_polygon.exterior.buffer(distance=self._margin_width(zl, 16),
                                                         cap_style=shapely.geometry.CAP_STYLE.square,
                                                         join_style=shapely.geometry.JOIN_STYLE.mitre)
 
@@ -720,27 +727,31 @@ class AirportCollection:
     #
 
     @functools.lru_cache(maxsize=2 ** 3)
-    def gtiles(self, zl, cover_zl, screen_res, fov, fpa, greediness, greediness_threshold):
+    def gtiles(self, zl, cover_zl, screen_res, fov, fpa, greediness, greediness_threshold, xp_tile_filter):
         """Return the ZL gtiles needed to cover this airport collection.
         This list ALSO includes all the (interior) higher ZL sub-tiles, down to cover_zl"""
 
         # First compute the tiles for the current zl
+        tile_margin_poly = self._tile_margin_poly(zl, greediness)
+        selected_airports = filter(lambda a: zl <= cover_zl.max_cover_zl_for(a.icao),
+                                   self.airports.values())
         gtiles = functools.reduce(lambda s1, s2: s1.union(s2),
-                                  map(lambda a: a.gtiles(zl, screen_res, fov, fpa),
-                                      filter(lambda a: zl <= cover_zl.max_cover_zl_for(a.icao),
-                                             self.airports.values())))
+                                  map(lambda a: set(filter(lambda t: not tile_margin_poly.disjoint(t.polygon()),
+                                                           a.gtiles(zl, screen_res, fov, fpa))),
+                                      selected_airports))
 
         if zl < cover_zl.max:
             # If we're not at ZLmax, compute the ZLn+1 gtiles, and "compact" them
             # When compacted, this list will then also include any ZLn gtiles that were fully covered by ZLn+1 gtiles
             # We'll then exclude any such ZLn tile from the final list, thus creating "holes" for the ZLn+1 gtiles
-            all_sub_gtiles = self.gtiles(zl=zl + 1,
-                                         cover_zl=cover_zl,
-                                         screen_res=screen_res,
-                                         fov=fov,
-                                         fpa=fpa,
-                                         greediness=greediness,
-                                         greediness_threshold=greediness_threshold)
+            all_sub_gtiles = set(self.gtiles(zl=zl + 1,
+                                             cover_zl=cover_zl,
+                                             screen_res=screen_res,
+                                             fov=fov,
+                                             fpa=fpa,
+                                             greediness=greediness,
+                                             greediness_threshold=greediness_threshold,
+                                             xp_tile_filter=False))
             compacted_sub_gtiles = self._compacted_tile_set(all_sub_gtiles)
         else:
             all_sub_gtiles = set()
@@ -756,13 +767,17 @@ class AirportCollection:
         optimized_gtiles = self._optimized_tile_set(gtiles, zl, greediness, greediness_threshold)
 
         # Only keep useful ZLn gtiles : remove the gtiles that are fully covered by ZLn+1
-        #                             : also remove those outside the xp_tile border
-        tile_poly = shapely.prepared.prep(self.xp_tile.polygon())
-        own_zl_gtiles = set(filter(lambda t: not tile_poly.disjoint(t.polygon()),
+        #                             : also remove those outside the xp_tile border (with a margin)
+        own_zl_gtiles = set(filter(lambda t: not tile_margin_poly.disjoint(t.polygon()),
                                    optimized_gtiles - compacted_sub_gtiles))
 
         # Finally, return the remaining ZLn tiles + all the previously computed ZLn+1..ZLmax subtiles
-        return own_zl_gtiles.union(all_sub_gtiles)
+        final_gtiles = own_zl_gtiles.union(all_sub_gtiles)
+        if xp_tile_filter:
+            tile_poly = shapely.prepared.prep(self.xp_tile.polygon())
+            return set(filter(lambda t: not tile_poly.disjoint(t.polygon()),
+                              final_gtiles))
+        return final_gtiles
 
     @staticmethod
     def as_polygons(gtiles):
@@ -787,7 +802,8 @@ class AirportCollection:
                                                         fov=fov,
                                                         fpa=fpa,
                                                         greediness=greediness,
-                                                        greediness_threshold=greediness_threshold)):
+                                                        greediness_threshold=greediness_threshold,
+                                                        xp_tile_filter=True)):
                 coords = []
                 for (x, y) in polygon.exterior.coords:
                     coords.extend([y, x])
@@ -804,7 +820,8 @@ class AirportCollection:
                                           fov=fov,
                                           fpa=fpa,
                                           greediness=greediness,
-                                          greediness_threshold=greediness_threshold))
+                                          greediness_threshold=greediness_threshold,
+                                          xp_tile_filter=True))
 
 
 ########################################################################################################################
@@ -1057,8 +1074,8 @@ class AirportDataSource:
         # Then start writing the tile cache files in the background
         cls._cache_updater_tile_jobs = {tile: cls._cache_update_pool.submit(cls._write_tile_cache,
                                                                             tile,
-                                                                            _airports_dict)
-                                        for (tile, _airports_dict) in parsed_airport_data.items()}
+                                                                            airports_dict)
+                                        for (tile, airports_dict) in parsed_airport_data.items()}
 
         # Finally, rewrite the cache info file
         with open(os.path.join(FNAMES.Airport_dir, 'cache_info.json'), 'w') as f:
@@ -1110,8 +1127,11 @@ class AirportDataSource:
                  any([j.running() for j in cls._cache_updater_tile_jobs.values()])))
 
     @classmethod
-    def update_cache(cls):
+    def update_cache(cls, force_rebuild=False):
+        if force_rebuild:
+            os.remove(os.path.join(FNAMES.Airport_dir, 'cache_info.json'))
+
         apt_dat_files = cls.apt_dat_files()
         if apt_dat_files:
-            cls._cache_update_pool = concurrent.futures.ThreadPoolExecutor()
+            cls._cache_update_pool = cls._cache_update_pool or concurrent.futures.ThreadPoolExecutor()
             cls._cache_updater_main_job = cls._cache_update_pool.submit(cls._main_updater_job, apt_dat_files)

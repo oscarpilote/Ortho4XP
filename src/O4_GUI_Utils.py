@@ -604,7 +604,8 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
                                                         fov=CFG.cover_fov,
                                                         fpa=CFG.cover_fpa,
                                                         greediness=CFG.cover_greediness,
-                                                        greediness_threshold=CFG.cover_greediness_threshold):
+                                                        greediness_threshold=CFG.cover_greediness_threshold,
+                                                        xp_tile_filter=True):
                 progressive_gtiles[gtile.zl].add(gtile)
 
             layers = self._build_texture_layers(bg_map_lat, bg_map_lon, bg_map_zl, progressive_gtiles)
@@ -996,7 +997,7 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
     earthzl=6
     resolution=2**earthzl*256
 
-    list_del_ckbtn = ['OSM data','Mask data','Jpeg imagery','Tile (whole)','Tile (textures)']
+    list_del_ckbtn = ['OSM data','X-Plane Airport data','Mask data','Jpeg imagery','Tile (whole)','Tile (textures)']
     list_do_ckbtn  = ['Assemble vector data','Triangulate 3D mesh','Draw water masks','Build imagery/DSF','Extract overlays','Read per tile cfg']
 
     canvas_min_x=900
@@ -1223,6 +1224,11 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
     def trash(self):
         if self.v_['OSM data'].get():
             try: shutil.rmtree(FNAMES.osm_dir(self.active_lat,self.active_lon))
+            except Exception as e:
+                UI.vprint(3,e)
+        if self.v_['X-Plane Airport data'].get():
+            try:
+                APT_SRC.AirportDataSource.update_cache(force_rebuild=True)
             except Exception as e:
                 UI.vprint(3,e)
         if self.v_['Mask data'].get():
