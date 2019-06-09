@@ -237,7 +237,7 @@ def zl_to_height(zl, screen_res, fov):
 class XPlaneTile:
     """Utility class to work with X-Plane tiles"""
 
-    # We won't dynmically add any attribute : optimize RAM usage
+    # We won't dynamically add any attribute : optimize RAM usage
     __slots__ = ['lat', 'lon', '_hash']
 
     def __init__(self, lat, lon):
@@ -283,12 +283,20 @@ class GTile:
     - O4_Geo_Utils.py
     - https://developers.google.com/maps/documentation/javascript/coordinates"""
 
-    # We won't dynmically add any attribute : optimize RAM usage
+    # We won't dynamically add any attribute : optimize RAM usage
     __slots__ = ['x', 'y', 'zl', '_hash']
 
     __INSTANCES_CACHE__ = {}
     __INSTANCES_CACHE_HITS__ = 0
     __INSTANCES_CACHE_MISSES__ = 0
+
+    @classmethod
+    def cache_info(cls):
+        return {'instances': 'hits={}, misses={}'.format(cls.__INSTANCES_CACHE_HITS__, cls.__INSTANCES_CACHE_MISSES__),
+                'lower_zl_tile': str(cls.lower_zl_tile.cache_info()),
+                'higher_zl_subtiles': str(cls.higher_zl_subtiles.cache_info()),
+                'zl_siblings': str(cls.zl_siblings.cache_info()),
+                '_cached_polygon': str(cls._cached_polygon.cache_info())}
 
     def __new__(cls, x, y, zl, *args, **kwargs):
         _id = (x, y, zl)
@@ -319,6 +327,7 @@ class GTile:
     def __repr__(self):
         return '<GTile ({}, {})@ZL{}>'.format(self.x, self.y, self.zl)
 
+    @functools.lru_cache(maxsize=2 ** 13)
     def lower_zl_tile(self, target_zl=None):
         if target_zl and target_zl >= self.zl:
             return self
@@ -332,6 +341,7 @@ class GTile:
         else:
             return lower
 
+    @functools.lru_cache(maxsize=2 ** 12)
     def higher_zl_subtiles(self, target_zl=None):
         if target_zl and target_zl <= self.zl:
             return [self]
@@ -342,6 +352,7 @@ class GTile:
                 for x in range(self.x * 2 ** zl_diff, (self.x + 16) * 2 ** zl_diff, 16)
                 for y in range(self.y * 2 ** zl_diff, (self.y + 16) * 2 ** zl_diff, 16)]
 
+    @functools.lru_cache(maxsize=2 ** 13)
     def zl_siblings(self):
         return self.lower_zl_tile().higher_zl_subtiles()
 
@@ -375,7 +386,7 @@ class Runway:
     and to export itself to various formats : currently to json, and to a Shapely polygon.
     """
 
-    # We won't dynmically add any attribute : optimize RAM usage
+    # We won't dynamically add any attribute : optimize RAM usage
     __slots__ = ['width',
                  'end_1_id', 'end_1_lat', 'end_1_lon',
                  'end_2_id', 'end_2_lat', 'end_2_lon',
@@ -507,7 +518,7 @@ class Airport:
     Runway information are stored in children instances of the Runway class.
     """
 
-    # We won't dynmically add any attribute : optimize RAM usage
+    # We won't dynamically add any attribute : optimize RAM usage
     __slots__ = ['type', 'icao', 'name', 'elevation', 'runways']
 
     def __init__(self, airport_data):
@@ -625,11 +636,18 @@ class AirportCollection:
     # gtiles utilities
     #
 
-    @staticmethod
-    def _sub_zl_margin_set(zl, sub_zl_polygon, margin_width):
+    def _sub_zl_margin_set(self, zl, sub_zl_gtiles):
         """Take a margin, 1 ZLn tile wide, around each ZLn+1 polygon. Return the corresponding ZLn tiles."""
+
+        def _margin_width():
+            """Decide on a margin width, arbitrarily based on 1/16th of the width of a ZLn tile"""
+            lat_1, lon_1 = GEO.gtile_to_wgs84(0, 0, zl)
+            lat_2, lon_2 = GEO.gtile_to_wgs84(1, 0, zl)  # Next tile is at (x+16, 0), so 1/16th is (x+1, 0)
+            return shapely.geometry.Point(lon_1, lat_1).distance(shapely.geometry.Point(lon_2, lat_2))
+
+        margin_width = _margin_width()
         margin_tiles = set()
-        for zl_n1_polygon in sub_zl_polygon:
+        for zl_n1_polygon in self.as_polygons(sub_zl_gtiles):
             # Build the margin polygon :
             # - exterior: parallel to ZLn+1 exterior, at margin_width distance
             # - interior: ZLn+1 exterior
@@ -716,15 +734,10 @@ class AirportCollection:
     def to_json(self):
         return {str(icao): arpt.to_json() for (icao, arpt) in self.airports.items()}
 
+    @functools.lru_cache(maxsize=2 ** 3)
     def gtiles(self, zl, cover_zl, screen_res, fov, fpa, greediness, greediness_threshold):
         """Return the ZL gtiles needed to cover this airport collection.
         This list ALSO includes all the (interior) higher ZL sub-tiles, down to cover_zl"""
-
-        def _margin_width():
-            """Decide on a margin width, arbitrarily based on 1/16th of the width of a ZLn tile"""
-            lat_1, lon_1 = GEO.gtile_to_wgs84(0, 0, zl)
-            lat_2, lon_2 = GEO.gtile_to_wgs84(1, 0, zl)  # Next tile is at (x+16, 0), so 1/16th is (x+1, 0)
-            return shapely.geometry.Point(lon_1, lat_1).distance(shapely.geometry.Point(lon_2, lat_2))
 
         # First compute the tiles for the current zl
         gtiles = functools.reduce(lambda s1, s2: s1.union(s2),
@@ -751,16 +764,17 @@ class AirportCollection:
         # Take a margin around each of the ZLn+1 polygons, and add the corresponding ZLn gtiles
         # We need this margin to ensure that the zones are progressive, to prevent jumps from ZLn to ZLn+2.
         if all_sub_gtiles:
-            gtiles.update(self._sub_zl_margin_set(zl,
-                                                  self.as_polygons(all_sub_gtiles),
-                                                  _margin_width()))
+            gtiles.update(self._sub_zl_margin_set(zl, all_sub_gtiles))
 
         # Optimize texture usage, but "eating" up any lower zl being "greediness_threshold"-percent covered by this zl
         # Will look up to 'greediness' lower levels
         optimized_gtiles = self._optimized_tile_set(gtiles, zl, greediness, greediness_threshold)
 
         # Only keep useful ZLn gtiles : remove the gtiles that are fully covered by ZLn+1
-        own_zl_gtiles = optimized_gtiles - compacted_sub_gtiles
+        #                             : also remove those outside the xp_tile border
+        tile_poly = shapely.prepared.prep(self.xp_tile.polygon())
+        own_zl_gtiles = set(filter(lambda t: not tile_poly.disjoint(t.polygon()),
+                                   optimized_gtiles - compacted_sub_gtiles))
 
         # Finally, return the remaining ZLn tiles + all the previously computed ZLn+1..ZLmax subtiles
         return own_zl_gtiles.union(all_sub_gtiles)
@@ -791,11 +805,10 @@ class AirportCollection:
                                                         fpa=fpa,
                                                         greediness=greediness,
                                                         greediness_threshold=greediness_threshold)):
-                if not tile_poly.disjoint(polygon):
-                    coords = []
-                    for (x, y) in polygon.exterior.coords:
-                        coords.extend([y, x])
-                    tile_zones.append([coords, zl, provider])
+                coords = []
+                for (x, y) in polygon.exterior.coords:
+                    coords.extend([y, x])
+                tile_zones.append([coords, zl, provider])
         return tile_zones
 
 

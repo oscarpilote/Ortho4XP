@@ -12,7 +12,7 @@ class IcaoCode:
     The list of ICAO region prefixes comes from Wikipedia as of 2019-05-27 (good enough for our non-operational use)
     """
 
-    # We won't dynmically add any attribute : optimize RAM usage
+    # We won't dynamically add any attribute : optimize RAM usage
     __slots__ = ['_icao', '_hash']
 
     __RE_ICAO_FORMAT__ = re.compile(r'[A-Z]{4}')

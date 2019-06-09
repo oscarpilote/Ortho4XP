@@ -74,4 +74,12 @@ if __name__ == '__main__':
             print("Bon vol!")
         except:
             print("Crash!")
- 
+
+    if False:
+        import json
+        import O4_Geo_Utils
+        print("04_airport_Data_Source.GTile :")
+        print(json.dumps(APT_SRC.GTile.cache_info(), indent=True))
+        print(json.dumps(APT_SRC.AirportCollection.cache_info(), indent=True))
+        for f in [O4_Geo_Utils.gtile_to_wgs84]:
+            print("{} : {}".format(f.__qualname__, f.cache_info()))
