@@ -588,27 +588,15 @@ class AirportCollection:
         => key is ignored, aiport_sub_dict is turned in an Airport instance)
     """
 
-    def __init__(self, airports=None):
-        self.airports = {}
-        if airports is None:
-            pass
-        elif isinstance(airports, Airport):
-            self.airports[airports.icao] = airports
-        elif isinstance(airports, AirportCollection):
-            self.airports.update(airports)
-        elif isinstance(airports, list):
-            for a in airports:
-                if isinstance(a, Airport):
-                    self.airports[a.icao] = a
-                elif isinstance(a, AirportCollection):
-                    self.airports.update(a)
-                else:
-                    raise O4AirportDataSourceException("Incompatible element type")
-        elif isinstance(airports, dict):
-            for a in [Airport(v) for v in airports.values()]:
-                self.airports[a.icao] = a
-        else:
-            raise O4AirportDataSourceException("Incompatible element type")
+    @classmethod
+    def cache_info(cls):
+        return {'gtiles': str(cls.gtiles.cache_info())}
+
+    def __init__(self, xp_tile, include_surrounding_tiles=False):
+        self.xp_tile = xp_tile
+        self.airports = {arpt.icao: arpt
+                         for arpt in AirportDataSource.airports_in(xp_tile,
+                                                                   include_surrounding_tiles=include_surrounding_tiles)}
 
     #
     # Partial Dict interface
@@ -731,9 +719,6 @@ class AirportCollection:
     # Airport Interface
     #
 
-    def to_json(self):
-        return {str(icao): arpt.to_json() for (icao, arpt) in self.airports.items()}
-
     @functools.lru_cache(maxsize=2 ** 3)
     def gtiles(self, zl, cover_zl, screen_res, fov, fpa, greediness, greediness_threshold):
         """Return the ZL gtiles needed to cover this airport collection.
@@ -793,9 +778,7 @@ class AirportCollection:
         else:
             return polys
 
-    def progressive_zone_list(self, xp_tile, screen_res, fov, fpa, provider, base_zl, cover_zl, greediness=3,
-                              greediness_threshold=0.70):
-        tile_poly = shapely.prepared.prep(xp_tile.polygon())
+    def zone_list(self, screen_res, fov, fpa, provider, base_zl, cover_zl, greediness, greediness_threshold):
         tile_zones = []
         for zl in range(cover_zl.max, base_zl - 1, -1):
             for polygon in self.as_polygons(self.gtiles(zl=zl,
@@ -810,6 +793,18 @@ class AirportCollection:
                     coords.extend([y, x])
                 tile_zones.append([coords, zl, provider])
         return tile_zones
+
+    def disk_size(self, zl, cover_zl, screen_res, fov, fpa, greediness, greediness_threshold):
+        # This could be computed more precisely, but each DDS texture has a fixed size of 11,184,952 bytes, whatever
+        # the zoom level.
+        # Since we only need a (fast) estimate, just multiply that constant with the number of tiles
+        return 11184952 * len(self.gtiles(zl=zl,
+                                          cover_zl=cover_zl,
+                                          screen_res=screen_res,
+                                          fov=fov,
+                                          fpa=fpa,
+                                          greediness=greediness,
+                                          greediness_threshold=greediness_threshold))
 
 
 ########################################################################################################################
@@ -975,20 +970,22 @@ class AirportDataSource:
     _cache_updater_tile_jobs = None
 
     @classmethod
-    def airports_in(cls, tile, include_surrounding_tiles=False):
+    def airports_in(cls, xp_tile, include_surrounding_tiles=False):
         """Return an AirportCollection of all the airports in the given tile(s)."""
 
         # Optionally add the surrounding tiles to the search range
-        search_range = {tile}
+        search_range = {xp_tile}
         if include_surrounding_tiles:
-            search_range.update(tile.surrounding_tiles())
+            search_range.update(xp_tile.surrounding_tiles())
 
         # Load the airport data from the filesystem cache (check if already loaded first)
         for t in filter(lambda x: x not in cls.__TILE_AIRPORTS__, search_range):
             cls.__TILE_AIRPORTS__[t] = cls._read_cached_tile(t)
 
         # Now we should have all the tiles loaded, return the corresponding airports
-        return AirportCollection([cls.__TILE_AIRPORTS__[t] for t in search_range])
+        return {a
+                for t in search_range
+                for a in cls.__TILE_AIRPORTS__[t]}
 
     @classmethod
     def _read_cached_tile(cls, tile):
@@ -1003,7 +1000,7 @@ class AirportDataSource:
         # If we don't have an updater job for this tile, then it means there wasn't any airport data for it,
         # just return an empty collection
         if cls._cache_updater_tile_jobs is not None and tile not in cls._cache_updater_tile_jobs:
-            return AirportCollection()
+            return []
 
         if cls.cache_update_in_progress():
             cache_was_rebuilt = True
@@ -1018,15 +1015,15 @@ class AirportDataSource:
             else:
                 # If we don't have that tile, and no cache update was triggered this turn, then it means we don't have
                 # any airport data for it, just return an empty collection
-                return AirportCollection()
+                return []
 
         with open(tile_cache_file) as f:
-            return AirportCollection([Airport(a) for a in json.load(f).values()])
+            return [Airport(a) for a in json.load(f).values()]
 
     @staticmethod
     def _parse_apt_dat(_apt_dat_file):
         apt_dat_parser = XPlaneAptDatParser()
-        _apt_data = collections.defaultdict(AirportCollection)
+        _apt_data = collections.defaultdict(dict)
         for _arpt in apt_dat_parser.parse(_apt_dat_file):
             for _rw in _arpt.values():
                 for _t in _rw.relevant_xp_tiles(include_surrounding_tiles=False):
@@ -1035,19 +1032,22 @@ class AirportDataSource:
         return _apt_data
 
     @staticmethod
-    def _write_tile_cache(tile, airport_collection):
+    def _write_tile_cache(tile, airports_dict):
         tile_cache_file = FNAMES.cached_arpt_data(lat=tile.lat, lon=tile.lon)
         os.makedirs(os.path.dirname(tile_cache_file), exist_ok=True)
         with open(tile_cache_file, 'w') as f:
             # See https://bugs.python.org/issue12134, it's a lot faster to first dump to a json string, and only then
             # writing it as a whole, instead of just calling json.dump()
-            f.write(json.dumps(airport_collection.to_json(), sort_keys=True, indent=True))
+            f.write(json.dumps({str(icao): arpt.to_json()
+                                for (icao, arpt) in airports_dict.items()},
+                               sort_keys=True,
+                               indent=True))
 
     @classmethod
     def _main_updater_job(cls, apt_dat_files):
         # First parse all the apt.dat files available
         # This part will block until we're done (but this function is also running in a thread)
-        parsed_airport_data = collections.defaultdict(AirportCollection)
+        parsed_airport_data = collections.defaultdict(dict)
         for apt_data in [cls._cache_update_pool.submit(cls._parse_apt_dat, apt_file) for apt_file in apt_dat_files]:
             for (tile, airport_collection) in apt_data.result().items():
                 for (icao, airport) in airport_collection.items():
@@ -1057,8 +1057,8 @@ class AirportDataSource:
         # Then start writing the tile cache files in the background
         cls._cache_updater_tile_jobs = {tile: cls._cache_update_pool.submit(cls._write_tile_cache,
                                                                             tile,
-                                                                            airport_collection)
-                                        for (tile, airport_collection) in parsed_airport_data.items()}
+                                                                            _airports_dict)
+                                        for (tile, _airports_dict) in parsed_airport_data.items()}
 
         # Finally, rewrite the cache info file
         with open(os.path.join(FNAMES.Airport_dir, 'cache_info.json'), 'w') as f:

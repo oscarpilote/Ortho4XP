@@ -164,17 +164,16 @@ def zone_list_to_ortho_dico(tile):
     elif tile.cover_airports_with_highres == 'Progressive':
         UI.vprint(1,"-> Auto-generating custom ZL zones along the runways of each airport.")
         wall_time = time.clock()
-        xp_tile = APT_SRC.XPlaneTile(tile.lat, tile.lon)
-        airports = APT_SRC.AirportDataSource.airports_in(xp_tile, include_surrounding_tiles=True)
-        progressive_zones = airports.progressive_zone_list(xp_tile=xp_tile,
-                                                           screen_res=tile.cover_screen_res,
-                                                           fov=tile.cover_fov,
-                                                           fpa=tile.cover_fpa,
-                                                           provider=tile.default_website,
-                                                           base_zl=tile.default_zl,
-                                                           cover_zl=tile.cover_zl,
-                                                           greediness=tile.cover_greediness,
-                                                           greediness_threshold=tile.cover_greediness_threshold)
+        airport_collection = APT_SRC.AirportCollection(xp_tile=APT_SRC.XPlaneTile(tile.lat, tile.lon),
+                                                       include_surrounding_tiles=True)
+        progressive_zones = airport_collection.zone_list(screen_res=tile.cover_screen_res,
+                                                         fov=tile.cover_fov,
+                                                         fpa=tile.cover_fpa,
+                                                         provider=tile.default_website,
+                                                         base_zl=tile.default_zl,
+                                                         cover_zl=tile.cover_zl,
+                                                         greediness=tile.cover_greediness,
+                                                         greediness_threshold=tile.cover_greediness_threshold)
         wall_time_delta = datetime.timedelta(seconds=(time.clock() - wall_time))
         UI.lvprint(0, "ZL zones computed in {}s".format(wall_time_delta))
 

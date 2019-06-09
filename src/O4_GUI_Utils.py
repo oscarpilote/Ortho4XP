@@ -400,7 +400,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         self.coords=[]
         self.polygon_list=[]
         self.polyobj_list=[]
-
+        self.airport_collection = None
 
         tk.Toplevel.__init__(self)
         self.title('Preview / Custom zoomlevels')
@@ -593,21 +593,23 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
 
     def async_build_progressive_zl_layers(self, bg_map_lat, bg_map_lon, bg_map_zl):
         try:
-            xp_tile = APT_SRC.XPlaneTile(bg_map_lat, bg_map_lon)
-            airport_collection = APT_SRC.AirportDataSource.airports_in(xp_tile, include_surrounding_tiles=True)
+            self.airport_collection = APT_SRC.AirportCollection(xp_tile=APT_SRC.XPlaneTile(bg_map_lat, bg_map_lon),
+                                                                include_surrounding_tiles=True)
 
             # Compute all the required textures for each ZL
             progressive_gtiles = collections.defaultdict(set)
-            for gtile in airport_collection.gtiles(zl=CFG.default_zl,
-                                                   cover_zl=CFG.cover_zl,
-                                                   screen_res=CFG.cover_screen_res,
-                                                   fov=CFG.cover_fov,
-                                                   fpa=CFG.cover_fpa,
-                                                   greediness=CFG.cover_greediness,
-                                                   greediness_threshold=CFG.cover_greediness_threshold):
+            for gtile in self.airport_collection.gtiles(zl=CFG.default_zl,
+                                                        cover_zl=CFG.cover_zl,
+                                                        screen_res=CFG.cover_screen_res,
+                                                        fov=CFG.cover_fov,
+                                                        fpa=CFG.cover_fpa,
+                                                        greediness=CFG.cover_greediness,
+                                                        greediness_threshold=CFG.cover_greediness_threshold):
                 progressive_gtiles[gtile.zl].add(gtile)
 
-            return self._build_texture_layers(bg_map_lat, bg_map_lon, bg_map_zl, progressive_gtiles)
+            layers = self._build_texture_layers(bg_map_lat, bg_map_lon, bg_map_zl, progressive_gtiles)
+            self.compute_size()
+            return layers
         except Exception as e:
             traceback.print_exc()
             raise e
@@ -894,8 +896,17 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
                 x1=x2
                 y1=y2
             total_size+=abs(area)/2*((40000*cos(pi/180*polygon[1][0])/2**(int(self.zl_combo.get())+8))**2)*2**(2*(int(polygon[2])-17))/1024
-        self.gb.set('{:.1f}'.format(total_size)+"Gb")
-        return
+
+        if CFG.cover_airports_with_highres == 'Progressive':
+            total_size += self.airport_collection.disk_size(zl=CFG.default_zl,
+                                                            cover_zl=CFG.cover_zl,
+                                                            screen_res=CFG.cover_screen_res,
+                                                            fov=CFG.cover_fov,
+                                                            fpa=CFG.cover_fpa,
+                                                            greediness=CFG.cover_greediness,
+                                                            greediness_threshold=CFG.cover_greediness_threshold) / 2 ** 30
+
+        self.gb.set('{:0.1f}'.format(total_size)+"GiB")
 
     def save_zone_cmd(self):
         if len(self.points)<6:
