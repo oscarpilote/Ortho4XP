@@ -768,9 +768,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         [latp, lonp] = self.xy_to_latlon(x=self.canvas.canvasx(event.x),
                                          y=self.canvas.canvasy(event.y),
                                          zoomlevel=map_zl)
-        (a, b) = GEO.wgs84_to_orthogrid(latp, lonp, custom_poly_zl)
-        (latmax, lonmin) = GEO.gtile_to_wgs84(a, b, custom_poly_zl)
-        (x, y) = GEO.wgs84_to_orthogrid(latmax, lonmin, custom_poly_zl)
+        (x, y) = GEO.wgs84_to_orthogrid(latp, lonp, custom_poly_zl)
         gtile = APT_SRC.GTile(x, y, custom_poly_zl)
         self.last_clicked_texture.set('{}_{}_{}{}.dds'.format(gtile.y, gtile.x, self.zmap_choice.get(), gtile.zl))
         self.canvas.focus_set()
