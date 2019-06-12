@@ -896,7 +896,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
                 y1=y2
             total_size+=abs(area)/2*((40000*cos(pi/180*polygon[1][0])/2**(int(self.zl_combo.get())+8))**2)*2**(2*(int(polygon[2])-17))/1024
 
-        if CFG.cover_airports_with_highres == 'Progressive':
+        if CFG.cover_airports_with_highres == 'Progressive' and self.airport_collection is not None:
             total_size += self.airport_collection.disk_size(zl=CFG.default_zl,
                                                             cover_zl=CFG.cover_zl,
                                                             screen_res=CFG.cover_screen_res,
