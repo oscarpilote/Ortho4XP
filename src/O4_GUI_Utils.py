@@ -6,6 +6,7 @@ import os
 import re
 import sys
 import shutil
+import struct
 import traceback
 from math import floor, cos, pi
 import queue
@@ -17,6 +18,7 @@ from PIL import Image, ImageDraw, ImageTk
 
 import O4_Common_Types
 import O4_Version
+import O4_DSF_Utils as DSF
 import O4_Imagery_Utils as IMG
 import O4_File_Names as FNAMES
 import O4_Geo_Utils as GEO
@@ -450,7 +452,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         self.zl_combo.grid(row=2,column=0,padx=5,pady=3,sticky=E); row+=1
 
         ttk.Button(self.frame_left, text='Zone List Editor', command=lambda: self.on_preview_button(lat, lon)).grid(row=row, padx=5, column=0, sticky=N + S + E + W); row+=1
-        ttk.Button(self.frame_left, text='Show Existing DDS (if any)', command=lambda: self.on_dds_layout_button(lat, lon)).grid(row=row, padx=5, pady=3, column=0, sticky=N + S + E + W); row+=1
+        ttk.Button(self.frame_left, text='Show Existing DSF layout', command=lambda: self.on_dsf_layout_button(lat, lon)).grid(row=row, padx=5, pady=3, column=0, sticky=N + S + E + W); row+=1
 
         # Widgets - Layers Controls
         tk.Label(self.frame_left,anchor=W,text="Layer Controls",fg = "light green",bg = "dark green",font = "Helvetica 16 bold italic").grid(row=row,column=0,pady=0,sticky=W+E); row+=1
@@ -634,6 +636,25 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
             traceback.print_exc()
             raise e
 
+    def async_build_dsf_layout_layers(self, bg_map_lat, bg_map_lon, bg_map_zl):
+        try:
+            build_dir = os.path.normpath(
+                FNAMES.build_dir(bg_map_lat, bg_map_lon, self.parent.custom_build_dir_entry.get()))
+
+            dds_gtiles = collections.defaultdict(set)
+            for dsf_filename in glob.glob(os.path.join(build_dir, 'Earth nav data', '*', '*.dsf')):
+                ter_files = list(DSF.dsf_terrain_filenames(build_dir, dsf_filename, bg_map_lat, bg_map_lon))
+                for ter in ter_files:
+                    x, y, zl = DSF.parse_ter_file(ter)
+                    if O4_Common_Types.ZoomLevels.__ZL_LOW__ <= zl <= O4_Common_Types.ZoomLevels.__ZL_OVERKILL__:
+                        dds_gtiles[zl].add(APT_SRC.GTile(x=x, y=y, zl=zl))
+
+            return self._build_texture_layers(bg_map_lat, bg_map_lon, bg_map_zl, dds_gtiles)
+
+        except Exception as e:
+            traceback.print_exc()
+            raise e
+
     def _async_render_layers(self, background_map_layer, texture_layers):
         try:
             layers = dict()
@@ -736,7 +757,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         self._canvas_layers = self.pool.submit(self._async_render_layers,
                                                background_map_layer, texture_layers)
 
-    def on_dds_layout_button(self, lat, lon):
+    def on_dsf_layout_button(self, lat, lon):
         # Reset the canvas and update the internal state with respect to the configuration (in case it has changed)
         self.canvas.delete("all")
         self.update_internal_state(lat, lon)
@@ -747,7 +768,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
                                                 lat, lon, int(self.zl_combo.get()), self.map_combo.get())
 
         # Asynchronously build the texture layers
-        texture_layers = self.pool.submit(self.async_build_dds_layout_layers,
+        texture_layers = self.pool.submit(self.async_build_dsf_layout_layers,
                                           lat, lon, int(self.zl_combo.get()))
 
         # Finally, asynchronously render them on the canvas when they're available

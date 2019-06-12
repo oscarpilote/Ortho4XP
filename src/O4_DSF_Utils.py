@@ -1,6 +1,8 @@
 import datetime
+import math
 import os
 import pickle
+import re
 import shutil
 import time
 from math import floor, ceil
@@ -849,3 +851,77 @@ def build_dsf(tile,download_queue):
     UI.vprint(1,"     DSF file encoded, total size is :",size_of_dsf,"bytes","("+UI.human_print(size_of_dsf)+")")
     return 1
 ##############################################################################
+
+
+def dsf_terrain_filenames(build_dir, dsf_filename, tile_lat, tile_lon):
+    """Parse the given DSF and return the list of referenced .ter files"""
+    _terrain_files = list()
+    atom_header = struct.Struct('<4sI')
+
+    with open(dsf_filename, 'rb') as dsf:
+        # Skip the DSF header
+        dsf.seek(12)
+
+        # Walk through the atoms, until we reach HEAD (should be first, but not required)
+        (atom_id, head_atom_size) = (None, 8)
+        while atom_id != b'DAEH':
+            dsf.seek(head_atom_size - 8, 1)
+            (atom_id, head_atom_size) = atom_header.unpack(dsf.read(8))
+        head_atom_offset = dsf.tell() - 8
+
+        # Walk through the HEAD sub-atoms, until we reach PROP
+        (atom_id, atom_size) = (None, 8)
+        while atom_id != b'PORP':
+            dsf.seek(atom_size - 8, 1)
+            (atom_id, atom_size) = atom_header.unpack(dsf.read(8))
+
+        # The PROP sub-atom is string table atom, read it and build a dict from its key/values pairs
+        prop_strings = dsf.read(atom_size - 8).split(b'\0')
+        prop_dict = {k: v for (k, v) in zip(prop_strings[0::2],
+                                            prop_strings[1::2])}
+
+        # If DSF west and south limits don't match the current tile, stop here
+        if int(prop_dict[b'sim/west']) != tile_lon or int(prop_dict[b'sim/south']) != tile_lat:
+            return None
+
+        # Now skip to the end of the HEAD atom, and look for the DEFN atom
+        dsf.seek(head_atom_offset + head_atom_size)
+        (atom_id, defn_atom_size) = (None, 8)
+        while atom_id != b'NFED':
+            dsf.seek(defn_atom_size - 8, 1)
+            (atom_id, defn_atom_size) = atom_header.unpack(dsf.read(8))
+
+        # Walk through the DEFN sub-atoms, until we reach TERT
+        (atom_id, atom_size) = (None, 8)
+        while atom_id != b'TRET':
+            dsf.seek(atom_size - 8, 1)
+            (atom_id, atom_size) = atom_header.unpack(dsf.read(8))
+
+        # The TERT sub-atom is string table atom, which will give us our list of .ter files (and textures, filter those)
+        return filter(lambda f: os.path.isfile(f) and f.endswith('.ter'),
+                      map(lambda f: os.path.join(build_dir, f.decode()),
+                          dsf.read(atom_size - 8).split(b'\0')))
+
+
+def parse_ter_file(ter_filename):
+    """Return the top-left lat, lon and zoomlevel for the given .ter file"""
+
+    # First locate the LOAD_CENTER instruction
+    with open(ter_filename) as f:
+        for line in f:
+            m = re.match(r'^LOAD_CENTER\s+' +
+                         r'(?P<lat>[0-9.-]+)\s+' +
+                         r'(?P<lon>[0-9.-]+)\s+' +
+                         r'(?P<terrain_size>[0-9]+)' +
+                         r'\s+(?P<texture_size>[0-9]+).*$', line)
+            if m:
+                # Extract the lat, lon, approximate terrain size (in meters) and the texture size (in pixels)
+                lat_med = float(m.group('lat'))
+                lon_med = float(m.group('lon'))
+                terrain_size = int(m.group('terrain_size'))
+                texture_size = int(m.group('texture_size'))
+
+                # Compute the ZL from the latitude, the terrain size and the texture size
+                zoomlevel = GEO.webmercator_zoomlevel(lat_med, terrain_size / texture_size)
+                x, y = GEO.wgs84_to_orthogrid(lat_med, lon_med, zoomlevel)
+                return x, y, zoomlevel

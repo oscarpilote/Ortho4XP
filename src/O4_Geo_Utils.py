@@ -1,5 +1,5 @@
 import functools
-from math import log, tan, pi, atan, exp, cos, sin, sqrt, atan2
+from math import log, log2, tan, pi, atan, exp, cos, sin, sqrt, atan2, floor
 import pyproj
 
 earth_radius = 6378137
@@ -24,6 +24,9 @@ epsg['3857']=pyproj.Proj(init='epsg:3857')
 ##############################################################################
 def webmercator_pixel_size(lat,zoomlevel):
     return 2*pi*earth_radius*cos(pi*lat/180)/(2**(zoomlevel+8))
+
+def webmercator_zoomlevel(lat, pixel_size):
+    return floor(log2((2 * pi * earth_radius * cos(lat * pi / 180)) / pixel_size) - 8)
 ##############################################################################
 
 ##############################################################################
