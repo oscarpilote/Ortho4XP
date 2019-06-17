@@ -20,6 +20,7 @@ def progress_bar(nbr,percentage,message=None):
 def vprint(min_verbosity,*args):
     if verbosity>=min_verbosity: 
         print(*args)
+        logprint(*args)
 ##############################################################################
 
 ##############################################################################
