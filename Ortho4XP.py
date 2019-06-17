@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 import sys
 import os
-Ortho4XP_dir='..' if getattr(sys,'frozen',False) else '.'
-sys.path.append(os.path.join(Ortho4XP_dir,'src'))
+Ortho4XP_dir = os.pardir if getattr(sys, 'frozen', False) else os.curdir
+sys.path.extend([os.path.join(Ortho4XP_dir, 'src'),
+                 os.path.join(Ortho4XP_dir, 'Providers')])
 
 import O4_Airport_Data_Source as APT_SRC
 import O4_File_Names as FNAMES
