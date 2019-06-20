@@ -1,0 +1,4 @@
+grid_type=webmercator
+url_template=https://gis.apfo.usda.gov/arcgis/rest/services/NAIP/USDA_CONUS_PRIME/ImageServer/tile/{zoom}/{y}/{x}
+imagery_dir=grouped
+in_GUI=False

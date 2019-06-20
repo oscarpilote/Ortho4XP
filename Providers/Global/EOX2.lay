@@ -1,0 +1,5 @@
+request_type=tms
+grid_type=webmercator
+url_template=https://{switch:a,b,c,d}.s2maps-tiles.eu/wmts/?layer=s2cloudless-2018_3857&style=default&tilematrixset=GoogleMapsCompatible&Service=WMTS&Request=GetTile&Version=1.0.0&Format=image%2Fjpeg&TileMatrix={zoom}&TileCol={x}&TileRow={y}
+max_zl=14
+imagery_dir=grouped

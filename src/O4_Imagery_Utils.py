@@ -82,7 +82,7 @@ def initialize_extents_dict():
             if '.' not in file_name or file_name.split('.')[-1]!='ext': continue
             extent_code=file_name.split('.')[0]
             extent={}
-            f=open(os.path.join(FNAMES.Extent_dir,dir_name,file_name),'r')
+            f=open(os.path.join(FNAMES.Extent_dir,dir_name,file_name),'r',encoding='utf-8')
             valid_extent=True
             for line in f.readlines():
                 line=line[:-1]
@@ -431,7 +431,7 @@ def initialize_local_combined_providers_dict(tile):
                             if not multipolygon_area.area:
                                 UI.vprint(0,"Error, erroneous OSM data for extent code",name,", skipped.") 
                                 continue
-                            vector_map.encode_MultiPolygon(multipolygon_area,VECT.dummy_alt,'DUMMY',check=False,cut=False)
+                            vector_map.encode_MultiPolygon(multipolygon_area,VECT.dummy_alt,'WATER',check=False,cut=False)
                             vector_map.write_node_file(name+'.node')
                             vector_map.write_poly_file(name+'.poly')
                             MESH.triangulate(name,'.')
