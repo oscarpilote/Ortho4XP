@@ -13,7 +13,8 @@ overpass_servers={
         "DE":"http://overpass-api.de/api/interpreter",
         "FR":"http://api.openstreetmap.fr/oapi/interpreter",
         "KU":"https://overpass.kumi.systems/api/interpreter", 
-        "RU":"http://overpass.osm.rambler.ru/cgi/interpreter"
+        "RU":"http://overpass.osm.rambler.ru/cgi/interpreter",
+        "MAP": "https://overpass-api.de/api/map?bbox="
         }
 overpass_server_choice="DE"
 max_osm_tentatives=8
@@ -357,6 +358,10 @@ def get_overpass_data(query,bbox,server_code=None):
         else: # query is a tuple 
             overpass_query=''.join([x+str(bbox)+";" for x in query])
         url=base_url+"?data=("+overpass_query+");(._;>>;);out meta;"
+        if server_code == "MAP":
+            url = base_url + "".join([str(coord) + "," for coord in bbox])
+            url = url[:-1]
+
         UI.vprint(3,url)
         try:
             r=s.get(url,timeout=60)

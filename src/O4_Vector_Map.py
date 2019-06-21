@@ -11,6 +11,7 @@ import O4_Vector_Utils as VECT
 import O4_File_Names as FNAMES
 import O4_Geo_Utils as GEO
 import O4_Airport_Utils as APT
+import O4_ESP_Globals
 
 good_imagery_list=()
 
@@ -37,7 +38,10 @@ def build_poly_file(tile):
     vector_map=VECT.Vector_Map()
     
     if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
-    
+
+    # if O4_ESP_Globals.build_for_ESP:
+    #     include_sceneproc(tile)
+
     # Airports
     (apt_array,apt_area)=include_airports(vector_map,tile) 
     UI.vprint(1,"   Number of edges at this point:",len(vector_map.dico_edges))
@@ -114,6 +118,14 @@ def build_poly_file(tile):
     return 1
 ##############################################################################
 
+##############################################################################
+def include_sceneproc(tile):
+    print("Downloading OSM data for Sceneproc, this might take some time, please wait...")
+    response = OSM.get_overpass_data("", (tile.lon, tile.lat, tile.lon + 1, tile.lat + 1), "MAP")
+    file_name = os.path.join(FNAMES.osm_dir(tile.lat, tile.lon), "sceneproc_osm_data.osm")
+    with open(file_name, "wb") as f:
+        f.write(response)
+##############################################################################
 
 ##############################################################################
 def include_airports(vector_map,tile): 
