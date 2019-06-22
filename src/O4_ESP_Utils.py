@@ -308,7 +308,12 @@ def build_for_ESP(build_dir, tile):
     q2 = None
     if os.path.isfile(O4_Config_Utils.ESP_scenproc_loc) and os.path.isfile(scenproc_osm_file_name):
         scenproc_script_file = os.path.abspath(FNAMES.scenproc_script_file(O4_Config_Utils.ESP_scenproc_script))
-        texture_folder = os.path.abspath(os.path.join(build_dir, "ADDON_SCENERY", "texture"))
+        addon_scenery_folder = os.path.abspath(os.path.join(build_dir, "ADDON_SCENERY"))
+        texture_folder = os.path.abspath(os.path.join(addon_scenery_folder, "texture"))
+        # in case resample threads haven't created ADDON_SCENERY folder yet
+        # TODO: maybe race condition??
+        if not os.path.exists(addon_scenery_folder):
+            os.mkdir(addon_scenery_folder)
         if not os.path.exists(texture_folder):
             os.mkdir(texture_folder)
 
