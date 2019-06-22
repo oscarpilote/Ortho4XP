@@ -289,18 +289,6 @@ def build_for_ESP(build_dir, tile):
         print("resample.exe doesn't exist at " + O4_Config_Utils.ESP_resample_loc + ", quitting")
         return
 
-    # call resample on each individual file, to avoid file name too long errors with subprocess
-    # https://stackoverflow.com/questions/2381241/what-is-the-subprocess-popen-max-length-of-the-args-parameter
-    # passing shell=True to subprocess didn't help with this error when there are a large amount of inf files to process
-    # another solution would be to create inf files with multiple sources, but the below is simpler to code...
-	# start threads
-    print("Starting ESP queue with a max of " + str(O4_Config_Utils.max_resample_processes) + " processes. *Resample windows will open minimized to the task bar.")
-    q = Queue()
-    threads = [Thread(target=worker, args=(q,)) for _ in range(O4_Config_Utils.max_resample_processes)]
-    for t in threads:
-        t.daemon = True # threads die if the program dies
-        t.start()
-
     # run ScenProc if user has specified path to the scenProc.exe and OSM file was successfully downloaded previously
     scenproc_osm_file_name = os.path.abspath(os.path.join(FNAMES.osm_dir(tile.lat, tile.lon), "scenproc_osm_data.osm"))
     scenproc_thread = None
@@ -323,6 +311,18 @@ def build_for_ESP(build_dir, tile):
         print("Running ScenProc...")
         q2.put_nowait([scenproc_script_file, scenproc_osm_file_name, texture_folder])
         
+    # call resample on each individual file, to avoid file name too long errors with subprocess
+    # https://stackoverflow.com/questions/2381241/what-is-the-subprocess-popen-max-length-of-the-args-parameter
+    # passing shell=True to subprocess didn't help with this error when there are a large amount of inf files to process
+    # another solution would be to create inf files with multiple sources, but the below is simpler to code...
+	# start threads
+    print("Starting ESP queue with a max of " + str(O4_Config_Utils.max_resample_processes) + " processes. *Resample windows will open minimized to the task bar. This process will take a while... you will be notified when finished")
+    q = Queue()
+    threads = [Thread(target=worker, args=(q,)) for _ in range(O4_Config_Utils.max_resample_processes)]
+    for t in threads:
+        t.daemon = True # threads die if the program dies
+        t.start()
+
     for (dirpath, dir_names, file_names) in os.walk(build_dir):
         for full_file_name in file_names:
             file_name, file_extension = os.path.splitext(os.path.abspath(build_dir + os.sep + full_file_name))
