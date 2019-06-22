@@ -320,6 +320,7 @@ def build_for_ESP(build_dir, tile):
         scenproc_thread = Thread(target=run_scenproc_threaded, args=(q2, ))
         scenproc_thread.daemon = True
         scenproc_thread.start()
+        print("Running ScenProc...")
         q2.put_nowait([scenproc_script_file, scenproc_osm_file_name, texture_folder])
         
     for (dirpath, dir_names, file_names) in os.walk(build_dir):
