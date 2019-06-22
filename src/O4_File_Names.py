@@ -20,6 +20,7 @@ Utils_dir     =  os.path.join(Ortho4XP_dir, 'Utils')
 Tile_dir      =  os.path.join(Ortho4XP_dir, 'Tiles')
 Tmp_dir       =  os.path.join(Ortho4XP_dir, 'tmp')
 Overlay_dir  =   os.path.join(Ortho4XP_dir, 'yOrtho4XP_Overlays')
+ScenProc_configs_dir = os.path.join(Ortho4XP_dir, 'ScenProc_configs')
 ##############################################################################
 def short_latlon(lat,lon):
     strlat='{:+.0f}'.format(lat).zfill(3)
@@ -41,6 +42,8 @@ def hem_latlon(lat,lon):
     return hemisphere+'{:.0f}'.format(abs(lat)).zfill(2)+greenwichside+'{:.0f}'.format(abs(lon)).zfill(3)
 ##############################################################################
 
+def scenproc_script_file(script_file_name):
+    return os.path.join(ScenProc_configs_dir, script_file_name)
 def tile_dir(lat,lon):
     return "zOrtho4XP_"+short_latlon(lat,lon)
 def build_dir(lat,lon,custom_build_dir):

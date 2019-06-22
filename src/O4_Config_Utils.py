@@ -79,6 +79,8 @@ cfg_vars={
     'custom_dem':          {'type':str,'default':'','hint':'Path to an elevation data file to be used instead of the default Viewfinderpanoramas.org ones (J. de Ferranti). The raster must be in geopgraphical coordinates (EPSG:4326) but the extent need not match the tile boundary (requires Gdal). Regions of the tile that are not covered by the raster are mapped to zero altitude (can be useful for high resolution data over islands in particular).     '},
     'fill_nodata':         {'type':bool,'default':True,'hint':'When set, the no_data values in the raster will be filled by a nearest neighbour algorithm. If unset, they are turned into zero (can be useful for rasters with no_data over the whole oceanic part or partial LIDAR data).'},
     'ESP_resample_loc':    {'type':str,'default':'','hint':'Enter the location to your resample.exe'},
+    'ESP_scenproc_loc':    {'type':str,'default':'','hint':'Enter the location to your scenProc.exe'},
+    'ESP_scenproc_script':    {'type':str,'default':'default.spc','hint':'Enter the file inside the ScenProc_configs folder to use for ScenProc'},
     'max_resample_processes': {'type':int,'default':8,'hint':'The max amount of resample processes to spawn'},
     'create_ESP_night':    {'type':bool,'default': False,'hint':'Whether to create night textures for ESP'},
     'create_ESP_summer':    {'type':bool,'default': False,'hint':'Whether to create summer textures for ESP'},

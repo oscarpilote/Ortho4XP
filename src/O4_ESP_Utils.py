@@ -255,7 +255,30 @@ def worker(queue):
                                # thread prematurely
             print('%r failed: %s' % (args, e,))
 
-def run_ESP_resample(build_dir):
+def spawn_scenproc_process(scenproc_script_file, scenproc_osm_file, texture_folder):
+    startupinfo = subprocess.STARTUPINFO()
+    startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    startupinfo.wShowWindow = 7 # subprocess.SW_SHOWMINNOACTIVE is 7
+    process = subprocess.Popen([O4_Config_Utils.ESP_scenproc_loc, scenproc_script_file, "/run", scenproc_osm_file, texture_folder],
+                                creationflags=subprocess.CREATE_NEW_CONSOLE, startupinfo=startupinfo)
+    # wait until done
+    print(process.args)
+    process.communicate()
+
+def run_scenproc_threaded(queue):
+    # """Process files from the queue."""
+    for args in iter(queue.get, None):
+        try:
+            scenproc_script_file = args[0]
+            scenproc_osm_file = args[1]
+            texture_folder = args[2]
+            spawn_scenproc_process(scenproc_script_file, scenproc_osm_file, texture_folder)
+        except Exception as e: # catch exceptions to avoid exiting the
+                               # thread prematurely
+            print('%r failed: %s' % (args, e,))
+
+
+def build_for_ESP(build_dir, tile):
     if not build_dir:
         print("ESP_build_dir is None inside of resample... something went wrong, so can't run resample")
         return
@@ -278,6 +301,22 @@ def run_ESP_resample(build_dir):
     for t in threads:
         t.daemon = True # threads die if the program dies
         t.start()
+
+    # run ScenProc if user has specified path to the scenProc.exe and OSM file was successfully downloaded previously
+    scenproc_osm_file_name = os.path.abspath(os.path.join(FNAMES.osm_dir(tile.lat, tile.lon), "scenproc_osm_data.osm"))
+    scenproc_thread = None
+    q2 = None
+    if os.path.isfile(O4_Config_Utils.ESP_scenproc_loc) and os.path.isfile(scenproc_osm_file_name):
+        scenproc_script_file = os.path.abspath(FNAMES.scenproc_script_file(O4_Config_Utils.ESP_scenproc_script))
+        texture_folder = os.path.abspath(os.path.join(build_dir, "ADDON_SCENERY", "texture"))
+        if not os.path.exists(texture_folder):
+            os.mkdir(texture_folder)
+
+        q2 = Queue()
+        scenproc_thread = Thread(target=run_scenproc_threaded, args=(q2, ))
+        scenproc_thread.daemon = True
+        scenproc_thread.start()
+        q2.put_nowait([scenproc_script_file, scenproc_osm_file_name, texture_folder])
         
     for (dirpath, dir_names, file_names) in os.walk(build_dir):
         for full_file_name in file_names:
@@ -299,4 +338,9 @@ def run_ESP_resample(build_dir):
                 q.put_nowait([file_name, inf_abs_path, img_mask_abs_path])
     
     for _ in threads: q.put_nowait(None) # signal no more files
+    if scenproc_thread is not None:
+        q2.put_nowait(None)
+
     for t in threads: t.join() # wait for completion
+    if scenproc_thread is not None:
+        scenproc_thread.join()
