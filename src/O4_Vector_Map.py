@@ -12,6 +12,7 @@ import O4_File_Names as FNAMES
 import O4_Geo_Utils as GEO
 import O4_Airport_Utils as APT
 import O4_ESP_Globals
+import O4_Config_Utils
 
 good_imagery_list=()
 
@@ -39,8 +40,8 @@ def build_poly_file(tile):
     
     if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
 
-    # if O4_ESP_Globals.build_for_ESP:
-    #     include_sceneproc(tile)
+    if O4_ESP_Globals.build_for_ESP and os.path.isfile(O4_Config_Utils.ESP_scenproc_loc):
+        include_sceneproc(tile)
 
     # Airports
     (apt_array,apt_area)=include_airports(vector_map,tile) 
@@ -120,9 +121,9 @@ def build_poly_file(tile):
 
 ##############################################################################
 def include_sceneproc(tile):
-    print("Downloading OSM data for Sceneproc, this might take some time, please wait...")
+    print("Downloading OSM data for ScenProc, this might take some time, please wait...")
     response = OSM.get_overpass_data("", (tile.lon, tile.lat, tile.lon + 1, tile.lat + 1), "MAP")
-    file_name = os.path.join(FNAMES.osm_dir(tile.lat, tile.lon), "sceneproc_osm_data.osm")
+    file_name = os.path.join(FNAMES.osm_dir(tile.lat, tile.lon), "scenproc_osm_data.osm")
     with open(file_name, "wb") as f:
         f.write(response)
 ##############################################################################

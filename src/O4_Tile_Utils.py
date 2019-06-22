@@ -123,7 +123,7 @@ def build_tile(tile):
     if UI.cleaning_level>1 and not tile.grouped:
         remove_unwanted_textures(tile)
     if O4_ESP_Globals.build_for_ESP:
-        O4_ESP_Utils.run_ESP_resample(O4_ESP_Globals.ESP_build_dir)
+        O4_ESP_Utils.build_for_ESP(O4_ESP_Globals.ESP_build_dir, tile)
 
     UI.timings_and_bottom_line(timer)
     UI.logprint("Step 3 for tile lat=",tile.lat,", lon=",tile.lon,": normal exit.")
