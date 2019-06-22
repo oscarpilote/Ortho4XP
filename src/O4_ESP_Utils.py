@@ -262,7 +262,6 @@ def spawn_scenproc_process(scenproc_script_file, scenproc_osm_file, texture_fold
     process = subprocess.Popen([O4_Config_Utils.ESP_scenproc_loc, scenproc_script_file, "/run", scenproc_osm_file, texture_folder],
                                 creationflags=subprocess.CREATE_NEW_CONSOLE, startupinfo=startupinfo)
     # wait until done
-    print(process.args)
     process.communicate()
 
 def run_scenproc_threaded(queue):
