@@ -1,3 +1,4 @@
+# Credit to Harry Otter for the default ScenProc script!
 IMPORTOGR|@0@|*|building;landuse;natural;leisure|NOREPROJ
 #
 SplitGrid|AGN|*|building="*"
