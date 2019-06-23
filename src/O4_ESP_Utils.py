@@ -312,7 +312,6 @@ def build_for_ESP(build_dir, tile):
         for (dirpath, dir_names, file_names) in os.walk(scenproc_osm_directory):
             for full_file_name in file_names:
                 scenproc_osm_file_name = os.path.abspath(os.path.join(scenproc_osm_directory, full_file_name))
-                file_name, file_extension = os.path.splitext(os.path.abspath(build_dir + os.sep + full_file_name))
                 q2.put_nowait([scenproc_script_file, scenproc_osm_file_name, texture_folder])
         
     # call resample on each individual file, to avoid file name too long errors with subprocess
