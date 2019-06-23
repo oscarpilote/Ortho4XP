@@ -26,6 +26,8 @@ An executable (.exe) file has been provided in the dist/ directory, if you don't
 To install, follow the install guide for Ortho4XP, making sure to install all python libraries, and run Ortho4XP_v130.py from the command line.
 
 # To create autogen with ScenProc
+Credit to Harry Otter for the default ScenProc script!
+
 *NOTE* -> the included default ScenProc script needs improvement. I will improve it as time permits. There is also the possibility to improve it yourself, or simply add new scripts which ScenProc can use (see below steps on how to do this)
 1) Download ScenProc from here: https://www.scenerydesign.org/development-releases/
 Either the x86 or x64 version, depending on whether your operating system is 32 bit (x86) or 64 bit (x64)
