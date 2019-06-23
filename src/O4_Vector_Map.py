@@ -41,7 +41,7 @@ def build_poly_file(tile):
     if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
 
     if O4_ESP_Globals.build_for_ESP and os.path.isfile(O4_Config_Utils.ESP_scenproc_loc):
-        include_sceneproc(tile)
+        include_scenproc(tile)
 
     # Airports
     (apt_array,apt_area)=include_airports(vector_map,tile) 
@@ -120,12 +120,26 @@ def build_poly_file(tile):
 ##############################################################################
 
 ##############################################################################
-def include_sceneproc(tile):
+def include_scenproc(tile):
     print("Downloading OSM data for ScenProc, this might take some time, please wait...")
-    response = OSM.get_overpass_data("", (tile.lon, tile.lat, tile.lon + 1, tile.lat + 1), "MAP")
-    file_name = os.path.join(FNAMES.osm_dir(tile.lat, tile.lon), "scenproc_osm_data.osm")
-    with open(file_name, "wb") as f:
-        f.write(response)
+    scenproc_osm_dir = os.path.join(FNAMES.osm_dir(tile.lat, tile.lon), "scenproc_osm_data")
+    if not os.path.exists(scenproc_osm_dir):
+        os.mkdir(scenproc_osm_dir)
+    NUM_SCENPROC_CHUNKS = 4
+    for i in range(NUM_SCENPROC_CHUNKS):
+        min_lon = tile.lon
+        min_lat = tile.lat
+
+        if i > 0:
+            min_lon = tile.lon + (i / NUM_SCENPROC_CHUNKS)
+            min_lat = tile.lat + (i / NUM_SCENPROC_CHUNKS)
+        max_lon = tile.lon + ((i + 1) / NUM_SCENPROC_CHUNKS)
+        max_lat = tile.lat + ((i + 1) / NUM_SCENPROC_CHUNKS)
+
+        response = OSM.get_overpass_data("", (min_lon, min_lat, max_lon, max_lat), "MAP")
+        file_name = os.path.join(scenproc_osm_dir, "scenproc_osm_data" + str(i) + ".osm")
+        with open(file_name, "wb") as f:
+            f.write(response)
 ##############################################################################
 
 ##############################################################################

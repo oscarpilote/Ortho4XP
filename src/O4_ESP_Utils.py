@@ -290,10 +290,10 @@ def build_for_ESP(build_dir, tile):
         return
 
     # run ScenProc if user has specified path to the scenProc.exe and OSM file was successfully downloaded previously
-    scenproc_osm_file_name = os.path.abspath(os.path.join(FNAMES.osm_dir(tile.lat, tile.lon), "scenproc_osm_data.osm"))
+    scenproc_osm_directory = os.path.abspath(os.path.join(FNAMES.osm_dir(tile.lat, tile.lon), "scenproc_osm_data"))
     scenproc_thread = None
     q2 = None
-    if os.path.isfile(O4_Config_Utils.ESP_scenproc_loc) and os.path.isfile(scenproc_osm_file_name):
+    if os.path.isfile(O4_Config_Utils.ESP_scenproc_loc) and os.path.exists(scenproc_osm_directory):
         scenproc_script_file = os.path.abspath(FNAMES.scenproc_script_file(O4_Config_Utils.ESP_scenproc_script))
         addon_scenery_folder = os.path.abspath(os.path.join(build_dir, "ADDON_SCENERY"))
         texture_folder = os.path.abspath(os.path.join(addon_scenery_folder, "texture"))
@@ -309,7 +309,11 @@ def build_for_ESP(build_dir, tile):
         scenproc_thread.daemon = True
         scenproc_thread.start()
         print("Running ScenProc...")
-        q2.put_nowait([scenproc_script_file, scenproc_osm_file_name, texture_folder])
+        for (dirpath, dir_names, file_names) in os.walk(scenproc_osm_directory):
+            for full_file_name in file_names:
+                scenproc_osm_file_name = os.path.abspath(os.path.join(scenproc_osm_directory, full_file_name))
+                file_name, file_extension = os.path.splitext(os.path.abspath(build_dir + os.sep + full_file_name))
+                q2.put_nowait([scenproc_script_file, scenproc_osm_file_name, texture_folder])
         
     # call resample on each individual file, to avoid file name too long errors with subprocess
     # https://stackoverflow.com/questions/2381241/what-is-the-subprocess-popen-max-length-of-the-args-parameter
