@@ -125,21 +125,25 @@ def include_scenproc(tile):
     scenproc_osm_dir = os.path.join(FNAMES.osm_dir(tile.lat, tile.lon), "scenproc_osm_data")
     if not os.path.exists(scenproc_osm_dir):
         os.mkdir(scenproc_osm_dir)
-    NUM_SCENPROC_CHUNKS = 4
-    for i in range(NUM_SCENPROC_CHUNKS):
+    NUM_SCENPROC_CHUNKS = 16
+    NUM_STEPS = int(sqrt(NUM_SCENPROC_CHUNKS))
+    for i in range(NUM_STEPS):
         min_lon = tile.lon
-        min_lat = tile.lat
-
         if i > 0:
-            min_lon = tile.lon + (i / NUM_SCENPROC_CHUNKS)
-            min_lat = tile.lat + (i / NUM_SCENPROC_CHUNKS)
-        max_lon = tile.lon + ((i + 1) / NUM_SCENPROC_CHUNKS)
-        max_lat = tile.lat + ((i + 1) / NUM_SCENPROC_CHUNKS)
+            min_lon = tile.lon + (i / NUM_STEPS)
 
-        response = OSM.get_overpass_data("", (min_lon, min_lat, max_lon, max_lat), "MAP")
-        file_name = os.path.join(scenproc_osm_dir, "scenproc_osm_data" + str(i) + ".osm")
-        with open(file_name, "wb") as f:
-            f.write(response)
+        max_lon = tile.lon + ((i + 1) / NUM_STEPS)
+        for j in range(NUM_STEPS):
+            min_lat = tile.lat
+            if j > 0:
+                min_lat = tile.lat + (j / NUM_STEPS)
+
+            max_lat = tile.lat + ((j + 1) / NUM_STEPS)
+
+            response = OSM.get_overpass_data("", (min_lon, min_lat, max_lon, max_lat), "MAP")
+            file_name = os.path.join(scenproc_osm_dir, "scenproc_osm_data" + str(i) + "_" + str (j) + ".osm")
+            with open(file_name, "wb") as f:
+                f.write(response)
 ##############################################################################
 
 ##############################################################################
