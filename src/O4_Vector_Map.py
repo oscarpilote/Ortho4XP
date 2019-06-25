@@ -122,6 +122,7 @@ def build_poly_file(tile):
 ##############################################################################
 def include_scenproc(tile):
     print("Downloading OSM data for ScenProc, this might take some time, please wait...")
+    print("If OSM server rejects our request due to too many requests, will keep trying until successful.")
     scenproc_osm_dir = os.path.join(FNAMES.osm_dir(tile.lat, tile.lon), "scenproc_osm_data")
     if not os.path.exists(scenproc_osm_dir):
         os.mkdir(scenproc_osm_dir)
@@ -140,10 +141,13 @@ def include_scenproc(tile):
 
             max_lat = tile.lat + ((j + 1) / NUM_STEPS)
 
+            print("Attempting to download OSM data from " + str(min_lat) + ", " + str(min_lon) + " to " + str(max_lat) + ", " + str(max_lon))
             response = OSM.get_overpass_data("", (min_lon, min_lat, max_lon, max_lat), "MAP")
             file_name = os.path.join(scenproc_osm_dir, "scenproc_osm_data" + str(i) + "_" + str (j) + ".osm")
             with open(file_name, "wb") as f:
                 f.write(response)
+
+            print("Download successful")
 ##############################################################################
 
 ##############################################################################
