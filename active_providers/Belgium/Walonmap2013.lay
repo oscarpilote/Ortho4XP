@@ -1,8 +1,0 @@
-request_type=wms
-wms_version=1.1.1
-wms_size=512
-epsg_code=31370
-layers=0
-url_prefix=http://geoservices.wallonie.be/arcgis/services/IMAGERIE/ORTHO_2012_2013/MapServer/WMSServer?
-super_resol_factor=1
-extent=Wallonie_500m

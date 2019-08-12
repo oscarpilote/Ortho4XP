@@ -1,0 +1,8 @@
+request_type=wms
+wms_size=512
+epsg_code=3765
+wms_version=1.1.1
+url_prefix=http://geoportal.dgu.hr/ows?
+layers=DOF
+imagery_dir=code
+in_GUI=False

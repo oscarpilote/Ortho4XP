@@ -1,0 +1,3 @@
+grid_type=webmercator
+url_template=http://geoservices.buergernetz.bz.it/geoserver/gwc/service/tms/1.0.0/P_BZ_OF_2008_EPSG3857@GoogleMapsCompatible@jpeg/{zoom}/{x}/{-y}.jpeg
+in_GUI=False

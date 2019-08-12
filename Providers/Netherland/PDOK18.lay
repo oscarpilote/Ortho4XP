@@ -1,0 +1,11 @@
+request_type=wmts
+epsg_code=3857
+layers=2018_ortho25
+tilematrixset=EPSG:3857
+tile_size=256
+url_prefix=http://geodata.nationaalgeoregister.nl/luchtfoto/rgb/wmts?
+imagery_dir=grouped
+extent=Netherlands
+#color_filters=PDOK18
+
+

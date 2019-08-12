@@ -1,0 +1,5 @@
+grid_type=webmercator
+url_template=http://{switch:a,b,c,d,e}.tile.openstreetmap.hu/ortofoto2005/{zoom}/{x}/{y}.jpg
+max_zl=17
+imagery_dir=code
+in_GUI=False

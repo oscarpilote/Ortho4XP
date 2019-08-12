@@ -1,0 +1,4 @@
+# Created with : ../../src/O4_Mask_Utils.py France 1000 0 0 rel[admin_level=3][name=France métropolitaine]
+mask_bounds=-5.48,41.24,9.9,51.300000000000004
+buffer_width=150
+mask_width=150

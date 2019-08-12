@@ -1,0 +1,10 @@
+request_type=wms
+wms_size=512
+wms_version=1.1.1
+epsg_code=2154
+url_prefix=http://geolittoral.application.developpement-durable.gouv.fr/wms2/metropole?
+layers=ortholittorale_v2_rvb
+max_threads=16
+#super_resol_factor=2
+imagery_dir=code
+in_GUI=False

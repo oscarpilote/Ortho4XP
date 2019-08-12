@@ -1,0 +1,11 @@
+request_type=wms
+wms_size=512
+wms_version=1.1.1
+epsg_code=3857
+url_prefix=https://gis.tirol.gv.at/arcgis/services/Service_Public/orthofoto/MapServer/WmsServer?
+layers=Image_Aktuell_RGB
+max_threads=16
+extent=Tirol
+imagery_dir=code
+in_GUI=False
+

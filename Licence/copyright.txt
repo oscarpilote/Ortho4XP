@@ -1,0 +1,140 @@
+Ortho4XP 
+Version 1.30
+Copyright Oscar Pilote 2014-2018
+
+The source code is licensed under GPL v3, the latter can be found in the file gpl.txt included herewith.
+  
+The output of Ortho4XP covered works is not considered a covered work (according to GPL v3's definition). Mesh and dsf files built using Ortho4XP covered works and used in commercial products are subject to the Creative Commons Attribution license.  
+
+Parts of the following software are redistributed along Ortho4XP source code:
+
+Medit by Pascal Frey
+Triangle by Jonathan Shewchuk 
+Moulinette by Pascal (Scratchfly @x-plane.org)
+DSFTool by Laminar Research
+7-zip by Igor Pavlov
+Nvcompress by Ignacio Castano and Nvidia corporation
+
+The following legal notices apply to them :
+  
+------------------------------------------------------------------------------
+Medit
+Pascal Frey
+https://www.ljll.math.upmc.fr/frey/software.html
+
+Ce logiciel a été enregistré à l’APP sous le numéro IDDN.FR.001.410023.00.R.P. 
+2001.000.10800 le 25 janvier 2001.
+
+The explicit authorization to distribute it here was given by Pascal Frey.
+------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------
+Triangle
+Jonathan Shewchuk
+
+The licence is explicitely included in the header files of Utils/showme.c 
+and Utils/Triangle4XP.c. 
+
+Triangle4XP.c is a mofification by Oscar Pilote of the original Triangle.c of 
+Jonathan Shewchuk, the full copyright of the file Triangle4XP.c is left to 
+Jonathan Shewchuks; the extracted modifications are licened GPL v3 with author
+Oscar Pilote.
+------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------
+DSFTool 
+Laminar Research 
+
+The scenery tools are open source; code original to Laminar Research is 
+availble via the MIT/X11 license; various required libraries have licenses
+that are compatible with either MIT/X11 or GPL.
+
+The source code for these tools is all available at:
+
+http://dev.x-plane.com/cgit/cgit.cgi/xptools.git/
+------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------
+7-Zip
+Igor Pavlov
+
+License for use and distribution
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+7-Zip Copyright (C) 1999-2018 Igor Pavlov.
+
+Licenses for files are:
+
+  1) 7z.dll: GNU LGPL + unRAR restriction
+  2) All other files:  GNU LGPL
+
+The GNU LGPL + unRAR restriction means that you must follow both 
+GNU LGPL rules and unRAR restriction rules.
+
+
+Note: 
+  You can use 7-Zip on any computer, including a computer in a commercial 
+  organization. You don't need to register or pay for 7-Zip.
+
+
+GNU LGPL information
+--------------------
+
+  This library is free software; you can redistribute it and/or
+  modify it under the terms of the GNU Lesser General Public
+  License as published by the Free Software Foundation; either
+  version 2.1 of the License, or (at your option) any later version.
+
+  This library is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  Lesser General Public License for more details.
+
+  You can receive a copy of the GNU Lesser General Public License from 
+  http://www.gnu.org/
+
+
+unRAR restriction
+-----------------
+
+  The decompression engine for RAR archives was developed using source 
+  code of unRAR program.
+  All copyrights to original unRAR code are owned by Alexander Roshal.
+
+  The license for original unRAR code has the following restriction:
+
+    The unRAR sources cannot be used to re-create the RAR compression algorithm, 
+    which is proprietary. Distribution of modified unRAR sources in separate form 
+    or as a part of other software is permitted, provided that it is clearly
+    stated in the documentation and source comments that the code may
+    not be used to develop a RAR (WinRAR) compatible archiver.
+------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------
+NVIDIA Texture Tools is licensed under the MIT license.
+
+Copyright (c) 2009-2017 Ignacio Castaño
+Copyright (c) 2007-2009 NVIDIA Corporation
+
+Permission is hereby granted, free of charge, to any person
+obtaining a copy of this software and associated documentation
+files (the "Software"), to deal in the Software without
+restriction, including without limitation the rights to use,
+copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+OTHER DEALINGS IN THE SOFTWARE.
+------------------------------------------------------------------------------
+

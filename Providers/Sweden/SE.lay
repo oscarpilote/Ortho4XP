@@ -1,0 +1,5 @@
+grid_type=webmercator
+url_template=http://map04.eniro.no/geowebcache/service/tms1.0.0/aerial/{zoom}/{x}/{-y}.jpeg
+max_threads=16
+imagery_dir=grouped
+in_GUI=False

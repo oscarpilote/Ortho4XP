@@ -6617,6 +6617,47 @@ int offcenter;
   *eta = (xdo * dy - ydo * dx) * (2.0 * denominator);
 }
 
+/*****************************************************************************/
+/*                                                                           */
+/*  barycentricattrib()   Update attributes of a vertex based on its         */
+/*                        baricentric coordinates with respect two three     */
+/*                        given (affine independent) vertices.               */
+/*****************************************************************************/
+
+#ifdef ANSI_DECLARATORS
+void barycentricattrib(struct mesh *m, vertex *point, struct otri horiz)
+#else /* not ANSI_DECLARATORS */
+void barycentricattrib(m, point, horiz)
+struct mesh *m;
+vertex *point;
+struct otri horiz;
+#endif /* not ANSI_DECLARATORS */
+
+{
+  REAL xdo, ydo, xao, yao, xpo, ypo;
+  REAL xi,eta,denominator;
+  REAL test;
+  int i;
+  vertex torg,tdest,tapex;
+  /*printf("  Barycentric attrib...\n");*/
+  org(horiz,torg);
+  dest(horiz,tdest);
+  apex(horiz,tapex);
+  xdo = tdest[0] - torg[0];
+  ydo = tdest[1] - torg[1];
+  xao = tapex[0] - torg[0];
+  yao = tapex[1] - torg[1];
+  xpo = (*point)[0] - torg[0];
+  ypo = (*point)[1] - torg[1];
+  denominator = 1.0 / (xdo * yao - xao * ydo);
+  xi=(yao*xpo-xao*ypo)*denominator;
+  eta=(xdo*ypo-ydo*xpo)*denominator;
+  for (i = 2; i < 2 + m->nextras; i++){
+    (*point)[i]=torg[i] + xi * (tdest[i] - torg[i])
+                          + eta * (tapex[i] - torg[i]);
+  }
+}
+
 /**                                                                         **/
 /**                                                                         **/
 /********* Geometric primitives end here                             *********/
@@ -8469,6 +8510,9 @@ int triflaws;
     /*   the Delaunay property.                        */
     lnextself(horiz);
   } else {
+    
+    barycentricattrib(m,&newvertex,horiz);
+
     /* Insert the vertex in a triangle, splitting it into three. */
     lnext(horiz, botleft);
     lprev(horiz, botright);

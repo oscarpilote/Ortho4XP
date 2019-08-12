@@ -1,0 +1,5 @@
+#wego.here.com
+#custom url due to changing http values
+grid_type=webmercator
+max_threads=16
+imagery_dir=grouped

@@ -1,0 +1,3 @@
+grid_type=webmercator
+url_template=http://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{zoom}/{y}/{x}
+imagery_dir=grouped
