@@ -1,0 +1,4 @@
+grid_type=webmercator
+url_template=https://druiy61gmf7q8.cloudfront.net/ordnance-survey-2017/{zoom}/{x}/{y}
+fake_headers={'Referer':'https://osmaps.ordnancesurvey.co.uk/'}
+in_GUI=False
