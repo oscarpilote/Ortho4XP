@@ -308,7 +308,8 @@ def build_masks(tile,for_imagery=False):
         else:
             UI.vprint(1,"   Creating", mask_name)
 
-            mask_img_name = os.path.join(FNAMES.mask_dir(tile.lat, tile.lon), mask_name)
+            O4_ESP_Globals.mask_dir = FNAMES.mask_dir(tile.lat, tile.lon)
+            mask_img_name = os.path.join(O4_ESP_Globals.mask_dir, mask_name)
             if O4_ESP_Globals.build_for_ESP and os.path.isfile(mask_img_name):
                 UI.vprint(1,"   The mask file "+ mask_img_name +" is already present, so don't have to build it")
                 return 1
