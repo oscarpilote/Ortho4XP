@@ -333,11 +333,9 @@ def build_for_ESP(build_dir, tile):
                 inf_abs_path = file_name + file_extension
 
                 # TODO: refactor below code into function as you've repeated it above...
-                build_dir_path_parts = os.path.abspath(build_dir + os.sep + full_file_name).split(os.sep)
-                str_lat_lon_folder_name = build_dir_path_parts[build_dir_path_parts.index("Orthophotos") + 1] + os.sep + build_dir_path_parts[build_dir_path_parts.index("Orthophotos") + 2]
-                img_mask_folder_abs_path = os.path.abspath(FNAMES.Ortho4XP_dir + os.sep + "Masks" + os.sep + str_lat_lon_folder_name)
                 img_mask_name = "_".join(full_file_name.split(".inf")[0].split("_")[0:2]) + ".tif"
-                img_mask_abs_path = os.path.abspath(img_mask_folder_abs_path + os.sep + img_mask_name)
+                img_mask_folder_abs_path = os.path.abspath(O4_ESP_Globals.mask_dir)
+                img_mask_abs_path = os.path.abspath(os.path.join(img_mask_folder_abs_path, img_mask_name))
                 should_mask = (O4_ESP_Globals.do_build_masks and os.path.isfile(img_mask_abs_path))
                 if not should_mask:
                     img_mask_abs_path = None
