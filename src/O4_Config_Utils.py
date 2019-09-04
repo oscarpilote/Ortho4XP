@@ -259,7 +259,7 @@ class Ortho4XP_Config(tk.Toplevel):
         col=0
         next_row=0
         for (title,sub_list) in (("Vector data",list_vector_vars),("Mesh",list_mesh_vars),("Masks",list_mask_vars),("DSF/Imagery",list_dsf_vars)):
-            tk.Label(self.frame_cfg,text=title,bg='light green',anchor=W,font="TKFixedFont 14").grid(row=0,column=col,columnspan=2,pady=(0,10),sticky=N+S+E+W)
+            ttk.Label(self.frame_cfg,text=title,background='light green',foreground="black",anchor=W,font="TKFixedFont 14").grid(row=0,column=col,columnspan=2,pady=(0,10),sticky=N+S+E+W)
             row=1
             for item in sub_list:
                 text=item if 'short_name' not in cfg_vars[item] else cfg_vars[item]['short_name'] 
@@ -293,7 +293,7 @@ class Ortho4XP_Config(tk.Toplevel):
         row+=1
         
         ttk.Separator(self.frame_cfg,orient=tk.HORIZONTAL).grid(row=row,column=0,columnspan=8,sticky=N+S+E+W); row+=1
-        tk.Label(self.frame_cfg,text="Application ",bg='light green',anchor=W,font="TKFixedFont 14").grid(row=row,column=0,columnspan=4,pady=10,sticky=N+S+E+W); row+=1
+        ttk.Label(self.frame_cfg,text="Application ",background='light green',foreground="black",anchor=W,font="TKFixedFont 14").grid(row=row,column=0,columnspan=4,pady=10,sticky=N+S+E+W); row+=1
         
         l=ceil((len(gui_app_vars_short))/4)
         this_row=row

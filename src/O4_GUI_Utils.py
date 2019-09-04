@@ -32,7 +32,11 @@ class Ortho4XP_GUI(tk.Tk):
     def __init__(self):
         tk.Tk.__init__(self)
         O4=ttk.Style()
-        O4.theme_use('alt')
+        themes = O4.theme_names()
+        if 'clam' in themes:
+            O4.theme_use('clam')
+        else:
+            O4.theme_use('alt')
         O4.configure('Flat.TButton',background='light green',highlightbackground='light green',selectbackground='light green',highlightcolor='light green',highlightthickness=0,relief='flat')
         O4.map('Flat.TButton',background=[('disabled','pressed','!focus','active', 'light green')])
         O4.configure('O4.TCombobox',selectbackground='white',selectforeground='blue',fieldbackground='white',foreground='blue',background='white')
@@ -83,31 +87,31 @@ class Ortho4XP_GUI(tk.Tk):
         # First row (Tile data)
         self.lat             = tk.StringVar()
         self.lat.trace("w", self.tile_change)
-        tk.Label(self.frame_tile,text='Latitude:',bg="light green").grid(row=0,column=0, padx=5, pady=5,sticky=E+W)
+        ttk.Label(self.frame_tile,text='Latitude:',background="light green",foreground="black").grid(row=0,column=0, padx=5, pady=5,sticky=E+W)
         self.lat_entry=tk.Entry(self.frame_tile,width=4,bg="white",fg="blue",textvariable=self.lat)
         self.lat_entry.grid(row=0, column=1,padx=5, pady=5,sticky=W)
         
         self.lon             = tk.StringVar()
         self.lon.trace("w",self.tile_change)
-        tk.Label(self.frame_tile,anchor=W,text='Longitude:',bg="light green").grid(row=0,column=2, padx=5, pady=5,sticky=E+W)
+        ttk.Label(self.frame_tile,anchor=W,text='Longitude:',background="light green",foreground="black").grid(row=0,column=2, padx=5, pady=5,sticky=E+W)
         self.lon_entry=tk.Entry(self.frame_tile,width=4,bg="white",fg="blue",textvariable=self.lon)
         self.lon_entry.grid(row=0,column=3, padx=5, pady=5,sticky=W)
 
         self.default_website = tk.StringVar()
         self.default_website.trace("w", self.update_cfg)
-        tk.Label(self.frame_tile,anchor=W,text='Imagery:',bg="light green").grid(row=0,column=4, padx=5, pady=5,sticky=E+W)
+        ttk.Label(self.frame_tile,anchor=W,text='Imagery:',background="light green",foreground="black").grid(row=0,column=4, padx=5, pady=5,sticky=E+W)
         self.img_combo=ttk.Combobox(self.frame_tile,values=self.map_list,textvariable=self.default_website,state='readonly',width=14,style='O4.TCombobox')
         self.img_combo.grid(row=0,column=5, padx=5, pady=5,sticky=W)
 
         self.default_zl = tk.StringVar()
         self.default_zl.trace("w", self.update_cfg)
-        tk.Label(self.frame_tile,anchor=W,text='Zoomlevel:',bg="light green").grid(row=0,column=6, padx=5, pady=5,sticky=E+W)
+        ttk.Label(self.frame_tile,anchor=W,text='Zoomlevel:',background="light green",foreground="black").grid(row=0,column=6, padx=5, pady=5,sticky=E+W)
         self.zl_combo=ttk.Combobox(self.frame_tile,values=self.zl_list,textvariable=self.default_zl,state='readonly',width=3,style='O4.TCombobox')
         self.zl_combo.grid(row=0,column=7, padx=5, pady=5,sticky=W)
 
         # Second row (Base Folder)
         self.frame_folder.columnconfigure(1,weight=1)
-        tk.Label(self.frame_folder,anchor=W,text='Base Folder:',bg="light green").grid(row=0,column=0,padx=5, pady=5,sticky=E+W)
+        ttk.Label(self.frame_folder,anchor=W,text='Base Folder:',background="light green",foreground="black").grid(row=0,column=0,padx=5, pady=5,sticky=E+W)
         self.custom_build_dir=tk.StringVar()
         self.custom_build_dir_entry=tk.Entry(self.frame_folder,bg="white",fg="blue",textvariable=self.custom_build_dir)
         self.custom_build_dir_entry.grid(row=0,column=1, padx=0, pady=0,sticky=E+W)
@@ -430,18 +434,18 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         row=0
         tk.Label(self.frame_left,anchor=W,text="Preview params ",fg = "light green",bg = "dark green",font = "Helvetica 16 bold italic").grid(row=row,column=0,sticky=W+E); row+=1
         
-        tk.Label(self.frame_left,anchor=W,text="Source : ",bg="light green").grid(row=row,column=0,padx=5,pady=3,sticky=W); 
+        ttk.Label(self.frame_left,anchor=W,text="Source : ",background="light green",foreground="black").grid(row=row,column=0,padx=5,pady=3,sticky=W); 
         self.map_combo=  ttk.Combobox(self.frame_left,textvariable=self.map_choice,values=self.map_list,width=10,state='readonly',style='O4.TCombobox')
         self.map_combo.grid(row=row,column=0,padx=5,pady=3,sticky=E); row+=1
         
-        tk.Label(self.frame_left,anchor=W,text="Zoomlevel : ",bg="light green").grid(row=row,column=0,padx=5,pady=3,sticky=W)
+        ttk.Label(self.frame_left,anchor=W,text="Zoomlevel : ",background="light green",foreground="black").grid(row=row,column=0,padx=5,pady=3,sticky=W)
         self.zl_combo = ttk.Combobox(self.frame_left,textvariable=self.zl_choice,values=self.zl_list,width=3,state='readonly',style='O4.TCombobox')
         self.zl_combo.grid(row=2,column=0,padx=5,pady=3,sticky=E); row+=1
         
         ttk.Button(self.frame_left, text='Preview',command=lambda: self.preview_tile(lat,lon)).grid(row=row,padx=5,column=0,sticky=N+S+E+W); row+=1
         tk.Label(self.frame_left,anchor=W,text="Zone params ",fg = "light green",bg = "dark green",font = "Helvetica 16 bold italic").grid(row=row,column=0,pady=10,sticky=W+E); row+=1
         
-        tk.Label(self.frame_left,anchor=W,text="Source : ",bg="light green").grid(row=row,column=0,sticky=W,padx=5,pady=10); 
+        ttk.Label(self.frame_left,anchor=W,text="Source : ",background="light green", foreground="black").grid(row=row,column=0,sticky=W,padx=5,pady=10); 
         self.zmap_combo = ttk.Combobox(self.frame_left,textvariable=self.zmap_choice,values=self.reduced_map_list,width=8,state='readonly',style='O4.TCombobox')
         self.zmap_combo.grid(row=row,column=0,padx=5,pady=10,sticky=E); row+=1
         
@@ -451,18 +455,18 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         for zl in range(15,20):
             col=zl-15
             tk.Radiobutton(self.frame_zlbtn,bd=4,bg=self.dico_color[zl],\
-                    activebackground=self.dico_color[zl],selectcolor=self.dico_color[zl],\
+                    activebackground=self.dico_color[zl],fg="black",selectcolor=self.dico_color[zl],\
                     height=2,indicatoron=0,text='ZL'+str(zl),variable=self.zlpol,value=zl,\
                     command=self.redraw_poly).grid(row=0,column=col,padx=0,pady=0,sticky=N+S+E+W) 
             
-        tk.Label(self.frame_left,anchor=W,text="Approx. Add. Size : ",bg="light green").grid(row=row,column=0,padx=5,pady=10,sticky=W)
+        ttk.Label(self.frame_left,anchor=W,text="Approx. Add. Size : ",background="light green",foreground="black").grid(row=row,column=0,padx=5,pady=10,sticky=W)
         tk.Entry(self.frame_left,width=7,justify=RIGHT,bg="white",fg="blue",textvariable=self.gb).grid(row=row,column=0,padx=5,pady=10,sticky=E); row+=1
         
         ttk.Button(self.frame_left,text='  Save zone  ',command=self.save_zone_cmd).grid(row=row,column=0,padx=5,pady=3,sticky=N+S+E+W); row+=1
         ttk.Button(self.frame_left,text='Delete ZL zone',command=self.delete_zone_cmd).grid(row=row,column=0,padx=5,pady=3,sticky=N+S+E+W); row+=1
         ttk.Button(self.frame_left,text='Make GeoTiffs',command=self.build_geotiffs_ifc).grid(row=row,column=0,padx=5,pady=3,sticky=N+S+E+W); row+=1 
         ttk.Button(self.frame_left,text='Extract Mesh ',command=self.extract_mesh_ifc).grid(row=row,column=0,padx=5,pady=3,sticky=N+S+E+W); row+=1 
-        tk.Label(self.frame_left,text="Ctrl+B1 : add texture\nShift+B1: add zone point\nCtrl+B2 : delete zone",bg="light green",justify=LEFT).grid(row=row,column=0,padx=5,pady=20,sticky=N+S+E+W); row+=1
+        ttk.Label(self.frame_left,text="Ctrl+B1 : add texture\nShift+B1: add zone point\nCtrl+B2 : delete zone",background="light green",foreground="black",justify=LEFT).grid(row=row,column=0,padx=5,pady=20,sticky=N+S+E+W); row+=1
         ttk.Button(self.frame_left,text='    Apply    ',command=self.save_zone_list).grid(row=row,column=0,padx=5,pady=3,sticky=N+S+E+W); row+=1
         ttk.Button(self.frame_left,text='    Reset    ',command=self.delAll).grid(row=row,column=0,padx=5,pady=3,sticky=N+S+E+W); row+=1
         ttk.Button(self.frame_left,text='    Exit     ',command=self.destroy).grid(row=row,column=0,padx=5,pady=3,sticky=N+S+E+W); row+=1
@@ -807,7 +811,7 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
         tk.Label(self.frame_left,anchor=W,text="Erase cached data",fg = "light green",bg = "dark green",font = "Helvetica 16 bold italic").grid(row=row,column=0,sticky=W+E)
         row+=1
         for item in self.list_del_ckbtn:
-            tk.Checkbutton(self.frame_left,text=item,anchor=W,variable=self.v_[item],bg="light green",activebackground="light green",highlightthickness=0).grid(row=row,column=0,padx=5,pady=5,sticky=N+S+E+W)
+            tk.Checkbutton(self.frame_left,text=item,anchor=W,variable=self.v_[item],bg="light green",fg="black",activebackground="light green",highlightthickness=0).grid(row=row,column=0,padx=5,pady=5,sticky=N+S+E+W)
             row+=1
         ttk.Button(self.frame_left,text='  Delete    ',command=self.trash).grid(row=row,column=0,padx=5,pady=5,sticky=N+S+E+W)
         row+=1
@@ -815,7 +819,7 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
         tk.Label(self.frame_left,anchor=W,text="Batch build tiles",fg = "light green",bg = "dark green",font = "Helvetica 16 bold italic").grid(row=row,column=0,sticky=W+E)
         row+=1
         for item in self.list_do_ckbtn:
-            tk.Checkbutton(self.frame_left,text=item,anchor=W,variable=self.v_[item],bg="light green",activebackground="light green",highlightthickness=0).grid(row=row,column=0,padx=5,pady=5,sticky=N+S+E+W)
+            tk.Checkbutton(self.frame_left,text=item,anchor=W,variable=self.v_[item],bg="light green",fg="black",activebackground="light green",highlightthickness=0).grid(row=row,column=0,padx=5,pady=5,sticky=N+S+E+W)
             row+=1
         ttk.Button(self.frame_left,text='  Batch Build   ',command=self.batch_build).grid(row=row,column=0,padx=5,pady=5,sticky=N+S+E+W)
         row+=1
@@ -825,8 +829,8 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
         # Exit
         ttk.Button(self.frame_left,text='      Exit      ',command=self.exit).grid(row=row,column=0,padx=5,pady=5,sticky=N+S+E+W)
         row+=1
-        tk.Label(self.frame_left,text="Shortcuts :\n-----------------\nB2-press+hold=move map\nB1-double-click=select active\nShift+B1=add to batch build\nCtrl+B1=link in Custom Scenery",
-                 bg="light green").grid(row=row,column=0,padx=0,pady=5,sticky=N+S+E+W)
+        ttk.Label(self.frame_left,text="Shortcuts :\n-----------------\nB2-press+hold=move map\nB1-double-click=select active\nShift+B1=add to batch build\nCtrl+B1=link in Custom Scenery",
+                 background="light green",foreground="black").grid(row=row,column=0,padx=0,pady=5,sticky=N+S+E+W)
         row+=1
 
         self.canvas  =  tk.Canvas(self.frame_right,bd=0)
