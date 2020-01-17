@@ -1,0 +1,9 @@
+request_type=wmts
+epsg_code=28992
+layers=Actueel_ortho25
+tilematrixset=EPSG:28992
+tile_size=256
+url_prefix=https://geodata.nationaalgeoregister.nl/luchtfoto/rgb/wmts?
+in_GUI=false
+imagery_dir=code
+extent=Netherlands
