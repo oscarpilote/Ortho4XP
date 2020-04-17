@@ -22,6 +22,35 @@ sudo apt-get install python3 python3-pip python3-requests python3-numpy python3-
 
 (if some of them were note packaged for your distro you can use pip instead, like say, pip install pyproj)
 
+Linux (CentOS 8)
+-----
+
+CentOS 8 lack some packages and the installation may be a little bit tricky:
+
+# Deps from Centos 8
+dnf install p7zip p7zip-plugins freeglut
+dnf install python3-pip python3-devel
+dnf install python3-tkinter
+
+# Deps from simc/stable
+dnf copr enable simc/stable
+dnf install gdal gdal-devel
+
+# Deps from Fedora 28 (can't find anything better)
+base=https://archives.fedoraproject.org/pub/archive/fedora/linux/releases/28/Everything/x86_64
+dnf install ${base}/os/Packages/n/nvidia-texture-tools-2.0.8-17.fc28.x86_64.rpm 
+dnf install ${base}/os/Packages/s/spatialindex-1.8.5-10.fc28.x86_64.rpm
+
+# Make a VirtualEnv
+python3 -m venv ~/Venv/python36ortho
+
+# Activate the VirtualEnv (remember to activate it to launch Ortho4XP too)
+. ~/Venv/python36ortho/bin/activate
+
+# Install deps from pip into VirtualEnv
+pip install -U pip
+pip install numpy gdal==2.3.3 shapely rtree==0.8.3 requests pillow pyproj
+
 
 Windows
 -------
