@@ -41,10 +41,10 @@ RUN pip3 install /tmp/wheels/*  \
  && rm -r /tmp/wheels
 
 
-COPY docker/files/patches/* /tmp/patches/
+COPY files/patches/* /tmp/patches/
 RUN patch -d /ortho4xp -p1  </tmp/patches/generate_ovl.patch
 
-COPY docker/files/build_ortho.sh /ortho
+COPY files/build_ortho.sh /ortho
 RUN chmod +x /ortho
 
 RUN mkdir /build
