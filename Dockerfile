@@ -78,7 +78,10 @@ VOLUME /build
 VOLUME /overlay
 
 ENV PYTHONPATH=/usr/lib/python3/dist-packages:/ortho4xp/src
-ENV ENABLE_USGS=""
+
+ENV MAX_CONVERT_SLOTS=""        \
+    HIGHRES_AIRPORTS=ICAO       \
+    CUSTOM_DEM=View
 
 WORKDIR /ortho4xp
 ENTRYPOINT [ "/ortho" ]
