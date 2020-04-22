@@ -1,0 +1,8 @@
+request_type=wmts
+epsg_code=2056
+tilematrixset=epsg
+layers=7_swissimage2017
+wmts_version=1.0.0
+tile_size=256
+url_prefix=http://mapproxy.vsgis.ch/proxy/service?FORMAT=image/png&
+in_GUI=False
