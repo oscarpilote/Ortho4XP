@@ -35,6 +35,9 @@ RUN apt install -y          \
       python3-pil           \
       python3-pil.imagetk
 
+RUN apt install -y          \
+      patch
+
 RUN mkdir /tmp/wheels
 COPY --from=0 /tmp/wheels/* /tmp/wheels
 RUN pip3 install /tmp/wheels/*  \
