@@ -544,7 +544,7 @@ def build_dsf(tile,download_queue):
             bTERT+=bytes('terrain/'+terrain_file_name+'\0','ascii') 
         # We put the tri in the right terrain   
         # First the ones associated to the dico_customzl 
-        tri_p=array.array('H')
+        tri_p=array.array('I')
         for n in (n1,n3,n2):     # beware of ordering for orientation ! 
             idx_pool=idx_node_to_idx_pool[n]
             node_hash=(idx_pool,*node_icoords[5*n:5*n+2],terrain_idx)
