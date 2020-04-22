@@ -3,12 +3,19 @@ RUN apt update              \
  && apt -y install          \
       build-essential       \
       libz-dev              \
-      libjpeg62-turbo-dev
+      libjpeg62-turbo-dev   \
+      unzip
 
 RUN mkdir /tmp/wheels       \
  && pip3 wheel Pillow-SIMD \
       -w /tmp/wheels
 
+COPY Utils/Triangle4XP.c /tmp/triangle/
+RUN gcc -o /tmp/triangle/Triangle4XP /tmp/triangle/Triangle4XP.c -lm \
+ && strip /tmp/triangle/Triangle4XP
+
+ADD http://dev.x-plane.com/download/tools/xptools_lin_15-3.zip /tmp/
+RUN unzip /tmp/xptools_lin_15-3.zip tools/DSFTool -d /tmp/xptools
 
 FROM python:3.7-slim
 
@@ -43,12 +50,26 @@ COPY --from=0 /tmp/wheels/* /tmp/wheels
 RUN pip3 install /tmp/wheels/*  \
  && rm -r /tmp/wheels
 
-
-COPY files/patches/* /tmp/patches/
-RUN patch -d /ortho4xp -p1  </tmp/patches/generate_ovl.patch
-
-COPY files/build_ortho.sh /ortho
+COPY docker/build_ortho.sh /ortho
 RUN chmod +x /ortho
+
+COPY Extents/         /ortho4xp/Extents/
+COPY Filters          /ortho4xp/Filters/
+COPY Licence/         /ortho4xp/Licence/
+COPY Providers/       /ortho4xp/Providers/
+COPY src/             /ortho4xp/src/
+COPY Utils/Earth/     /ortho4xp/Utils/Earth/
+COPY Utils/*.gif  \
+     Utils/water* Utils/*.png \
+     /ortho4xp/Utils/
+
+COPY Ortho4XP.cfg Ortho4XP_v130.py README.md /ortho4xp/
+
+COPY --from=0   \
+     /tmp/triangle/Triangle4XP  \
+     /tmp/xptools/tools/DSFTool \
+     /ortho4xp/Utils/
+
 
 RUN mkdir /build
 
