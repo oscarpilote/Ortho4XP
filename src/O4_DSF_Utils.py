@@ -368,7 +368,7 @@ def build_dsf(tile,download_queue):
                     except: pass
             if needs_new_terrain:
                 terrain_idx=len(dico_terrains)
-                textured_tris[terrain_idx]=defaultdict(lambda: array.array('H'))
+                textured_tris[terrain_idx]=defaultdict(lambda: array.array('I'))
                 dico_terrains[terrain_attributes]=terrain_idx
                 is_overlay=tri_type==2 or (tri_type==1 and not (tile.experimental_water & 1))
                 if is_overlay: overlay_terrains.add(terrain_idx)
@@ -394,7 +394,7 @@ def build_dsf(tile,download_queue):
         # We put the tri in the right terrain   
         # First the ones associated to the dico_customzl 
         if terrain_idx:
-            tri_p=array.array('H')
+            tri_p=array.array('I')
             for n in (n1,n3,n2):     # beware of ordering for orientation ! 
                 idx_pool=idx_node_to_idx_pool[n]
                 node_hash=(idx_pool,*node_icoords[5*n:5*n+2],terrain_idx)
@@ -521,7 +521,7 @@ def build_dsf(tile,download_queue):
             terrain_idx=dico_terrains[terrain_attributes]
         else:
             terrain_idx=len(dico_terrains)
-            textured_tris[terrain_idx]=defaultdict(lambda: array.array('H'))
+            textured_tris[terrain_idx]=defaultdict(lambda: array.array('I'))
             dico_terrains[terrain_attributes]=terrain_idx
             is_overlay=(tri_type==1 and not (tile.experimental_water & 1))
             if is_overlay: overlay_terrains.add(terrain_idx)
@@ -754,13 +754,13 @@ def build_dsf(tile,download_queue):
                     f.write(struct.pack('<B',255))  # COORDINATE COUNT
 
                     for k in range(255):
-                        f.write(struct.pack('<H',textured_tris[terrain_idx][idx_dsfpool][255*j+k]))  # COORDINATE IDX
+                        f.write(struct.pack('<I',textured_tris[terrain_idx][idx_dsfpool][255*j+k]))  # COORDINATE IDX
                 remaining_tri_p=len(textured_tris[terrain_idx][idx_dsfpool])%255
                 if remaining_tri_p != 0:
                     f.write(struct.pack('<B',23))               # PATCH TRIANGLE
                     f.write(struct.pack('<B',remaining_tri_p))  # COORDINATE COUNT
                     for k in range(remaining_tri_p):
-                        f.write(struct.pack('<H',textured_tris[terrain_idx][idx_dsfpool][255*blocks+k]))  # COORDINATE IDX
+                        f.write(struct.pack('<I',textured_tris[terrain_idx][idx_dsfpool][255*blocks+k]))  # COORDINATE IDX
             else:  # idx_dsfpool == 'cross-pool'
                 pool_idx_init=textured_tris[terrain_idx][idx_dsfpool][0]
                 f.write(struct.pack('<B',1))                                   # POOL SELECT
@@ -776,14 +776,14 @@ def build_dsf(tile,download_queue):
                     f.write(struct.pack('<B',255))  # COORDINATE COUNT
                     for k in range(255):
                         f.write(struct.pack('<H',dico_new_dsf_pool[textured_tris[terrain_idx][idx_dsfpool][510*j+2*k]]))    # POOL IDX
-                        f.write(struct.pack('<H',textured_tris[terrain_idx][idx_dsfpool][510*j+2*k+1]))                     # POS_IN_POOL IDX
+                        f.write(struct.pack('<I',textured_tris[terrain_idx][idx_dsfpool][510*j+2*k+1]))                     # POS_IN_POOL IDX
                 remaining_tri_p=int((len(textured_tris[terrain_idx][idx_dsfpool])%510)/2)
                 if remaining_tri_p != 0:
                     f.write(struct.pack('<B',24))               # PATCH TRIANGLE CROSS-POOL
                     f.write(struct.pack('<B',remaining_tri_p))  # COORDINATE COUNT
                     for k in range(remaining_tri_p):
                         f.write(struct.pack('<H',dico_new_dsf_pool[textured_tris[terrain_idx][idx_dsfpool][510*blocks+2*k]]))   # POOL IDX
-                        f.write(struct.pack('<H',textured_tris[terrain_idx][idx_dsfpool][510*blocks+2*k+1]))                    # POS_IN_PO0L IDX
+                        f.write(struct.pack('<I',textured_tris[terrain_idx][idx_dsfpool][510*blocks+2*k+1]))                    # POS_IN_PO0L IDX
     
     UI.progress_bar(1,98)
     if UI.red_flag: UI.vprint(1,"DSF construction interrupted."); return 0   
