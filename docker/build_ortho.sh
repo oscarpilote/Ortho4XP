@@ -28,12 +28,12 @@ extract_hd4_mesh_tile () {
 [ -z $MAX_CONVERT_SLOTS ] || [ $MAX_CONVERT_SLOTS == 0 ] && MAX_CONVERT_SLOTS=4
 
 [ -d /config ] || mkdir /config
-cp -p /ortho4xp/Ortho4XP.cfg /config/Ortho4XP.cfg
+cp -pf /ortho4xp/Ortho4XP.cfg /config/Ortho4XP.cfg
 echo "custom_overlay_src=/overlay_tile" >> /config/Ortho4XP.cfg
 echo "imprint_masks_to_dds=True" >> /config/Ortho4XP.cfg
 sed -i "s/cover_airports_with_highres=.*/cover_airports_with_highres=$HIGHRES_AIRPORTS/" /config/Ortho4XP.cfg
 sed -i "s/max_convert_slots=.*/max_convert_slots=$MAX_CONVERT_SLOTS/" /config/Ortho4XP.cfg
-
+echo "fill_nodata=$FILL_NODATA" >> /config/Ortho4XP.cfg
 [ -r ./Ortho4XP.cfg ] || ln -s /config/Ortho4XP.cfg ./Ortho4XP.cfg
 
 for d in Previews OSM_data Masks Orthophotos Elevation_data Geotiffs Patches; do
