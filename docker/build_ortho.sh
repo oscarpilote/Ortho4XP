@@ -62,6 +62,9 @@ if ls /overlay/XP11_HD_Mesh_V4_${lat_major}${lon_major}*.zip 1> /dev/null 2>&1; 
 elif [ -d "/overlay/Global Scenery/X-Plane 11 Global Scenery/Earth nav data" ]; then
   mkdir -p /overlay_tile
   ln -s  "/overlay/Global Scenery/X-Plane 11 Global Scenery/Earth nav data" "/overlay_tile/Earth nav data"
+elif [ -d "/overlay/Earth nav data" ]; then
+  mkdir -p /overlay_tile
+  ln -s  "/overlay/Earth nav data" "/overlay_tile/Earth nav data"
 else
   echo "Please provide a mesh mounted at /overlay"
   echo "This should be either the X-Plane directory, or a directory containing the HD Mesh V4 zipfiles"
