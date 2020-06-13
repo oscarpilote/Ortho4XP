@@ -1,6 +1,6 @@
 FROM python:3.7-slim
-RUN apt update              \
- && apt -y install          \
+RUN apt-get update              \
+ && apt-get -y install          \
     --no-install-recommends \
       build-essential       \
       libz-dev              \
@@ -21,8 +21,8 @@ RUN unzip /tmp/xptools_lin_15-3.zip tools/DSFTool -d /tmp/xptools
 
 FROM python:3.7-slim
 
-RUN apt update              \
- && apt -y install          \
+RUN apt-get update              \
+ && apt-get -y install          \
     --no-install-recommends \
       gdal-bin              \
       libspatialindex5      \
