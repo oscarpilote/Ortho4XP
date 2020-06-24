@@ -9,16 +9,16 @@ def lon_to_m(lat):
 def m_to_lon(lat):
     return m_to_lat/cos(pi*lat/180) 
 
+epsg={}
+
+
 def dist(A,B):
     # A=(lona,lata), B=(lonb,latb)
     # returns the great circle distance between A and B over the earth surface
     a=sin((A[1]-B[1])*pi/360)**2+cos(A[1]*pi/180)*cos(B[1]*pi/180)*sin((A[0]-B[0])*pi/360)**2
     return 2*earth_radius*atan2(sqrt(a),sqrt(1-a))
 
-epsg={}
-epsg['4326']=pyproj.Proj(init='epsg:4326')
-epsg['3857']=pyproj.Proj(init='epsg:3857')
-    
+
 
 ##############################################################################
 def webmercator_pixel_size(lat,zoomlevel):
@@ -27,7 +27,8 @@ def webmercator_pixel_size(lat,zoomlevel):
 
 ##############################################################################
 def transform(s_epsg, t_epsg, s_x, s_y):
-    return pyproj.transform(epsg[s_epsg], epsg[t_epsg], s_x, s_y)
+    transformer = pyproj.Transformer.from_crs("epsg:" + s_epsg, "epsg:" + t_epsg, always_xy=True)
+    return transformer.transform(s_x, s_y)
 ##############################################################################
 
 ##############################################################################
