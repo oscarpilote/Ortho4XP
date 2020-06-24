@@ -1,0 +1,10 @@
+certifi==2020.6.20
+chardet==3.0.4
+idna==2.9
+numpy==1.19.0
+Pillow==7.1.2
+pyproj==2.6.1.post1
+requests==2.24.0
+Rtree==0.9.4
+Shapely==1.7.0
+urllib3==1.25.9

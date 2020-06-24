@@ -195,11 +195,11 @@ def initialize_providers_dict():
                         valid_provider=False
                 elif key=='epsg_code':
                     try:
-                        GEO.epsg[value]=GEO.pyproj.Proj(init='epsg:'+value)
+                        GEO.epsg[value]=value
                     except:
                         # HACK for Slovenia 
                         if int(value)==102060:
-                            GEO.epsg[value]=GEO.pyproj.Proj(init='epsg:3912')
+                            GEO.epsg[value]='epsg:3912'
                         else:
                             UI.vprint(0,"Error in epsg code for provider",provider_code)
                             valid_provider=False

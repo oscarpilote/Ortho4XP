@@ -13,3 +13,5 @@ Tiles/
 **/Thumbs.db
 **/*.bak
 .last_gui_params.txt
+
+.venv
