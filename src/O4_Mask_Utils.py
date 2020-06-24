@@ -513,7 +513,7 @@ if __name__ == '__main__':
         print("Changing coordinates to match EPSG code")
         from pyproj import Transformer
         import shapely.ops
-        transformer = Transformer.from_crs("epsg:4326", "epsg:"+ epsg_code)
+        transformer = Transformer.from_crs("epsg:4326", "epsg:"+ epsg_code, always_xy=True)
         reprojection = lambda x, y: transformer.transform(x, y)
         multipolygon_area=shapely.ops.transform(reprojection,multipolygon_area)
 

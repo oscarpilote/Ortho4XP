@@ -27,7 +27,7 @@ def webmercator_pixel_size(lat,zoomlevel):
 
 ##############################################################################
 def transform(s_epsg, t_epsg, s_x, s_y):
-    transformer = pyproj.Transformer.from_crs("epsg:" + s_epsg, "epsg:" + t_epsg)
+    transformer = pyproj.Transformer.from_crs("epsg:" + s_epsg, "epsg:" + t_epsg, always_xy=True)
     return transformer.transform(s_x, s_y)
 ##############################################################################
 

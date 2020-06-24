@@ -4,7 +4,7 @@ from math import pi, exp, atan
 
 geographic='4326'
 webmercator='3857'
-transformer = Transformer.from_crs("epsg:" +transformer, "epsg:" + webmercator)
+transformer = Transformer.from_crs("epsg:" +transformer, "epsg:" + webmercator, always_xy=True)
 
 def gtile_to_wgs84(til_x,til_y,zoomlevel):
     rat_x=(til_x/(2**(zoomlevel-1))-1)
