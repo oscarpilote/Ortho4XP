@@ -5,7 +5,7 @@ from math import floor, cos, pi
 import queue
 import threading
 import tkinter as tk
-from   tkinter import RIDGE,N,S,E,W,NW,ALL,END,LEFT,RIGHT,CENTER,HORIZONTAL,filedialog
+from   tkinter import RIDGE,N,S,E,W,NW,ALL,END,LEFT,RIGHT,CENTER,HORIZONTAL,filedialog,scrolledtext
 import tkinter.ttk as ttk
 from PIL import Image, ImageTk
 import O4_Version 
@@ -150,7 +150,7 @@ class Ortho4XP_GUI(tk.Tk):
         self.pgrb3.grid(row=0,column=2,padx=5,pady=0)
 
         # Console
-        self.console =  tk.Text(self.frame_console,bd=0)
+        self.console =  scrolledtext.ScrolledText(self.frame_console,bd=0)
         self.console.grid(row=0,column=0,sticky=N+S+E+W)
         self.frame_console.rowconfigure(0,weight=1)
         self.frame_console.columnconfigure(0,weight=1)
@@ -196,7 +196,8 @@ class Ortho4XP_GUI(tk.Tk):
                     self.console.delete(1.0, END)
                 else:
                     self.console.insert(END, str(line))
-                self.console.see(END)
+                if self.console.vbar.get()[1] == 1.0: # if you are on the bottom
+                    self.console.see(END)
                 self.console.update_idletasks()
         except queue.Empty:
             pass
