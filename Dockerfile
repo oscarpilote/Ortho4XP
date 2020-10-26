@@ -1,16 +1,16 @@
 FROM python:3.7-slim
 
-ENV DEBIAN_FRONTEND="noninteractive" \
-    LANG="en_US.UTF-8" \
-    LC_ALL="C.UTF-8" \
-    LANGUAGE="en_US.UTF-8" \
+ENV DEBIAN_FRONTEND="noninteractive"
+ENV LANG="en_US.UTF-8"
+ENV LC_ALL="C.UTF-8"
+ENV LANGUAGE="en_US.UTF-8"
 
 RUN apt-get -q update \
  && apt-get install --no-install-recommends -yq \
         build-essential \
         libz-dev \
         libjpeg62-turbo-dev \
-        unzip
+        unzip \
  && apt-get autoremove -yq \
  && apt-get autoclean \
  && rm -rf /tmp/* \
@@ -32,10 +32,10 @@ RUN unzip /tmp/xptools_lin_15-3.zip tools/DSFTool -d /tmp/xptools
 
 FROM python:3.7-slim
 
-ENV DEBIAN_FRONTEND="noninteractive" \
-    LANG="en_US.UTF-8"               \
-    LC_ALL="C.UTF-8"                 \
-    LANGUAGE="en_US.UTF-8"           \
+ENV DEBIAN_FRONTEND="noninteractive"
+ENV LANG="en_US.UTF-8"
+ENV LC_ALL="C.UTF-8"
+ENV LANGUAGE="en_US.UTF-8"
 
 RUN apt-get -q update \
  && apt-get install --no-install-recommends -yq \
