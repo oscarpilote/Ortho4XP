@@ -10,7 +10,7 @@ Tested only with an host under Ubuntu18.04 LTS.
 Allow graphical access from other clients
 ```
 sudo apt install x11-xserver-utils
-xhost +
+xhost local:root
 ```
 You shoud have the response `access control disabled, clients can connect from any host`. The `xhost +` must be run after each host reboot.
 
