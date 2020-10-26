@@ -1,0 +1,14 @@
+version: '3'
+
+services:
+  ortho4xp:
+    build:
+      context: .
+    container_name: orth4xp
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix         # GUI
+      - ./Orthophotos:/ortho4xp/Orthophotos   # Ortho4XP files
+      - ./Ortho4XP.cfg:/ortho4xp/Ortho4XP.cfg # Config
+    environment:
+      - DISPLAY=$DISPLAY # Needed for GUI
+    entrypoint: ["python3", "Ortho4XP_v130.py"]

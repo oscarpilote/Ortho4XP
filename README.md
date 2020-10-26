@@ -17,7 +17,7 @@ You shoud have the response `access control disabled, clients can connect from a
 In this projet directory, run
 ```
 docker-compose build
-docker-compose up
+docker-compose -u "$(id -u ${USER}):$(id -g ${USER})" up
 ```
 The graphical interface should open.
 Use the GUI to generate your tiles.

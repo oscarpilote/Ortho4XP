@@ -1,19 +1,30 @@
 FROM python:3.7-slim
-RUN apt-get update              \
- && apt-get -y install          \
-    --no-install-recommends \
-      build-essential       \
-      libz-dev              \
-      libjpeg62-turbo-dev   \
-      unzip
 
-RUN mkdir /tmp/wheels       \
+ENV DEBIAN_FRONTEND="noninteractive" \
+    LANG="en_US.UTF-8" \
+    LC_ALL="C.UTF-8" \
+    LANGUAGE="en_US.UTF-8" \
+
+RUN apt-get -q update \
+ && apt-get install --no-install-recommends -yq \
+        build-essential \
+        libz-dev \
+        libjpeg62-turbo-dev \
+        unzip
+ && apt-get autoremove -yq \
+ && apt-get autoclean \
+ && rm -rf /tmp/* \
+           /var/lib/apt/lists/*
+
+RUN mkdir /tmp/wheels \
  && pip3 wheel Pillow-SIMD \
       -w /tmp/wheels
 
 COPY Utils/Triangle4XP.c /tmp/triangle/
 RUN gcc -O2 -pipe -msse3 \
-      -o /tmp/triangle/Triangle4XP /tmp/triangle/Triangle4XP.c -lm \
+      -o /tmp/triangle/Triangle4XP \
+      /tmp/triangle/Triangle4XP.c \
+      -lm \
  && strip /tmp/triangle/Triangle4XP
 
 ADD http://dev.x-plane.com/download/tools/xptools_lin_15-3.zip /tmp/
@@ -21,26 +32,34 @@ RUN unzip /tmp/xptools_lin_15-3.zip tools/DSFTool -d /tmp/xptools
 
 FROM python:3.7-slim
 
-RUN apt-get update              \
- && apt-get -y install          \
-    --no-install-recommends \
-      gdal-bin              \
-      libspatialindex5      \
-      libjpeg62-turbo       \
-      zlib1g                \
-      p7zip-full            \
-      libnvtt-bin           \
-      wget                  \
-      python3-pyproj        \
-      python3-numpy         \
-      python3-shapely       \
-      python3-rtree         \
-      python3-requests      \
-      python3-gdal          \
-      libtk8.6              \
-      python3-pil           \
-      python3-pil.imagetk   \
- && rm -rf /var/lib/apt/lists/*
+ENV DEBIAN_FRONTEND="noninteractive" \
+    LANG="en_US.UTF-8"               \
+    LC_ALL="C.UTF-8"                 \
+    LANGUAGE="en_US.UTF-8"           \
+
+RUN apt-get -q update \
+ && apt-get install --no-install-recommends -yq \
+      gdal-bin \
+      libspatialindex5 \
+      libjpeg62-turbo \
+      zlib1g \
+      p7zip-full \
+      libnvtt-bin \
+      wget \
+      python3-pyproj \
+      python3-numpy \
+      python3-shapely \
+      python3-rtree \
+      python3-requests \
+      python3-gdal \
+      libtk8.6 \
+      python3-pil \
+      python3-pil.imagetk \
+ && apt-get autoremove -yq \
+ && apt-get autoclean \
+ && rm -rf /tmp/* \
+           /var/lib/apt/lists/*
+
 RUN mkdir /tmp/wheels
 COPY --from=0 /tmp/wheels/* /tmp/wheels
 RUN pip3 install /tmp/wheels/*  \
@@ -75,11 +94,8 @@ VOLUME /overlay
 
 ENV PYTHONPATH=/usr/lib/python3/dist-packages:/ortho4xp/src
 
-ENV MAX_CONVERT_SLOTS=""        \
-    HIGHRES_AIRPORTS=ICAO       \
-    FILL_NODATA=True            \
-    CUSTOM_DEM='Viewfinderpanoramas (J. de Ferranti) - mostly worldwide'
-
+ENV MAX_CONVERT_SLOTS="4" \
+    HIGHRES_AIRPORTS=ICAO
 
 WORKDIR /ortho4xp
 ENTRYPOINT [ "/ortho" ]

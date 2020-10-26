@@ -14,3 +14,5 @@ Tiles/
 **/*.bak
 .last_gui_params.txt
 /Ortho4XP.iml
+Ortho4XP.cfg
+docker-compose.yml
