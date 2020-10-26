@@ -5,10 +5,12 @@ services:
     build:
       context: .
     container_name: orth4xp
+    runtime: nvidia # from https://github.com/NVIDIA/nvidia-docker
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix         # GUI
       - ./Orthophotos:/ortho4xp/Orthophotos   # Ortho4XP files
       - ./Ortho4XP.cfg:/ortho4xp/Ortho4XP.cfg # Config
     environment:
-      - DISPLAY=$DISPLAY # Needed for GUI
+      - NVIDIA_VISIBLE_DEVICES=all # for runtime nvidia
+      - DISPLAY=$DISPLAY           # Needed for GUI
     entrypoint: ["python3", "Ortho4XP_v130.py"]
