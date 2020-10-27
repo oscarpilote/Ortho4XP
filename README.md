@@ -12,12 +12,12 @@ Allow graphical access from other clients
 sudo apt install x11-xserver-utils
 xhost local:root
 ```
-You shoud have the response `access control disabled, clients can connect from any host`. The `xhost +` must be run after each host reboot.
+You shoud have the response `access control disabled, clients can connect from any host`. The `xhost local:root` must be run after each host reboot.
 
 In this projet directory, run
 ```
 docker-compose build
-docker-compose -u "$(id -u ${USER}):$(id -g ${USER})" up
+docker-compose up
 ```
 The graphical interface should open.
 Use the GUI to generate your tiles.
