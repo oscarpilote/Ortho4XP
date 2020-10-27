@@ -78,7 +78,8 @@ COPY Utils/*.gif  \
      Utils/water* Utils/*.png \
      /ortho4xp/Utils/
 
-COPY Ortho4XP.cfg Ortho4XP_v130.py README.md /ortho4xp/
+COPY Ortho4XP.cfg-sample /ortho4xp/Ortho4XP.cfg
+COPY Ortho4XP_v130.py README.md /ortho4xp/
 
 COPY --from=0   \
      /tmp/triangle/Triangle4XP  \
