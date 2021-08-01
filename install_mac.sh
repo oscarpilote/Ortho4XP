@@ -8,3 +8,7 @@ pip3 install pyproj
 
 # Install other dependencies
 pip3 install numpy shapely rtree pillow requests
+
+#verify your instillations with
+# brew list
+# pip3 list
