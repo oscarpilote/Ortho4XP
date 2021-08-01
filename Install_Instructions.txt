@@ -66,13 +66,12 @@ OS X
 ----
 
 1) In a Terminal window, install Homebrew (brew.sh), a package manager
-/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
 2) Go to the Ortho4XP folder
 cd /path/to/Ortho4XP
 
-3) Execute the install script (you may have to run "chmod +x ./install_mac.sh" first)
-./install_mac.sh
+3) Perform the steps found in the file install_mac.sh, rather than running it as a shell script. 
 
 4) Launch Ortho4XP
 python3 Ortho4XP_v130.py
