@@ -75,3 +75,7 @@ cd /path/to/Ortho4XP
 
 4) Launch Ortho4XP
 python3 Ortho4XP_v130.py
+
+  NOTE Mac Gatekeeper security will require extra steps with several files that are contained in Ortho4XP. These are discussed in the Ortho4XP Forum, https://forums.x-plane.org/index.php?/forums/topic/244471-guide-for-installing-software-on-big-sur/
+  https://forums.x-plane.org/index.php?/forums/topic/202308-ortho4xp-mac-install-for-dummies-v130-high-sierra/
+  Search these two topics for additional help.
