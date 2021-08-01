@@ -1,5 +1,5 @@
 # Install dependencies
-# Changes as of Big Sur
+# Changes current as of Big Sur
 brew install  gdal spatialindex p7zip
 
 # Install pyproj
