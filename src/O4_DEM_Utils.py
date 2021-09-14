@@ -7,12 +7,18 @@ import itertools
 from math import sqrt
 import array
 import numpy
+has_gdal = False
 try:
     from osgeo import gdal
-    has_gdal=True
+    has_gdal = True
 except ImportError:
-    import gdal
-    has_gdal=True
+    pass
+if not has_gdal:
+    try:
+        import gdal
+        has_gdal = True
+    except ImportError:
+        pass
 
 from PIL import Image
 import O4_UI_Utils as UI
