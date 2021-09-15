@@ -15,36 +15,47 @@ updates or bugs fixed), the Binary directory won't be necessary anymore.
 
 The following instructions are for the script install :
 
-Linux (Debian derived, names might slightly differ for other distros)
+Linux
 -----
 
-sudo apt-get install python3 python3-pip python3-requests python3-numpy python3-pyproj python3-gdal python3-shapely python3-rtree python3-pil python3-pil.imagetk p7zip-full libnvtt-bin freeglut3
+For Arch-based distributions you must have the AUR enabled and yay installed.
+Debian based distributions should have no issues.
 
-(if some of them were note packaged for your distro you can use pip instead, like say, pip install pyproj)
+1) Install Python
+Debian Based: sudo apt-get python3.9
+Arch Based: sudo pacman -S python3.9
+
+2) Install Poetry
+curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/install-poetry.py | python -
+
+3) Install GDAL
+Debian Based: sudo apt-get python3-gdal
+Arch Based: sudo pacman -S python3-gdal
+
+4) Install other dependencies
+poetry install
+
+5) Launch Ortho4XP
+poetry run python Ortho4XP_v130.py
 
 
 Windows
 -------
 
-1) Download and install Python 3 from www.python.org 
+1) Download and install Python 3.9 from www.python.org 
 
-Just select one for your Windows OS, there is no benefit in our case to 
-download the pretty lastest version of Python, since you might get difficulties 
-further down to find modules already built for it. As of 10/2018, I would 
-recommend using 3.7.    
-Make sure during the process that "pip" (package management system for Python)
-is installed along and made accessible from your PATH [there is a checkbox
-for this during the Python install process wich by default ISN'T checked].  
+2) Install Poetry from https://python-poetry.org/docs/#installation
 
-2) Download the following packages from https://www.lfd.uci.edu/~gohlke/pythonlibs/
+3) From a command window run
+poetry install
 
-Pyproj, Numpy, Gdal, Shapely, Rtree, Pillow (or alternatively Pillow-SIMD)
+3) Download GDAL from  from https://www.lfd.uci.edu/~gohlke/pythonlibs/#gdal
 
 Pay attention to take the ones that correspond to the Python version which you picked
 at Step 1) and to your OS nbr of bits (32 or 64, I guess 64 in all but a few cases).
-As an example, if Python 3.7.*  was selected at Step 1) above and you
-have a 64bit windows, then you would choose these files that have -cp37- and _amd64 
-within their filename.   
+As an example, for Python 3.9.* and if you
+have a 64bit windows, then you would choose these files that have -cp39- and _amd64 
+within their filename.
 
 In order to use the build geotiff feature of the custom_zl map, you will need to 
 add the directory containing gdal_translate and gdalwarp (***/python**/lib/site-packages/osgeo/) 
@@ -53,14 +64,8 @@ into your PATH variable.
 Finally, if you do not already have them : download and install the build tools for visual studio (2017):
 https://visualstudio.microsoft.com/fr/downloads/  
 
-3) From a command window launch successively 
-
-pip install --upgrade pip  [if this goes wrong you probably missed the last point in 1)]
-pip install requests
-pip install *******.whl [replacing ******** successively by each of the files downloaded at Step 2]
-
 You should be done. Open a command window in the Ortho4XP directory (freshly downloaded from Github)
-and launch "python Ortho4XP_v130.py".
+and launch "poetry run python Ortho4XP_v130.py".
 
 OS X
 ----
@@ -75,4 +80,4 @@ cd /path/to/Ortho4XP
 ./install_mac.sh
 
 4) Launch Ortho4XP
-python3 Ortho4XP_v130.py
+poetry run python3 Ortho4XP_v130.py
