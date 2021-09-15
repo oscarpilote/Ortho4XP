@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "Ortho4XP"
+version = "1.30"
+description = "A scenery generator for the X-Plane flight simulator"
+authors = ["oscarpilote"]
+license = "GPL3"
+
+[tool.poetry.dependencies]
+python = "~3.9"
+numpy = "1.21.2"
+requests = "2.26.0"
+Shapely = "1.7.1"
+Rtree = "0.9.7"
+Pillow = "8.3.2"
+pyproj = "3.2.0"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
