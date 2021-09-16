@@ -57,14 +57,16 @@ As an example, for Python 3.9.* and if you
 have a 64bit windows, then you would choose these files that have -cp39- and _amd64 
 within their filename.
 
-In order to use the build geotiff feature of the custom_zl map, you will need to 
-add the directory containing gdal_translate and gdalwarp (***/python**/lib/site-packages/osgeo/) 
-into your PATH variable.
-
 Finally, if you do not already have them : download and install the build tools for visual studio (2017):
 https://visualstudio.microsoft.com/fr/downloads/  
 
-You should be done. Open a command window in the Ortho4XP directory (freshly downloaded from Github)
+
+4) Install GDAL into python
+poetry run pip install <filepath>
+
+E.g poetry run pip install ./GDAL‑3.3.2‑cp39‑cp39‑win_amd64.whl
+
+5) You should be done. Open a command window in the Ortho4XP directory (freshly downloaded from Github)
 and launch "poetry run python Ortho4XP_v130.py".
 
 OS X
