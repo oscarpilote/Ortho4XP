@@ -32,10 +32,13 @@ curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/install-
 Debian Based: sudo apt-get python3-gdal
 Arch Based: sudo pacman -S python3-gdal
 
-4) Install other dependencies
+4) Go to the Ortho4XP folder
+cd /path/to/Ortho4XP
+
+5) Install other dependencies
 poetry install
 
-5) Launch Ortho4XP
+6) Launch Ortho4XP
 poetry run python Ortho4XP_v130.py
 
 
@@ -46,10 +49,13 @@ Windows
 
 2) Install Poetry from https://python-poetry.org/docs/#installation
 
-3) From a command window run
+3) Go to the Ortho4XP folder
+cd \path\to\Ortho4XP
+
+4) From a command window run
 poetry install
 
-3) Download GDAL from  from https://www.lfd.uci.edu/~gohlke/pythonlibs/#gdal
+5) Download GDAL from  from https://www.lfd.uci.edu/~gohlke/pythonlibs/#gdal
 
 Pay attention to take the ones that correspond to the Python version which you picked
 at Step 1) and to your OS nbr of bits (32 or 64, I guess 64 in all but a few cases).
