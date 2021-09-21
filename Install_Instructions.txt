@@ -75,11 +75,11 @@ E.g poetry run pip install ./GDAL‑3.3.2‑cp39‑cp39‑win_amd64.whl
 5) You should be done. Open a command window in the Ortho4XP directory (freshly downloaded from Github)
 and launch "poetry run python Ortho4XP_v130.py".
 
-OS X
+macOS
 ----
 
 1) In a Terminal window, install Homebrew (brew.sh), a package manager
-/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
 2) Go to the Ortho4XP folder
 cd /path/to/Ortho4XP
