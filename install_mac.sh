@@ -1,7 +1,7 @@
 # Install dependencies
-brew install python gdal spatialindex p7zip poetry
+brew install python-tk@3.9 gdal spatialindex p7zip poetry
 
-# Install dependencies
+# Setup python environment
 poetry install
 
 # Install gdal
