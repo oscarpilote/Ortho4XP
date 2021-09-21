@@ -2,7 +2,7 @@
 brew install python gdal spatialindex p7zip
 
 # Install poetry
-curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/install-poetry.py| python -
+curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/install-poetry.py| python3 -
 
 # Install dependencies
 poetry install
