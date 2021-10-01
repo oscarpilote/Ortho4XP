@@ -4,6 +4,6 @@ layers=Actueel_ortho25
 tilematrixset=EPSG:3857
 tile_size=256
 url_prefix=https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0?
-in_GUI=false
+in_GUI=False
 imagery_dir=grouped
 extent=Netherlands
