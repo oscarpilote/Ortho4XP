@@ -1,0 +1,9 @@
+request_type=wmts
+epsg_code=3067
+layers=ortokuva
+tilematrixset=ETRS-TM35FIN
+tile_size=256
+url_prefix=https://karttamoottori.maanmittauslaitos.fi/maasto/wmts?
+in_GUI=True
+imagery_dir=code
+# color filter : balance medium 3 3 -5 saturation 30 brightness-contrast -20 8
