@@ -1,0 +1,6 @@
+# Maxar standard imagery
+request_type=tms
+grid_type=webmercator
+url_template=https://services.digitalglobe.com/earthservice/tmsaccess/tms/1.0.0/DigitalGlobe:ImageryTileService@EPSG:3857@jpg/{zoom}/{x}/{-y}.jpg?connectId=f57b8754-0d70-4439-bdb4-641beea5c2ec 
+max_zl=22
+imagery_dir=grouped
