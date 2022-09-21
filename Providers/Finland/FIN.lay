@@ -1,0 +1,11 @@
+request_type=wmts
+epsg_code=3857
+layers=ortokuva
+tilematrixset=WGS84_Pseudo-Mercator
+tile_size=256
+url_prefix=https://karttamoottori.maanmittauslaitos.fi/maasto/wmts?
+in_GUI=True
+imagery_dir=code
+max_zl=18
+fake_headers={'User-Agent':user_agent_generic,'Accept':'*/*','Connection':'keep-alive','Referer':'https://hkp.maanmittauslaitos.fi','Origin':'https://hkp.maanmittauslaitos.fi'}
+# color filter : balance medium 3 3 -5 saturation 30 brightness-contrast -20 8
