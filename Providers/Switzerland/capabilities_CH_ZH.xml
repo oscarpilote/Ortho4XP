@@ -1,0 +1,463 @@
+<?xml version='1.0' encoding="UTF-8" standalone="no" ?>
+<WMS_Capabilities version="1.3.0"  xmlns="http://www.opengis.net/wms"   xmlns:sld="http://www.opengis.net/sld"   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"   xmlns:ms="http://mapserver.gis.umn.edu/mapserver"   xsi:schemaLocation="http://www.opengis.net/wms http://schemas.opengis.net/wms/1.3.0/capabilities_1_3_0.xsd  http://www.opengis.net/sld http://schemas.opengis.net/sld/1.1.0/sld_capabilities.xsd  http://mapserver.gis.umn.edu/mapserver http://wms.zh.ch/OGDOrthoZH?service=WMS&amp;version=1.3.0&amp;request=GetSchemaExtension">
+
+<!-- MapServer version 7.0.7 OUTPUT=PNG OUTPUT=JPEG OUTPUT=KML SUPPORTS=PROJ SUPPORTS=AGG SUPPORTS=FREETYPE SUPPORTS=CAIRO SUPPORTS=SVG_SYMBOLS SUPPORTS=RSVG SUPPORTS=ICONV SUPPORTS=FRIBIDI SUPPORTS=WMS_SERVER SUPPORTS=WMS_CLIENT SUPPORTS=WFS_SERVER SUPPORTS=WFS_CLIENT SUPPORTS=WCS_SERVER SUPPORTS=SOS_SERVER SUPPORTS=FASTCGI SUPPORTS=THREADS SUPPORTS=GEOS INPUT=JPEG INPUT=POSTGIS INPUT=OGR INPUT=GDAL INPUT=SHAPEFILE -->
+
+<Service>
+  <Name>WMS</Name>
+  <Title>Orthofoto ZH 2014-2018</Title>
+  <Abstract>Geodienst des GIS-ZH</Abstract>
+  <KeywordList>
+      <Keyword>GIS-ZH</Keyword>
+      <Keyword>Geodaten</Keyword>
+  </KeywordList>
+  <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://geoportal.zh.ch"/>
+  <ContactInformation>
+    <ContactPersonPrimary>
+      <ContactPerson>gis@bd.zh.ch</ContactPerson>
+      <ContactOrganization>Geoinformation Kanton Zürich</ContactOrganization>
+    </ContactPersonPrimary>
+      <ContactPosition>Helpdesk</ContactPosition>
+    <ContactAddress>
+        <AddressType>text/html</AddressType>
+        <Address>Stampfenbachstrasse 12</Address>
+        <City>Zürich</City>
+        <StateOrProvince>ZH</StateOrProvince>
+        <PostCode>8090</PostCode>
+        <Country>Schweiz</Country>
+    </ContactAddress>
+      <ContactVoiceTelephone>+41 43 259 27 30</ContactVoiceTelephone>
+  <ContactElectronicMailAddress>gis@bd.zh.ch</ContactElectronicMailAddress>
+  </ContactInformation>
+  <Fees>none</Fees>
+  <AccessConstraints>none</AccessConstraints>
+  <MaxWidth>14336</MaxWidth>
+  <MaxHeight>14336</MaxHeight>
+</Service>
+
+<Capability>
+  <Request>
+    <GetCapabilities>
+      <Format>text/xml</Format>
+      <DCPType>
+        <HTTP>
+          <Get><OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://wms.zh.ch/OGDOrthoZH?"/></Get>
+          <Post><OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://wms.zh.ch/OGDOrthoZH?"/></Post>
+        </HTTP>
+      </DCPType>
+    </GetCapabilities>
+    <GetMap>
+      <Format>image/png</Format>
+      <Format>image/jpeg</Format>
+      <Format>image/png; mode=8bit</Format>
+      <Format>application/x-pdf</Format>
+      <Format>image/svg+xml</Format>
+      <Format>image/tiff</Format>
+      <Format>application/vnd.google-earth.kml+xml</Format>
+      <Format>application/vnd.google-earth.kmz</Format>
+      <DCPType>
+        <HTTP>
+          <Get><OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://wms.zh.ch/OGDOrthoZH?"/></Get>
+          <Post><OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://wms.zh.ch/OGDOrthoZH?"/></Post>
+        </HTTP>
+      </DCPType>
+    </GetMap>
+    <GetFeatureInfo>
+      <Format>application/vnd.ogc.gml</Format>
+      <Format>text/plain</Format>
+      <DCPType>
+        <HTTP>
+          <Get><OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://wms.zh.ch/OGDOrthoZH?"/></Get>
+          <Post><OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://wms.zh.ch/OGDOrthoZH?"/></Post>
+        </HTTP>
+      </DCPType>
+    </GetFeatureInfo>
+    <sld:DescribeLayer>
+      <Format>text/xml</Format>
+      <DCPType>
+        <HTTP>
+          <Get><OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://wms.zh.ch/OGDOrthoZH?"/></Get>
+          <Post><OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://wms.zh.ch/OGDOrthoZH?"/></Post>
+        </HTTP>
+      </DCPType>
+    </sld:DescribeLayer>
+    <sld:GetLegendGraphic>
+      <Format>image/png</Format>
+      <Format>image/jpeg</Format>
+      <Format>image/png; mode=8bit</Format>
+      <DCPType>
+        <HTTP>
+          <Get><OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://wms.zh.ch/OGDOrthoZH?"/></Get>
+          <Post><OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://wms.zh.ch/OGDOrthoZH?"/></Post>
+        </HTTP>
+      </DCPType>
+    </sld:GetLegendGraphic>
+    <ms:GetStyles>
+      <Format>text/xml</Format>
+      <DCPType>
+        <HTTP>
+          <Get><OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://wms.zh.ch/OGDOrthoZH?"/></Get>
+          <Post><OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:href="http://wms.zh.ch/OGDOrthoZH?"/></Post>
+        </HTTP>
+      </DCPType>
+    </ms:GetStyles>
+  </Request>
+  <Exception>
+    <Format>XML</Format>
+    <Format>INIMAGE</Format>
+    <Format>BLANK</Format>
+  </Exception>
+  <sld:UserDefinedSymbolization SupportSLD="1" UserLayer="0" UserStyle="1" RemoteWFS="0" InlineFeature="0" RemoteWCS="0"/>
+  <Layer>
+    <Name>OGDOrthoZH</Name>
+    <Title>Orthofoto ZH 2014-2018</Title>
+    <Abstract>Geodienst des GIS-ZH</Abstract>
+    <KeywordList>
+        <Keyword>GIS-ZH</Keyword>
+        <Keyword>Geodaten</Keyword>
+    </KeywordList>
+    <CRS>EPSG:2056</CRS>
+    <CRS>EPSG:21781</CRS>
+    <CRS>EPSG:21780</CRS>
+    <CRS>EPSG:21782</CRS>
+    <CRS>EPSG:4326</CRS>
+    <CRS>EPSG:31297</CRS>
+    <CRS>EPSG:4258</CRS>
+    <CRS>EPSG:3857</CRS>
+    <EX_GeographicBoundingBox>
+        <westBoundLongitude>8.15722</westBoundLongitude>
+        <eastBoundLongitude>9.04159</eastBoundLongitude>
+        <southBoundLatitude>47.1417</southBoundLatitude>
+        <northBoundLatitude>47.8482</northBoundLatitude>
+    </EX_GeographicBoundingBox>
+    <BoundingBox CRS="EPSG:2056"
+                minx="2.6545e+06" miny="1.2224e+06" maxx="2.72e+06" maxy="1.3e+06" />
+    <Layer queryable="0" opaque="0" cascaded="0">
+        <Name>ortho_s_14_fcir</Name>
+        <Title>Orthofoto ZH Sommer 2014/15 Falschfarbeninfrarot</Title>
+        <CRS>EPSG:2056</CRS>
+        <CRS>EPSG:21781</CRS>
+        <CRS>EPSG:21780</CRS>
+        <CRS>EPSG:21782</CRS>
+        <CRS>EPSG:4326</CRS>
+        <CRS>EPSG:31297</CRS>
+        <CRS>EPSG:4258</CRS>
+        <CRS>EPSG:3857</CRS>
+        <EX_GeographicBoundingBox>
+            <westBoundLongitude>8.15722</westBoundLongitude>
+            <eastBoundLongitude>9.04159</eastBoundLongitude>
+            <southBoundLatitude>47.1417</southBoundLatitude>
+            <northBoundLatitude>47.8482</northBoundLatitude>
+        </EX_GeographicBoundingBox>
+        <BoundingBox CRS="EPSG:2056"
+                    minx="2.6545e+06" miny="1.2224e+06" maxx="2.72e+06" maxy="1.3e+06" />
+        <MinScaleDenominator>1</MinScaleDenominator>
+        <MaxScaleDenominator>1.5e+06</MaxScaleDenominator>
+    </Layer>
+    <Layer queryable="0" opaque="0" cascaded="0">
+        <Name>ortho_s_14</Name>
+        <Title>Orthofoto ZH Sommer 2014/15 RGB</Title>
+        <CRS>EPSG:2056</CRS>
+        <CRS>EPSG:21781</CRS>
+        <CRS>EPSG:21780</CRS>
+        <CRS>EPSG:21782</CRS>
+        <CRS>EPSG:4326</CRS>
+        <CRS>EPSG:31297</CRS>
+        <CRS>EPSG:4258</CRS>
+        <CRS>EPSG:3857</CRS>
+        <EX_GeographicBoundingBox>
+            <westBoundLongitude>8.15722</westBoundLongitude>
+            <eastBoundLongitude>9.04159</eastBoundLongitude>
+            <southBoundLatitude>47.1417</southBoundLatitude>
+            <northBoundLatitude>47.8482</northBoundLatitude>
+        </EX_GeographicBoundingBox>
+        <BoundingBox CRS="EPSG:2056"
+                    minx="2.6545e+06" miny="1.2224e+06" maxx="2.72e+06" maxy="1.3e+06" />
+        <MinScaleDenominator>1</MinScaleDenominator>
+        <MaxScaleDenominator>1.5e+06</MaxScaleDenominator>
+    </Layer>
+    <Layer queryable="0" opaque="0" cascaded="0">
+        <Name>ortho_w_15_fcir</Name>
+        <Title>Orthofoto ZH Frühjahr 2015/16 Falschfarbeninfrarot</Title>
+        <CRS>EPSG:2056</CRS>
+        <CRS>EPSG:21781</CRS>
+        <CRS>EPSG:21780</CRS>
+        <CRS>EPSG:21782</CRS>
+        <CRS>EPSG:4326</CRS>
+        <CRS>EPSG:31297</CRS>
+        <CRS>EPSG:4258</CRS>
+        <CRS>EPSG:3857</CRS>
+        <EX_GeographicBoundingBox>
+            <westBoundLongitude>8.15722</westBoundLongitude>
+            <eastBoundLongitude>9.04159</eastBoundLongitude>
+            <southBoundLatitude>47.1417</southBoundLatitude>
+            <northBoundLatitude>47.8482</northBoundLatitude>
+        </EX_GeographicBoundingBox>
+        <BoundingBox CRS="EPSG:2056"
+                    minx="2.6545e+06" miny="1.2224e+06" maxx="2.72e+06" maxy="1.3e+06" />
+        <MinScaleDenominator>1</MinScaleDenominator>
+        <MaxScaleDenominator>1.5e+06</MaxScaleDenominator>
+    </Layer>
+    <Layer queryable="0" opaque="0" cascaded="0">
+        <Name>ortho_w_15</Name>
+        <Title>Orthofoto ZH Frühjahr 2015/16 RGB</Title>
+        <CRS>EPSG:2056</CRS>
+        <CRS>EPSG:21781</CRS>
+        <CRS>EPSG:21780</CRS>
+        <CRS>EPSG:21782</CRS>
+        <CRS>EPSG:4326</CRS>
+        <CRS>EPSG:31297</CRS>
+        <CRS>EPSG:4258</CRS>
+        <CRS>EPSG:3857</CRS>
+        <EX_GeographicBoundingBox>
+            <westBoundLongitude>8.15722</westBoundLongitude>
+            <eastBoundLongitude>9.04159</eastBoundLongitude>
+            <southBoundLatitude>47.1417</southBoundLatitude>
+            <northBoundLatitude>47.8482</northBoundLatitude>
+        </EX_GeographicBoundingBox>
+        <BoundingBox CRS="EPSG:2056"
+                    minx="2.6545e+06" miny="1.2224e+06" maxx="2.72e+06" maxy="1.3e+06" />
+        <MinScaleDenominator>1</MinScaleDenominator>
+        <MaxScaleDenominator>1.5e+06</MaxScaleDenominator>
+    </Layer>
+    <Layer queryable="0" opaque="0" cascaded="0">
+        <Name>ortho_fcir</Name>
+        <Title>Orthofoto ZH Sommer 2018 Falschfarbeninfrarot</Title>
+        <CRS>EPSG:2056</CRS>
+        <CRS>EPSG:21781</CRS>
+        <CRS>EPSG:21780</CRS>
+        <CRS>EPSG:21782</CRS>
+        <CRS>EPSG:4326</CRS>
+        <CRS>EPSG:31297</CRS>
+        <CRS>EPSG:4258</CRS>
+        <CRS>EPSG:3857</CRS>
+        <EX_GeographicBoundingBox>
+            <westBoundLongitude>8.15722</westBoundLongitude>
+            <eastBoundLongitude>9.04159</eastBoundLongitude>
+            <southBoundLatitude>47.1417</southBoundLatitude>
+            <northBoundLatitude>47.8482</northBoundLatitude>
+        </EX_GeographicBoundingBox>
+        <BoundingBox CRS="EPSG:2056"
+                    minx="2.6545e+06" miny="1.2224e+06" maxx="2.72e+06" maxy="1.3e+06" />
+        <MinScaleDenominator>1</MinScaleDenominator>
+        <MaxScaleDenominator>1.5e+06</MaxScaleDenominator>
+    </Layer>
+    <Layer queryable="0" opaque="0" cascaded="0">
+        <Name>ortho</Name>
+        <Title>Orthofoto ZH Sommer 2018 RGB</Title>
+        <CRS>EPSG:2056</CRS>
+        <CRS>EPSG:21781</CRS>
+        <CRS>EPSG:21780</CRS>
+        <CRS>EPSG:21782</CRS>
+        <CRS>EPSG:4326</CRS>
+        <CRS>EPSG:31297</CRS>
+        <CRS>EPSG:4258</CRS>
+        <CRS>EPSG:3857</CRS>
+        <EX_GeographicBoundingBox>
+            <westBoundLongitude>8.15722</westBoundLongitude>
+            <eastBoundLongitude>9.04159</eastBoundLongitude>
+            <southBoundLatitude>47.1417</southBoundLatitude>
+            <northBoundLatitude>47.8482</northBoundLatitude>
+        </EX_GeographicBoundingBox>
+        <BoundingBox CRS="EPSG:2056"
+                    minx="2.6545e+06" miny="1.2224e+06" maxx="2.72e+06" maxy="1.3e+06" />
+        <MinScaleDenominator>1</MinScaleDenominator>
+        <MaxScaleDenominator>1.5e+06</MaxScaleDenominator>
+    </Layer>
+    <Layer queryable="0" opaque="0" cascaded="0">
+        <Name>up8</Name>
+        <Title>Übersichtsplan 1:5000</Title>
+        <CRS>EPSG:21781</CRS>
+        <CRS>EPSG:21780</CRS>
+        <CRS>EPSG:21782</CRS>
+        <CRS>EPSG:4326</CRS>
+        <CRS>EPSG:31297</CRS>
+        <CRS>EPSG:4258</CRS>
+        <CRS>EPSG:2056</CRS>
+        <CRS>EPSG:3857</CRS>
+        <EX_GeographicBoundingBox>
+            <westBoundLongitude>-14.186</westBoundLongitude>
+            <eastBoundLongitude>-13.309</eastBoundLongitude>
+            <southBoundLatitude>35.7886</southBoundLatitude>
+            <northBoundLatitude>36.4814</northBoundLatitude>
+        </EX_GeographicBoundingBox>
+        <BoundingBox CRS="EPSG:21781"
+                    minx="-1.34532e+06" miny="-777638" maxx="-1.27983e+06" maxy="-715144" />
+        <MinScaleDenominator>1200.5</MinScaleDenominator>
+        <MaxScaleDenominator>6200.5</MaxScaleDenominator>
+    </Layer>
+    <Layer queryable="0" opaque="0" cascaded="0">
+        <Name>up24</Name>
+        <Title>Übersichtsplan 1:2500</Title>
+        <CRS>EPSG:21781</CRS>
+        <CRS>EPSG:21780</CRS>
+        <CRS>EPSG:21782</CRS>
+        <CRS>EPSG:4326</CRS>
+        <CRS>EPSG:31297</CRS>
+        <CRS>EPSG:4258</CRS>
+        <CRS>EPSG:2056</CRS>
+        <CRS>EPSG:3857</CRS>
+        <EX_GeographicBoundingBox>
+            <westBoundLongitude>-14.186</westBoundLongitude>
+            <eastBoundLongitude>-13.309</eastBoundLongitude>
+            <southBoundLatitude>35.7886</southBoundLatitude>
+            <northBoundLatitude>36.4814</northBoundLatitude>
+        </EX_GeographicBoundingBox>
+        <BoundingBox CRS="EPSG:21781"
+                    minx="-1.34532e+06" miny="-777638" maxx="-1.27983e+06" maxy="-715144" />
+        <MinScaleDenominator>1</MinScaleDenominator>
+        <MaxScaleDenominator>1200.5</MaxScaleDenominator>
+    </Layer>
+    <Layer queryable="0" opaque="0" cascaded="0">
+        <Name>grenzen</Name>
+        <Title>Bezirks- und Kantonsgrenzen</Title>
+        <CRS>EPSG:2056</CRS>
+        <CRS>EPSG:21781</CRS>
+        <CRS>EPSG:21780</CRS>
+        <CRS>EPSG:21782</CRS>
+        <CRS>EPSG:4326</CRS>
+        <CRS>EPSG:31297</CRS>
+        <CRS>EPSG:4258</CRS>
+        <CRS>EPSG:3857</CRS>
+        <EX_GeographicBoundingBox>
+            <westBoundLongitude>8.15722</westBoundLongitude>
+            <eastBoundLongitude>9.04159</eastBoundLongitude>
+            <southBoundLatitude>47.1417</southBoundLatitude>
+            <northBoundLatitude>47.8482</northBoundLatitude>
+        </EX_GeographicBoundingBox>
+        <BoundingBox CRS="EPSG:2056"
+                    minx="2.6545e+06" miny="1.2224e+06" maxx="2.72e+06" maxy="1.3e+06" />
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="115" height="105">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://wms.zh.ch/OGDOrthoZH?version=1.3.0&amp;service=WMS&amp;request=GetLegendGraphic&amp;sld_version=1.1.0&amp;layer=grenzen&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <MinScaleDenominator>1</MinScaleDenominator>
+        <MaxScaleDenominator>1.5e+06</MaxScaleDenominator>
+    </Layer>
+    <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>gemeindegrenzen</Name>
+        <Title>Gemeindegrenzen</Title>
+        <CRS>EPSG:2056</CRS>
+        <CRS>EPSG:21781</CRS>
+        <CRS>EPSG:21780</CRS>
+        <CRS>EPSG:21782</CRS>
+        <CRS>EPSG:4326</CRS>
+        <CRS>EPSG:31297</CRS>
+        <CRS>EPSG:4258</CRS>
+        <CRS>EPSG:3857</CRS>
+        <EX_GeographicBoundingBox>
+            <westBoundLongitude>8.15722</westBoundLongitude>
+            <eastBoundLongitude>9.04159</eastBoundLongitude>
+            <southBoundLatitude>47.1417</southBoundLatitude>
+            <northBoundLatitude>47.8482</northBoundLatitude>
+        </EX_GeographicBoundingBox>
+        <BoundingBox CRS="EPSG:2056"
+                    minx="2.6545e+06" miny="1.2224e+06" maxx="2.72e+06" maxy="1.3e+06" />
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="126" height="30">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://wms.zh.ch/OGDOrthoZH?version=1.3.0&amp;service=WMS&amp;request=GetLegendGraphic&amp;sld_version=1.1.0&amp;layer=gemeindegrenzen&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <MinScaleDenominator>1</MinScaleDenominator>
+        <MaxScaleDenominator>500000</MaxScaleDenominator>
+    </Layer>
+    <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>kachelung</Name>
+        <Title>Kacheleinteilung Sommer 14/15</Title>
+        <CRS>EPSG:2056</CRS>
+        <CRS>EPSG:21781</CRS>
+        <CRS>EPSG:21780</CRS>
+        <CRS>EPSG:21782</CRS>
+        <CRS>EPSG:4326</CRS>
+        <CRS>EPSG:31297</CRS>
+        <CRS>EPSG:4258</CRS>
+        <CRS>EPSG:3857</CRS>
+        <EX_GeographicBoundingBox>
+            <westBoundLongitude>8.15722</westBoundLongitude>
+            <eastBoundLongitude>9.04159</eastBoundLongitude>
+            <southBoundLatitude>47.1417</southBoundLatitude>
+            <northBoundLatitude>47.8482</northBoundLatitude>
+        </EX_GeographicBoundingBox>
+        <BoundingBox CRS="EPSG:2056"
+                    minx="2.6545e+06" miny="1.2224e+06" maxx="2.72e+06" maxy="1.3e+06" />
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="81" height="30">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://wms.zh.ch/OGDOrthoZH?version=1.3.0&amp;service=WMS&amp;request=GetLegendGraphic&amp;sld_version=1.1.0&amp;layer=kachelung&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <MinScaleDenominator>1</MinScaleDenominator>
+        <MaxScaleDenominator>1.5e+07</MaxScaleDenominator>
+    </Layer>
+    <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>kachelung_sp</Name>
+        <Title>Kacheleinteilung Frühjahr 15/16</Title>
+        <CRS>EPSG:2056</CRS>
+        <CRS>EPSG:21781</CRS>
+        <CRS>EPSG:21780</CRS>
+        <CRS>EPSG:21782</CRS>
+        <CRS>EPSG:4326</CRS>
+        <CRS>EPSG:31297</CRS>
+        <CRS>EPSG:4258</CRS>
+        <CRS>EPSG:3857</CRS>
+        <EX_GeographicBoundingBox>
+            <westBoundLongitude>8.15722</westBoundLongitude>
+            <eastBoundLongitude>9.04159</eastBoundLongitude>
+            <southBoundLatitude>47.1417</southBoundLatitude>
+            <northBoundLatitude>47.8482</northBoundLatitude>
+        </EX_GeographicBoundingBox>
+        <BoundingBox CRS="EPSG:2056"
+                    minx="2.6545e+06" miny="1.2224e+06" maxx="2.72e+06" maxy="1.3e+06" />
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="81" height="30">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://wms.zh.ch/OGDOrthoZH?version=1.3.0&amp;service=WMS&amp;request=GetLegendGraphic&amp;sld_version=1.1.0&amp;layer=kachelung_sp&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <MinScaleDenominator>1</MinScaleDenominator>
+        <MaxScaleDenominator>1.5e+07</MaxScaleDenominator>
+    </Layer>
+    <Layer queryable="1" opaque="0" cascaded="0">
+        <Name>kachelung_18</Name>
+        <Title>Kacheleinteilung Sommer 18</Title>
+        <CRS>EPSG:2056</CRS>
+        <CRS>EPSG:21781</CRS>
+        <CRS>EPSG:21780</CRS>
+        <CRS>EPSG:21782</CRS>
+        <CRS>EPSG:4326</CRS>
+        <CRS>EPSG:31297</CRS>
+        <CRS>EPSG:4258</CRS>
+        <CRS>EPSG:3857</CRS>
+        <EX_GeographicBoundingBox>
+            <westBoundLongitude>8.15722</westBoundLongitude>
+            <eastBoundLongitude>9.04159</eastBoundLongitude>
+            <southBoundLatitude>47.1417</southBoundLatitude>
+            <northBoundLatitude>47.8482</northBoundLatitude>
+        </EX_GeographicBoundingBox>
+        <BoundingBox CRS="EPSG:2056"
+                    minx="2.6545e+06" miny="1.2224e+06" maxx="2.72e+06" maxy="1.3e+06" />
+        <Style>
+          <Name>default</Name>
+          <Title>default</Title>
+          <LegendURL width="81" height="30">
+             <Format>image/png</Format>
+             <OnlineResource xmlns:xlink="http://www.w3.org/1999/xlink" xlink:type="simple" xlink:href="http://wms.zh.ch/OGDOrthoZH?version=1.3.0&amp;service=WMS&amp;request=GetLegendGraphic&amp;sld_version=1.1.0&amp;layer=kachelung_18&amp;format=image/png&amp;STYLE=default"/>
+          </LegendURL>
+        </Style>
+        <MinScaleDenominator>1</MinScaleDenominator>
+        <MaxScaleDenominator>1.5e+07</MaxScaleDenominator>
+    </Layer>
+  </Layer>
+</Capability>
+</WMS_Capabilities>

@@ -61,7 +61,7 @@ def get_NIB_token():
         time.sleep(3)
     if (not NIB_token) or (time.time()-NIB_time)>=3600:
         NIB_token="loading"
-        NIB_token=str(requests.get('http://www.norgeibilder.no').content).split('nibToken')[1].split("'")[1][:-1]
+        NIB_token=str(requests.get('https://www.norgeibilder.no').content).split('nibToken')[1].split("'")[1][:-1]
         NIB_time=time.time()
     return NIB_token
         
@@ -101,7 +101,7 @@ def custom_wms_request(bbox,width,height,provider):
 def custom_tms_request(tilematrix,til_x,til_y,provider):
     if provider['code']=='NIB':
         NIB_token=get_NIB_token()
-        url="http://agsservices.norgeibilder.no/arcgis/rest/services/Nibcache_UTM33_EUREF89_v2/MapServer/tile/"+str(tilematrix)+"/"+str(til_y)+"/"+str(til_x)+"?token="+NIB_token
+        url="https://tilecache.norgeibilder.no/arcgis/rest/services/Nibcache_UTM33_EUREF89_v2/MapServer/tile/"+str(tilematrix)+"/"+str(til_y)+"/"+str(til_x)+"?token="+NIB_token
         return (url,None)
     elif provider['code']=='Here':
         Here_value=get_Here_value()
