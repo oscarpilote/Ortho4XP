@@ -2,8 +2,8 @@ request_type=wms
 wms_size=512
 wms_version=1.1.1
 epsg_code=3006
-url_prefix=https://kso.etjanster.lantmateriet.se/karta/ortofoto/wms/v1.2?
-layers=orto050,orto025
+url_prefix=https://kso.etjanster.lantmateriet.se/karta/ortofoto/wms/v1.3?
+layers=Ortofoto_0.5,Ortofoto_0.4,Ortofoto_0.25,Ortofoto_0.16
 image_type=png
 max_threads=8
 fake_headers={'Accept': '*/*', 'Accept-Encoding': 'gzip, deflate, br', 'Accept-Language': 'sv-SE,sv;q=0.8,en-US;q=0.5,en;q=0.3', 'Connection': 'keep-alive', 'Host': 'kso.etjanster.lantmateriet.se', 'Referer': 'https://kso.etjanster.lantmateriet.se/', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.13; rv:59.0)'}
