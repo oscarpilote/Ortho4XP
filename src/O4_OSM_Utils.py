@@ -452,11 +452,11 @@ def OSM_to_MultiPolygon(osm_layer,lat,lon,filter=None):
             multiout=[geometry.Polygon(numpy.round(numpy.array([osm_layer.dicosmn[nodeid] \
                                         for nodeid in nodelist],dtype=numpy.float64)-numpy.array([lon,lat],dtype=numpy.float64),7))\
                                         for nodelist in osm_layer.dicosmr[relid]['outer']]
-            multiout=ops.cascaded_union([geom for geom in multiout if geom.is_valid])
+            multiout=ops.unary_union([geom for geom in multiout if geom.is_valid])
             multiin=[geometry.Polygon(numpy.round(numpy.array([osm_layer.dicosmn[nodeid]\
                                         for nodeid in nodelist],dtype=numpy.float64)-numpy.array([lon,lat],dtype=numpy.float64),7))\
                                         for nodelist in osm_layer.dicosmr[relid]['inner']]
-            multiin=ops.cascaded_union([geom for geom in multiin if geom.is_valid])
+            multiin=ops.unary_union([geom for geom in multiin if geom.is_valid])
         except Exception as e:
             UI.logprint(e)
             done+=1
