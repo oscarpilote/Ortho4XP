@@ -6,20 +6,23 @@ g2xpl_16_prefix=''
 g2xpl_16_suffix=''
 
 Ortho4XP_dir  =  '..' if getattr(sys,'frozen',False) else '.'
-Preview_dir   =  os.path.join(Ortho4XP_dir, 'Previews')
-Provider_dir  =  os.path.join(Ortho4XP_dir, 'Providers')
-Extent_dir    =  os.path.join(Ortho4XP_dir, 'Extents')
-Filter_dir    =  os.path.join(Ortho4XP_dir, 'Filters')
-OSM_dir       =  os.path.join(Ortho4XP_dir, 'OSM_data')
-Mask_dir      =  os.path.join(Ortho4XP_dir, 'Masks')
-Imagery_dir   =  os.path.join(Ortho4XP_dir, 'Orthophotos')
-Elevation_dir =  os.path.join(Ortho4XP_dir, 'Elevation_data')
-Geotiff_dir   =  os.path.join(Ortho4XP_dir, 'Geotiffs')
-Patch_dir     =  os.path.join(Ortho4XP_dir, 'Patches')
-Utils_dir     =  os.path.join(Ortho4XP_dir, 'Utils')
-Tile_dir      =  os.path.join(Ortho4XP_dir, 'Tiles')
-Tmp_dir       =  os.path.join(Ortho4XP_dir, 'tmp')
-Overlay_dir  =   os.path.join(Ortho4XP_dir, 'yOrtho4XP_Overlays')
+
+build_dir = "build/"
+
+Preview_dir = os.path.join(Ortho4XP_dir, "Previews")
+Provider_dir = os.path.join(Ortho4XP_dir, "Providers")
+Extent_dir = os.path.join(Ortho4XP_dir, "Extents")
+Filter_dir = os.path.join(Ortho4XP_dir, "Filters")
+OSM_dir = os.path.join(Ortho4XP_dir, build_dir, "OSM_data")
+Mask_dir = os.path.join(Ortho4XP_dir, build_dir, "Masks")
+Imagery_dir = os.path.join(Ortho4XP_dir, build_dir, "Orthophotos")
+Elevation_dir = os.path.join(Ortho4XP_dir, build_dir, "Elevation_data")
+Geotiff_dir = os.path.join(Ortho4XP_dir, build_dir, "Geotiffs")
+Patch_dir = os.path.join(Ortho4XP_dir, "Patches")
+Utils_dir = os.path.join(Ortho4XP_dir, "Utils")
+Tile_dir = os.path.join(Ortho4XP_dir, build_dir, "Tiles")
+Tmp_dir = os.path.join(Ortho4XP_dir, build_dir, "tmp")
+Overlay_dir = os.path.join(Ortho4XP_dir, "yOrtho4XP_Overlays")
 ##############################################################################
 def short_latlon(lat,lon):
     strlat='{:+.0f}'.format(lat).zfill(3)
