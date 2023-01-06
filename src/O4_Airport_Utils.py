@@ -500,7 +500,7 @@ def encode_runways_taxiways_and_aprons(tile,airport_layer,dico_airports,vector_m
             for k in range(1,len(way)):
                 try:
                     lin=geometry.LineString([way_r[k],way_l[k]]).intersection(runway_pol)
-                    if lin.geom_type=="LineString":
+                    if lin.geom_type == "LineString" and not lin.is_empty:
                         trav=numpy.round(numpy.array(lin),7)
                         alti_trav=numpy.array([VECT.weighted_alt(node,alt_idx,alt_dico,tile.dem) for node in trav]).reshape((len(trav),1))
                         vector_map.insert_way(numpy.hstack([trav,alti_trav]),'DUMMY',check=True)
@@ -518,16 +518,18 @@ def encode_runways_taxiways_and_aprons(tile,airport_layer,dico_airports,vector_m
                 abscissae=[boundary.project(geometry.Point(x)) for x in boundary.coords]
                 traverses=[]
                 for k in range(1,len(way)):
-                    try:
-                        lin=geometry.LineString([way_r[k],way_l[k]]).intersection(runway_pol)
-                        if lin.geom_type=="LineString":
-                            abs1=boundary.project(geometry.Point(lin.coords[0]))
-                            abs2=boundary.project(geometry.Point(lin.coords[-1]))
-                            traverses.append((abs1,abs2))
-                            abscissae+=[abs1,abs2]
-                    except Exception as e:
-                        print(e)
-                        pass
+                    lin = geometry.LineString([way_r[k], way_l[k]]).intersection(
+                        runway_pol
+                    )
+                  
+                    if lin.geom_type == "LineString" and not lin.is_empty:
+                        p1 = lin.coords[0]
+                        p2 = lin.coords[1]
+                        abs1 = boundary.project(geometry.Point(p1))
+                        abs2 = boundary.project(geometry.Point(p2))
+                        traverses.append((abs1, abs2))
+                        abscissae += [abs1, abs2]
+                  
                 abscissae=sorted(set(abscissae))
                 way=numpy.round(numpy.array([boundary.interpolate(x).coords[0] for x in abscissae+[0]]),7)
                 alti_way=numpy.array([VECT.weighted_alt(node,alt_idx,alt_dico,tile.dem) for node in way]).reshape((len(way),1))
