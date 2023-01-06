@@ -1,0 +1,10 @@
+request_type=wmts
+epsg_code=3857
+layers=Actueel_ortho25
+tilematrixset=EPSG:3857
+tile_size=256
+url_prefix=https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0?
+in_GUI=True
+imagery_dir=grouped
+extent=Netherlands
+#color_filters=PDOK20
