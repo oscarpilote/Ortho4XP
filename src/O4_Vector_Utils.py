@@ -227,7 +227,7 @@ class Vector_Map():
             iterloop=multipol.values()
             todo=len(multipol)
         else:
-            iterloop=ensure_MultiPolygon(multipol)
+            iterloop=ensure_MultiPolygon(multipol).geoms
             todo=len(iterloop)
         step=int(todo/100)+1
         done=0
@@ -235,29 +235,29 @@ class Vector_Map():
             if cut: pol=cut_to_tile(pol)
             if simplify:
                 pol=pol.simplify(simplify)  
-            for polygon in ensure_MultiPolygon(pol):
+            for polygon in ensure_MultiPolygon(pol).geoms:
                 if polygon.area<=area_limit:
                     continue
                 try:
                     polygon=geometry.polygon.orient(polygon)  # important for certain pol_to_alt instances
                 except:
                     continue
-                way=numpy.array(polygon.exterior)
+                way=numpy.array(polygon.exterior.coords)
                 if refine: way=refine_way(way,refine)
                 alti_way=pol_to_alt(way).reshape((len(way),1))
                 self.insert_way(numpy.hstack([way,alti_way]),marker,check)
                 for linestring in polygon.interiors:
                     if linestring.is_empty: 
                         continue
-                    way=numpy.array(linestring)
+                    way=numpy.array(linestring.coords)
                     if refine: way=refine_way(way,refine)
                     alti_way=pol_to_alt(way).reshape((len(way),1))
                     self.insert_way(numpy.hstack([way,alti_way]),marker,check)
                 try:
                     if marker in self.seeds:
-                        self.seeds[marker].append(numpy.array(polygon.representative_point()))
+                        self.seeds[marker].append(numpy.array(polygon.representative_point().coords))
                     else:
-                        self.seeds[marker]=[numpy.array(polygon.representative_point())]
+                        self.seeds[marker]=[numpy.array(polygon.representative_point().coords)]
                 except Exception as e:
                     UI.lvprint(2,"Topologal inconsistency trying to tag a polygon with node ",list(polygon.exterior.coords)[0]) 
             done+=1
@@ -269,15 +269,15 @@ class Vector_Map():
     def encode_MultiLineString(self,multilinestring,line_to_alt,marker,check=True,refine=False,skip_cut=False): 
         UI.progress_bar(1,0)
         multilinestring=ensure_MultiLineString(multilinestring)
-        todo=len(multilinestring)
+        todo=len(multilinestring.geoms)
         step=int(todo/100)+1
         done=0
-        for line in multilinestring:
+        for line in multilinestring.geoms:
             if not skip_cut: line=cut_to_tile(line)
-            for linestring in ensure_MultiLineString(line):
+            for linestring in ensure_MultiLineString(line).geoms:
                 if linestring.is_empty: 
                     continue
-                way=numpy.array(linestring)
+                way=numpy.array(linestring.coords)
                 if refine: way=refine_way(way,refine)
                 alti_way=line_to_alt(way).reshape((len(way),1))
                 self.insert_way(numpy.hstack([way,alti_way]),marker,check)
@@ -361,7 +361,7 @@ class Vector_Map():
                 (key,marker)=long_key
                 if key not in self.seeds: continue
                 for seed in self.seeds[key]:
-                    f.write(str(idx)+' '+' '.join(['{:.15f}'.format(s) for s in seed])+' '+str(marker)+'\n')
+                    f.write(str(idx)+' '+' '.join(['{:.15f}'.format(s) for s in seed[0]])+' '+str(marker)+'\n')
                     idx+=1
         f.close()
         return 
@@ -726,7 +726,7 @@ def point_to_segment_distance(way,A,B):
 ##############################################################################
 def least_square_fit_altitude_along_way(way,steps,dem,weights=False):
     linestring=affinity.affine_transform(geometry.LineString(way), [scalx,0,0,1,0,0])
-    tmp=dem.alt_vec(numpy.array(geometry.LineString([linestring.interpolate(x,normalized=True) for x in numpy.arange(steps+1)/steps])*numpy.array([1/scalx,1])))
+    tmp=dem.alt_vec(numpy.array(geometry.LineString([linestring.interpolate(x,normalized=True) for x in numpy.arange(steps+1)/steps]).coords*numpy.array([1/scalx,1])))
     if not weights:
         return (linestring,numpy.polyfit(numpy.arange(steps+1)/steps,tmp,7))
     else:
