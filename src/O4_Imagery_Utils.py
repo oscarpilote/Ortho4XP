@@ -96,17 +96,8 @@ def initialize_extents_dict():
                     print("Error for extent",extent_code,"in line",line)
                     continue
                 # structuring data
-                if key=='epsg_code':
-                    try:
-                        GEO.epsg[value] = pyproj.Proj(f"epsg:{value}")
-                    except:
-                        # HACK for Slovenia
-                        if int(value)==102060:
-                            GEO.epsg[value]= pyproj.Proj("epsg:3912")
-                        else:
-                            print("Error in epsg code for extent",extent_code)
-                            valid_extent=False
-                elif key=='mask_bounds':
+
+                if key=='mask_bounds':
                     try:
                         extent[key]=[float(x) for x in value.split(",")]
                     except:
@@ -195,16 +186,7 @@ def initialize_providers_dict():
                     except:
                         print("Definition of fake headers for provider",provider_code,"not valid.")
                         valid_provider=False
-                elif key=='epsg_code':
-                    try:
-                        GEO.epsg[value]=pyproj.Proj('epsg:'+value)
-                    except:
-                        # HACK for Slovenia 
-                        if int(value)==102060:
-                            GEO.epsg[value]=pyproj.Proj('epsg:3912')
-                        else:
-                            UI.vprint(0,"Error in epsg code for provider",provider_code)
-                            valid_provider=False
+
                 elif key=='in_GUI':
                     try:
                         provider['in_GUI']=eval(value)
