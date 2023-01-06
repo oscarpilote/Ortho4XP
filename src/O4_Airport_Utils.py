@@ -372,7 +372,7 @@ def list_airports_and_runways(dico_airports):
 
 ####################################################################################################
 def build_airport_array(tile,dico_airports):
-    airport_array=numpy.zeros((1001,1001),dtype=numpy.bool)
+    airport_array=numpy.zeros((1001,1001),dtype=bool)
     for airport in dico_airports:
         (xmin,ymin,xmax,ymax)=dico_airports[airport]['boundary'].bounds
         x_shift=1500*GEO.m_to_lon(tile.lat) 
