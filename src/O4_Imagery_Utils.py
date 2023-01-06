@@ -921,7 +921,7 @@ def download_jpeg_ortho(file_dir,file_name,til_x_left,til_y_top,zoomlevel,provid
             super_resol_factor=2**(max_zl-zoomlevel)
     width=height=int(4096*super_resol_factor)
     # we treat first the case of webmercator grid type servers
-    if 'grid_type' in provider and provider['grid_type']=='webmercator':
+    if 'grid_type' in provider and provider['grid_type']=='webmercator' or provider["epsg_code"] == "3857":
         tilbox=[til_x_left,til_y_top,til_x_left+16,til_y_top+16] 
         tilbox_mod=[int(round(p*super_resol_factor)) for p in tilbox]
         zoom_shift=round(log(super_resol_factor)/log(2))
