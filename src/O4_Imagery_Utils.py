@@ -906,7 +906,15 @@ def build_texture_from_bbox_and_size(t_bbox,t_epsg,t_size,provider):
         UI.vprint(3,"Crop needed")
         big_image=big_image.crop((crop_x0,crop_y0,crop_x1,crop_y1))
     if big_image.size!=t_size:
-        UI.vprint(3,"Resize needed:"+str(t_size[0]/big_image.size[0])+" "+str(t_size[1]/big_image.size[1]))
+        try:
+            UI.vprint(3,"Resize needed:"+str(t_size[0]/big_image.size[0])+" "+str(t_size[1]/big_image.size[1]))
+        except ZeroDivisionError as e:
+            # Something is going wrong here. Non-epsg-3857 may be impacted but apart from the print not working
+            # the following resize doesn't actually throw an error.
+            print("division by zero at build_texture_from_bbox_and_size")
+            pass
+        else:
+            print("works")
         big_image=big_image.resize(t_size,Image.BICUBIC)
     return (success,big_image)
 ###############################################################################################################################
