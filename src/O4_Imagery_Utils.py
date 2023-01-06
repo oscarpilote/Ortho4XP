@@ -3,6 +3,7 @@ import os
 import sys
 import subprocess
 import io
+import pyproj
 import requests
 import queue
 import random
@@ -96,11 +97,11 @@ def initialize_extents_dict():
                 # structuring data
                 if key=='epsg_code':
                     try:
-                        GEO.epsg[value]=GEO.pyproj.Proj(init='epsg:'+value)
+                        GEO.epsg[value] = pyproj.Proj(f"epsg:{value}")
                     except:
-                        # HACK for Slovenia 
+                        # HACK for Slovenia
                         if int(value)==102060:
-                            GEO.epsg[value]=GEO.pyproj.Proj(init='epsg:3912')
+                            GEO.epsg[value]= pyproj.Proj("epsg:3912")
                         else:
                             print("Error in epsg code for extent",extent_code)
                             valid_extent=False
@@ -195,11 +196,11 @@ def initialize_providers_dict():
                         valid_provider=False
                 elif key=='epsg_code':
                     try:
-                        GEO.epsg[value]=GEO.pyproj.Proj(init='epsg:'+value)
+                        GEO.epsg[value]=pyproj.Proj('epsg:'+value)
                     except:
                         # HACK for Slovenia 
                         if int(value)==102060:
-                            GEO.epsg[value]=GEO.pyproj.Proj(init='epsg:3912')
+                            GEO.epsg[value]=pyproj.Proj('epsg:3912')
                         else:
                             UI.vprint(0,"Error in epsg code for provider",provider_code)
                             valid_provider=False

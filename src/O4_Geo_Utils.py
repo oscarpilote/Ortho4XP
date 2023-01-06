@@ -1,5 +1,5 @@
 from math import log, tan, pi, atan, exp, cos, sin, sqrt, atan2
-import pyproj
+from pyproj import Transformer, Proj
 
 earth_radius = 6378137
 lat_to_m      = pi*earth_radius/180
@@ -16,10 +16,8 @@ def dist(A,B):
     return 2*earth_radius*atan2(sqrt(a),sqrt(1-a))
 
 epsg={}
-epsg['4326']=pyproj.Proj(init='epsg:4326')
-epsg['3857']=pyproj.Proj(init='epsg:3857')
-    
-
+epsg['4326']=Proj("epsg:4326")
+epsg['3857']=Proj("epsg:3857")
 ##############################################################################
 def webmercator_pixel_size(lat,zoomlevel):
     return 2*pi*earth_radius*cos(pi*lat/180)/(2**(zoomlevel+8))
