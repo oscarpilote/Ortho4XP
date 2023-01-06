@@ -44,22 +44,23 @@ request_headers_generic={
             'Connection':'keep-alive',
             'Accept-Encoding':'gzip, deflate'
             }
-
+imagemagick = False
 if 'dar' in sys.platform:
     dds_convert_cmd = os.path.join(UI.Ortho4XP_dir,"Utils","nvcompress","nvcompress.app") 
     gdal_transl_cmd = "gdal_translate"
     gdalwarp_cmd    = "gdalwarp"
     devnull_rdir    = " >/dev/null 2>&1"
-elif 'win' in sys.platform: 
+elif 'win' in sys.platform:
     dds_convert_cmd = os.path.join(UI.Ortho4XP_dir, "Utils", "nvcompress", "nvcompress.exe") 
     gdal_transl_cmd = "gdal_translate.exe"
     gdalwarp_cmd    = "gdalwarp.exe"
     devnull_rdir    = " > nul  2>&1"
 else:
-    dds_convert_cmd = "nvcompress" 
+    imagemagick = True
+    dds_convert_cmd = "convert"
     gdal_transl_cmd = "gdal_translate"
-    gdalwarp_cmd    = "gdalwarp"
-    devnull_rdir    = " >/dev/null 2>&1 "
+    gdalwarp_cmd = "gdalwarp"
+    devnull_rdir = " >/dev/null 2>&1 "
     
 ###############################################################################################################################
 #
@@ -1423,10 +1424,30 @@ def convert_texture(tile,til_x_left,til_y_top,zoomlevel,provider_code,type='dds'
         file_to_convert=os.path.join(file_dir,jpeg_file_name)
     # eventually the dds conversion
     if type=='dds':
-        if not dxt5:
-            conv_cmd=[dds_convert_cmd,'-bc1','-fast',file_to_convert,os.path.join(tile.build_dir,'textures',out_file_name),devnull_rdir]
+        if imagemagick is False:
+            if not dxt5:
+                conv_cmd = [dds_convert_cmd, '-bc1', '-fast', file_to_convert,
+                            os.path.join(tile.build_dir, 'textures', out_file_name), devnull_rdir]
+            else:
+                conv_cmd = [dds_convert_cmd, '-bc3', '-fast', file_to_convert,
+                            os.path.join(tile.build_dir, 'textures', out_file_name), devnull_rdir]
         else:
-            conv_cmd=[dds_convert_cmd,'-bc3','-fast',file_to_convert,os.path.join(tile.build_dir,'textures',out_file_name),devnull_rdir]
+            if not dxt5:
+                conv_cmd = [
+                    dds_convert_cmd,
+                    file_to_convert,
+                    "-define",
+                    "dds:compression=dxt1",
+                    os.path.join(tile.build_dir, "textures", out_file_name),
+                ]
+            else:
+                conv_cmd = [
+                    dds_convert_cmd,
+                    file_to_convert,
+                    "-define",
+                    "dds:compression=dxt5",
+                    os.path.join(tile.build_dir, "textures", out_file_name),
+                ]
     else:
         (latmax,lonmin)=GEO.gtile_to_wgs84(til_x_left,til_y_top,zoomlevel)
         (latmin,lonmax)=GEO.gtile_to_wgs84(til_x_left+16,til_y_top+16,zoomlevel)
