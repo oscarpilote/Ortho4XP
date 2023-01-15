@@ -14,3 +14,6 @@ Tiles/
 **/Thumbs.db
 **/*.bak
 .last_gui_params.txt
+
+# IDE specific content
+/.idea/
