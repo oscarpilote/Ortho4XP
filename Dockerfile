@@ -6,7 +6,7 @@ WORKDIR /
 RUN apk add make automake gcc g++ subversion python3-dev git proj proj-util proj-dev geos-dev tk
 
 # INSTALL/BUILD PYTHON PACKAGES/WHEELS
-# WORKAROUND: numpy==1.23.5 --> CODE REQUIREMENT
+# WORKAROUND: numpy==1.23.5  --> CODE REQUIREMENT
 # WORKAROUND: shapely==1.8.5 --> CODE REQUIREMENT
 RUN python -m venv /opt/venv                                  && \
     source /opt/venv/bin/activate                             && \
