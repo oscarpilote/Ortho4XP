@@ -18,8 +18,6 @@ RUN python -m venv /opt/venv                                  && \
 FROM python:3.9-alpine3.17 AS target-image
 # COPY PYTHON PACKAGES
 COPY --from=compile-image /opt/venv /opt/venv
-# COPY ORTHO4XP
-COPY --from=compile-image /app /app
 
 # COPY ORTHO4XP INTO THE IMAGE
 COPY ./ /app/
