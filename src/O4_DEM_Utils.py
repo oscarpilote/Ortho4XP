@@ -385,6 +385,10 @@ def ensure_elevation(source,lat,lon,verbose=True):
             "U29",
         ):
             resol=1
+
+            # Workaround for missing 1" DEM data for Heligoland...
+            if (lat,lon) == (54,7):
+                resol=3
         else:
             resol=3
         url="http://viewfinderpanoramas.org/dem"+str(resol)+"/"+deferranti_letter+deferranti_nbr+".zip"
