@@ -376,7 +376,6 @@ def include_patches(vector_map,tile):
             UI.vprint(1,"     Error in treating",pfile_name,", skipped.")
         patches_list.append(pfile_name[:-10])
         dw=patch_layer.dicosmw; dn=patch_layer.dicosmn; df=patch_layer.dicosmfirst; dt=patch_layer.dicosmtags
-        patches_area=geometry.Polygon()
         # reorganize them so that untagged dummy ways are treated last (due to altitude being first done kept for all)
         #waylist=list(set(dw).intersection(df['w']).intersection(dt['w']))+list(set(dw).intersection(df['w']).difference(dt['w']))
         #HACK
