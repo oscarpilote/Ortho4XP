@@ -13,4 +13,5 @@ Tiles/
 **/__pycache__
 **/Thumbs.db
 **/*.bak
+**/*.swp
 .last_gui_params.txt
