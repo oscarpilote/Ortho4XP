@@ -19,7 +19,7 @@ if 'dar' in sys.platform:
     triangle_cmd    = os.path.join(FNAMES.Utils_dir,"triangle.app ")
     sort_mesh_cmd   = os.path.join(FNAMES.Utils_dir,"moulinette.app ")
     unzip_cmd       = "7z "
-elif 'win' in sys.platform: 
+elif 'win' in sys.platform:
     Triangle4XP_cmd = os.path.join(FNAMES.Utils_dir,"Triangle4XP.exe ")
     triangle_cmd    = os.path.join(FNAMES.Utils_dir,"triangle.exe ")
     sort_mesh_cmd   = os.path.join(FNAMES.Utils_dir,"moulinette.exe ")
@@ -80,9 +80,9 @@ def community_mesh(tile):
     except Exception as e:
         UI.exit_message_and_bottom_line("\nERROR: Network or server unreachable:\n"+str(e))
         return 0
-        
-        
-        
+
+
+
 
 
 ##############################################################################
@@ -103,13 +103,13 @@ def build_curv_tol_weight_map(tile,weight_array):
             dico_airports={}
         for airport in dico_airports:
             (xmin,ymin,xmax,ymax)=dico_airports[airport]['boundary'].bounds
-            x_shift=1000*tile.apt_curv_ext*GEO.m_to_lon(tile.lat) 
+            x_shift=1000*tile.apt_curv_ext*GEO.m_to_lon(tile.lat)
             y_shift=1000*tile.apt_curv_ext*GEO.m_to_lat
             colmin=max(round((xmin-x_shift)*1000),0)
             colmax=min(round((xmax+x_shift)*1000),1000)
             rowmax=min(round(((1-ymin)+y_shift)*1000),1000)
             rowmin=max(round(((1-ymax)-y_shift)*1000),0)
-            weight_array[rowmin:rowmax+1,colmin:colmax+1]=tile.curvature_tol/tile.apt_curv_tol 
+            weight_array[rowmin:rowmax+1,colmin:colmax+1]=tile.curvature_tol/tile.apt_curv_tol
     if tile.coast_curv_tol!=tile.curvature_tol:
         UI.vprint(1,"-> Modifying curv_tol weight map according to coastline location.")
         sea_layer=OSM.OSM_layer()
@@ -125,7 +125,7 @@ def build_curv_tol_weight_map(tile,weight_array):
                 sea_layer.update_dicosm(os.path.join(custom_coastline_dir,osm_file),input_tags=None,target_tags=None)
                 sea_layer.write_to_file(custom_coastline)
         else:
-            queries=['way["natural"="coastline"]']    
+            queries=['way["natural"="coastline"]']
             tags_of_interest=[]
             if not OSM.OSM_queries_to_OSM_layer(queries,sea_layer,tile.lat,tile.lon,tags_of_interest,cached_suffix='coastline'):
                 return 0
@@ -138,9 +138,9 @@ def build_curv_tol_weight_map(tile,weight_array):
             colmax=min(round((lonp-tile.lon+x_shift)*1000),1000)
             rowmax=min(round((tile.lat+1-latp+y_shift)*1000),1000)
             rowmin=max(round((tile.lat+1-latp-y_shift)*1000),0)
-            weight_array[rowmin:rowmax+1,colmin:colmax+1]=numpy.maximum(weight_array[rowmin:rowmax+1,colmin:colmax+1],tile.curvature_tol/tile.coast_curv_tol) 
+            weight_array[rowmin:rowmax+1,colmin:colmax+1]=numpy.maximum(weight_array[rowmin:rowmax+1,colmin:colmax+1],tile.curvature_tol/tile.coast_curv_tol)
         del(sea_layer)
-    # It could be of interest to write the weight file as a png for user editing    
+    # It could be of interest to write the weight file as a png for user editing
     #from PIL import Image
     #Image.fromarray((weight_array!=1).astype(numpy.uint8)*255).save('weight.png')
     return
@@ -148,11 +148,11 @@ def build_curv_tol_weight_map(tile,weight_array):
 
 ##############################################################################
 def post_process_nodes_altitudes(tile):
-    dico_attributes=VECT.Vector_Map.dico_attributes 
+    dico_attributes=VECT.Vector_Map.dico_attributes
     f_node = open(FNAMES.output_node_file(tile),'r')
     init_line_f_node=f_node.readline()
     nbr_pt=int(init_line_f_node.split()[0])
-    vertices=numpy.zeros(6*nbr_pt)   
+    vertices=numpy.zeros(6*nbr_pt)
     UI.vprint(1,"-> Loading of the mesh computed by Triangle4XP.")
     for i in range(0,nbr_pt):
         vertices[6*i:6*i+6]=[float(x) for x in f_node.readline().split()[1:7]]
@@ -167,10 +167,10 @@ def post_process_nodes_altitudes(tile):
     for i in range(nbr_tri):
         line = f_ele.readline()
         # triangle attributes are powers of 2, except for the dummy attributed which doesn't require post-treatment
-        if line[-2]=='0': continue  
+        if line[-2]=='0': continue
         (v1,v2,v3,attr)=[int(x)-1 for x in line.split()[1:5]]
         attr+=1
-        if attr >= dico_attributes['INTERP_ALT']: 
+        if attr >= dico_attributes['INTERP_ALT']:
             interp_alt_tris.add((v1,v2,v3))
         elif attr & dico_attributes['SEA']:
             sea_tris.add((v1,v2,v3))
@@ -178,7 +178,7 @@ def post_process_nodes_altitudes(tile):
             water_tris.add((v1,v2,v3))
     if tile.water_smoothing:
         UI.vprint(1,"   Smoothing inland water.")
-        for j in range(tile.water_smoothing):   
+        for j in range(tile.water_smoothing):
             for (v1,v2,v3) in water_tris:
                     zmean=(vertices[6*v1+2]+vertices[6*v2+2]+vertices[6*v3+2])/3
                     vertices[6*v1+2]=zmean
@@ -210,7 +210,7 @@ def post_process_nodes_altitudes(tile):
             vertices[6*v1+4]=0
             vertices[6*v2+4]=0
             vertices[6*v3+4]=0
-    UI.vprint(1,"-> Writing output nodes file.")        
+    UI.vprint(1,"-> Writing output nodes file.")
     f_node = open(FNAMES.output_node_file(tile),'w')
     f_node.write(init_line_f_node)
     for i in range(0,nbr_pt):
@@ -234,7 +234,7 @@ def write_mesh_file(tile,vertices):
     for i in range(0,nbr_vert):
         f.write('{:.7f}'.format(vertices[6*i]+tile.lon)+" "+\
                 '{:.7f}'.format(vertices[6*i+1]+tile.lat)+" "+\
-                '{:.7f}'.format(vertices[6*i+2]/100000)+" 0\n") 
+                '{:.7f}'.format(vertices[6*i+2]/100000)+" 0\n")
     f.write("\n")
     f.write("Normals\n")
     f.write(str(nbr_vert)+"\n")
@@ -254,7 +254,7 @@ def write_mesh_file(tile,vertices):
 ##############################################################################
 # Build a textured .obj wavefront over the extent of an orthogrid cell
 ##############################################################################
-def extract_mesh_to_obj(mesh_file,til_x_left,til_y_top,zoomlevel,provider_code): 
+def extract_mesh_to_obj(mesh_file,til_x_left,til_y_top,zoomlevel,provider_code):
     UI.red_flag=False
     timer=time.time()
     (latmax,lonmin)=GEO.gtile_to_wgs84(til_x_left,til_y_top,zoomlevel)
@@ -291,19 +291,19 @@ def extract_mesh_to_obj(mesh_file,til_x_left,til_y_top,zoomlevel,provider_code):
         (lon3,lat3,z3,u3,v3)=pt_in[5*n3:5*n3+5]
         if is_in_region((lat1+lat2+lat3)/3.0,(lon1+lon2+lon3)/3.0,latmin,latmax,lonmin,lonmax):
             if n1 not in textured_nodes_inv:
-                len_textured_nodes+=1 
+                len_textured_nodes+=1
                 textured_nodes_inv[n1]=len_textured_nodes
                 textured_nodes[len_textured_nodes]=n1
                 nodes_st_coord[len_textured_nodes]=GEO.st_coord(lat1,lon1,til_x_left,til_y_top,zoomlevel,provider_code)
             n1new=textured_nodes_inv[n1]
             if n2 not in textured_nodes_inv:
-                len_textured_nodes+=1 
+                len_textured_nodes+=1
                 textured_nodes_inv[n2]=len_textured_nodes
                 textured_nodes[len_textured_nodes]=n2
                 nodes_st_coord[len_textured_nodes]=GEO.st_coord(lat2,lon2,til_x_left,til_y_top,zoomlevel,provider_code)
             n2new=textured_nodes_inv[n2]
             if n3 not in textured_nodes_inv:
-                len_textured_nodes+=1 
+                len_textured_nodes+=1
                 textured_nodes_inv[n3]=len_textured_nodes
                 textured_nodes[len_textured_nodes]=n3
                 nodes_st_coord[len_textured_nodes]=GEO.st_coord(lat3,lon3,til_x_left,til_y_top,zoomlevel,provider_code)
@@ -320,7 +320,7 @@ def extract_mesh_to_obj(mesh_file,til_x_left,til_y_top,zoomlevel,provider_code):
         j=textured_nodes[i]
         f.write("v "+'{:.9f}'.format(pt_in[5*j]-lonmin)+" "+\
                 '{:.9f}'.format(pt_in[5*j+1]-latmin)+" "+\
-                '{:.9f}'.format(pt_in[5*j+2])+"\n") 
+                '{:.9f}'.format(pt_in[5*j+2])+"\n")
     f.write("\n")
     for i in range(1,nbr_vert+1):
         j=textured_nodes[i]
@@ -350,8 +350,8 @@ def extract_mesh_to_obj(mesh_file,til_x_left,til_y_top,zoomlevel,provider_code):
 def build_mesh(tile):
     if UI.is_working: return 0
     UI.is_working=1
-    UI.red_flag=False  
-    VECT.scalx=cos((tile.lat+0.5)*pi/180)  
+    UI.red_flag=False
+    VECT.scalx=cos((tile.lat+0.5)*pi/180)
     UI.logprint("Step 2 for tile lat=",tile.lat,", lon=",tile.lon,": starting.")
     UI.vprint(0,"\nStep 2 : Building mesh for tile "+FNAMES.short_latlon(tile.lat,tile.lon)+" : \n--------\n")
     UI.progress_bar(1,0)
@@ -398,21 +398,21 @@ def build_mesh(tile):
     except:
         UI.exit_message_and_bottom_line("\nERROR: In reading ",node_file)
         return 0
-        
+
     timer=time.time()
     tri_verbosity = 'Q' if UI.verbosity<=1 else 'V'
     output_poly   = 'P' if UI.cleaning_level else ''
     do_refine     = 'r' if tile.iterate else 'A'
     limit_tris    = 'S'+str(max(int(tile.limit_tris/1.9-input_nodes),0)) if tile.limit_tris else ''
     Tri_option    = '-p'+do_refine+'uYB'+tri_verbosity+output_poly+limit_tris
-    
-    
+
+
     weight_array=numpy.ones((1001,1001),dtype=numpy.float32)
     build_curv_tol_weight_map(tile,weight_array)
     weight_array.tofile(weight_file)
     del(weight_array)
-    
-    curv_tol_scaling=sqrt(tile.dem.nxdem/(1000*(tile.dem.x1-tile.dem.x0))) 
+
+    curv_tol_scaling=sqrt(tile.dem.nxdem/(1000*(tile.dem.x1-tile.dem.x0)))
     hmin_effective=max(tile.hmin,(tile.dem.y1-tile.dem.y0)*GEO.lat_to_m/tile.dem.nydem/2)
     mesh_cmd=[Triangle4XP_cmd.strip(),
               Tri_option.strip(),
@@ -427,7 +427,7 @@ def build_mesh(tile):
               '{:.9g}'.format(tile.dem.nodata),
               '{:.9g}'.format(tile.curvature_tol*curv_tol_scaling),
               '{:.9g}'.format(tile.min_angle),str(hmin_effective),alt_file,weight_file,poly_file]
-    
+
     del(tile.dem) # for machines with not much RAM, we do not need it anymore
     tile.dem=None
     UI.vprint(1,"-> Start of the mesh algorithm Triangle4XP.")
@@ -435,7 +435,7 @@ def build_mesh(tile):
     fingers_crossed=subprocess.Popen(mesh_cmd,stdout=subprocess.PIPE,bufsize=0)
     while True:
         line = fingers_crossed.stdout.readline()
-        if not line: 
+        if not line:
             break
         else:
             try:
@@ -443,7 +443,7 @@ def build_mesh(tile):
             except:
                 pass
     time.sleep(0.3)
-    fingers_crossed.poll()        
+    fingers_crossed.poll()
     if fingers_crossed.returncode:
         UI.vprint(0,"\nWARNING: Triangle4XP could not achieve the requested quality (min_angle), most probably due to an uncatched OSM error.\n"+\
                     "It will be tempted now with no angle constraint (i.e. min_angle=0).")
@@ -451,7 +451,7 @@ def build_mesh(tile):
         fingers_crossed=subprocess.Popen(mesh_cmd,stdout=subprocess.PIPE,bufsize=0)
         while True:
             line = fingers_crossed.stdout.readline()
-            if not line: 
+            if not line:
                 break
             else:
                 try:
@@ -466,13 +466,13 @@ def build_mesh(tile):
                                         "file a bug including the .node and .poly files that you\n"+\
                                         "will find in "+str(tile.build_dir)+".\n")
             return 0
-        
+
     if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
-    
+
     vertices=post_process_nodes_altitudes(tile)
 
     if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
-    
+
     write_mesh_file(tile,vertices)
     #
     if UI.cleaning_level:
@@ -489,7 +489,7 @@ def build_mesh(tile):
         except: pass
         try: os.remove(FNAMES.input_poly_file(tile))
         except: pass
-    
+
     UI.timings_and_bottom_line(timer)
     UI.logprint("Step 2 for tile lat=",tile.lat,", lon=",tile.lon,": normal exit.")
     return 1
@@ -499,7 +499,7 @@ def build_mesh(tile):
 def sort_mesh(tile):
     if UI.is_working: return 0
     UI.is_working=1
-    UI.red_flag=False  
+    UI.red_flag=False
     mesh_file = FNAMES.mesh_file(tile.build_dir,tile.lat,tile.lon)
     if not os.path.isfile(mesh_file):
         UI.exit_message_and_bottom_line("\nERROR: Could not find ",mesh_file)
@@ -510,7 +510,7 @@ def sort_mesh(tile):
     moulinette=subprocess.Popen(sort_mesh_cmd_list,stdout=subprocess.PIPE,bufsize=0)
     while True:
         line = moulinette.stdout.readline()
-        if not line: 
+        if not line:
             break
         else:
             print(line.decode("utf-8")[:-1])
@@ -526,13 +526,13 @@ def triangulate(name,path_to_Ortho4XP_dir):
     fingers_crossed=subprocess.Popen(mesh_cmd,stdout=subprocess.PIPE,bufsize=0)
     while True:
         line = fingers_crossed.stdout.readline()
-        if not line: 
+        if not line:
             break
         else:
             print(line.decode("utf-8")[:-1])
-    fingers_crossed.poll()        
+    fingers_crossed.poll()
     if fingers_crossed.returncode:
         print("\nERROR: triangle crashed, check osm mask data.\n")
         return 0
     return 1
-##############################################################################   
+##############################################################################

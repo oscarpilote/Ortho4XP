@@ -27,23 +27,23 @@ def build_poly_file(tile):
     UI.logprint("Step 1 for tile lat=",tile.lat,", lon=",tile.lon,": starting.")
     UI.vprint(0,"\nStep 1 : Building vector data for tile "+FNAMES.short_latlon(tile.lat,tile.lon)+" : \n--------\n")
     timer=time.time()
-    
+
     if not os.path.exists(tile.build_dir):
         os.makedirs(tile.build_dir)
     if not os.path.exists(FNAMES.osm_dir(tile.lat,tile.lon)):
         os.makedirs(FNAMES.osm_dir(tile.lat,tile.lon))
-    node_file =  FNAMES.input_node_file(tile) 
-    poly_file =  FNAMES.input_poly_file(tile) 
+    node_file =  FNAMES.input_node_file(tile)
+    poly_file =  FNAMES.input_poly_file(tile)
     vector_map=VECT.Vector_Map()
-    
+
     if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
-    
+
     # Airports
-    (apt_array,apt_area)=include_airports(vector_map,tile) 
+    (apt_array,apt_area)=include_airports(vector_map,tile)
     UI.vprint(1,"   Number of edges at this point:",len(vector_map.dico_edges))
-    
+
     if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
-    
+
     # Roads
     include_roads(vector_map,tile,apt_array,apt_area)
     if tile.road_level: UI.vprint(1,"   Number of edges at this point:",len(vector_map.dico_edges))
@@ -56,16 +56,16 @@ def build_poly_file(tile):
 
     if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
 
-    # Water 
+    # Water
     include_water(vector_map,tile)
     UI.vprint(1,"   Number of edges at this point:",len(vector_map.dico_edges))
 
     if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
 
-    # Buildings 
+    # Buildings
     # include_buildings(vector_map)
     # if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
-    
+
     # Orthogrid
     UI.vprint(0,"-> Inserting edges related to the orthophotos grid")
     xgrid=set()  # x coordinates of vertical grid lines
@@ -86,7 +86,7 @@ def build_poly_file(tile):
     vector_map.encode_MultiLineString(ortho_network,tile.dem.alt_vec,'DUMMY',check=True,skip_cut=True)
 
     if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
-    
+
     # Gluing edges
     UI.vprint(0,"-> Inserting additional boundary edges for gluing")
     segs=2048
@@ -96,7 +96,7 @@ def build_poly_file(tile):
         geometry.LineString([(0,y) for y in numpy.arange(0,segs+1)/segs]),\
         geometry.LineString([(1,y) for y in numpy.arange(0,segs+1)/segs])])
     vector_map.encode_MultiLineString(gluing_network,tile.dem.alt_vec,'DUMMY',check=True,skip_cut=True)
-    
+
     if UI.red_flag: UI.exit_message_and_bottom_line(); return 0
     UI.vprint(0,"-> Transcription to the files ",poly_file,"and .node")
     if not vector_map.seeds:
@@ -104,7 +104,7 @@ def build_poly_file(tile):
             vector_map.seeds['SEA']=[numpy.array([1000,1000])]
         else:
             vector_map.seeds['SEA']=[numpy.array([0.5,0.5])]
-    vector_map.snap_to_grid(15)        
+    vector_map.snap_to_grid(15)
     vector_map.write_node_file(node_file)
     vector_map.write_poly_file(poly_file)
 
@@ -116,12 +116,12 @@ def build_poly_file(tile):
 
 
 ##############################################################################
-def include_airports(vector_map,tile): 
+def include_airports(vector_map,tile):
     UI.vprint(0,"-> Dealing with airports")
     airport_layer=OSM.OSM_layer()
     queries=[('node["aeroway"]','way["aeroway"]','rel["aeroway"]')]
     tags_of_interest=["all"]
-    if not OSM.OSM_queries_to_OSM_layer(queries,airport_layer,tile.lat,tile.lon,tags_of_interest,cached_suffix='airports'): 
+    if not OSM.OSM_queries_to_OSM_layer(queries,airport_layer,tile.lat,tile.lon,tags_of_interest,cached_suffix='airports'):
         return (0,0)
     dico_airports={}
     APT.discover_airport_names(airport_layer,dico_airports)
@@ -144,7 +144,7 @@ def include_airports(vector_map,tile):
     #APT.encode_aprons(tile,dico_airports,vector_map)
     apt_array=APT.build_airport_array(tile,dico_airports)
     return (apt_array,treated_area)
-    
+
 ##############################################################################
 ##############################################################################
 def include_roads(vector_map,tile,apt_array,apt_area):
@@ -152,17 +152,17 @@ def include_roads(vector_map,tile,apt_array,apt_area):
         (col,row)=numpy.minimum(numpy.maximum(numpy.round(way[0]*1000),0),1000)
         if apt_array[int(1000-row),int(col)]: return True
         (col,row)=numpy.minimum(numpy.maximum(numpy.round(way[-1]*1000),0),1000)
-        if apt_array[int(1000-row),int(col)]: return True    
+        if apt_array[int(1000-row),int(col)]: return True
         if filtered_segs>=tile.max_levelled_segs: return False
         return (numpy.abs(tile.dem.alt_vec(way)-tile.dem.alt_vec(VECT.shift_way(way,tile.lane_width)))>=tile.road_banking_limit).any()
     def alt_vec_shift(way):
-        return tile.dem.alt_vec(VECT.shift_way(way,tile.lane_width))    
+        return tile.dem.alt_vec(VECT.shift_way(way,tile.lane_width))
     if not tile.road_level: return
     UI.vprint(0,"-> Dealing with roads")
     tags_of_interest=["bridge","tunnel"]
     #Need to evaluate if including bridges is better or worse
-    tags_for_exclusion=set(["bridge","tunnel"]) 
-    #tags_for_exclusion=set(["tunnel"]) 
+    tags_for_exclusion=set(["bridge","tunnel"])
+    #tags_for_exclusion=set(["tunnel"])
     road_layer=OSM.OSM_layer()
     queries=[
            'way["highway"="motorway"]',
@@ -176,7 +176,7 @@ def include_roads(vector_map,tile,apt_array,apt_area):
         return 0
     UI.vprint(1,"    * Checking which large roads need levelling.")
     (road_network_banked,road_network_flat)=OSM.OSM_to_MultiLineString(
-            road_layer,tile.lat,tile.lon,tags_for_exclusion,road_is_too_much_banked) 
+            road_layer,tile.lat,tile.lon,tags_for_exclusion,road_is_too_much_banked)
     if UI.red_flag: return 0
     if tile.road_level>=2:
         road_layer=OSM.OSM_layer()
@@ -192,10 +192,10 @@ def include_roads(vector_map,tile,apt_array,apt_area):
             queries+=['way["highway"="track"]']
         if not OSM.OSM_queries_to_OSM_layer(queries,road_layer,tile.lat,tile.lon,tags_of_interest,cached_suffix='small_roads'):
             return 0
-        UI.vprint(1,"    * Checking which smaller roads need levelling.") 
+        UI.vprint(1,"    * Checking which smaller roads need levelling.")
         timer=time.time()
         (road_network_banked_2,road_network_flat_2)=OSM.OSM_to_MultiLineString(road_layer,\
-                tile.lat,tile.lon,tags_for_exclusion,road_is_too_much_banked) 
+                tile.lat,tile.lon,tags_for_exclusion,road_is_too_much_banked)
         UI.vprint(3,"Time for check :",time.time()-timer)
         road_network_banked=geometry.MultiLineString(list(road_network_banked)+list(road_network_banked_2))
     if not road_network_banked.is_empty:
@@ -203,12 +203,12 @@ def include_roads(vector_map,tile,apt_array,apt_area):
         timer=time.time()
         road_area=VECT.improved_buffer(road_network_banked.difference(VECT.improved_buffer(apt_area,tile.lane_width+2,0,0)),tile.lane_width,2,0.5,show_progress=True)
         UI.vprint(3,"Time for improved buffering:",time.time()-timer)
-        if UI.red_flag: return 0 
+        if UI.red_flag: return 0
         UI.vprint(1,"      Encoding it.")
         vector_map.encode_MultiPolygon(road_area,alt_vec_shift,'INTERP_ALT',check=True,refine=100)
-        if UI.red_flag: return 0 
+        if UI.red_flag: return 0
     if not road_network_flat.is_empty:
-        road_network_flat=road_network_flat.difference(VECT.improved_buffer(apt_area,15,0,0)).simplify(0.00001) 
+        road_network_flat=road_network_flat.difference(VECT.improved_buffer(apt_area,15,0,0)).simplify(0.00001)
         UI.vprint(1,"    * Encoding the remaining primary road network as linestrings.")
         vector_map.encode_MultiLineString(road_network_flat,tile.dem.alt_vec,'DUMMY',check=True)
     return 1
@@ -232,7 +232,7 @@ def include_sea(vector_map,tile):
             sea_layer.write_to_file(custom_coastline)
         custom_source=True
     else:
-        queries=['way["natural"="coastline"]']    
+        queries=['way["natural"="coastline"]']
         tags_of_interest=[]
         if not OSM.OSM_queries_to_OSM_layer(queries,sea_layer,tile.lat,tile.lon,tags_of_interest,cached_suffix='coastline'):
             return 0
@@ -242,20 +242,20 @@ def include_sea(vector_map,tile):
         UI.vprint(1,"    * Encoding coastline.")
         vector_map.encode_MultiLineString(VECT.cut_to_tile(coastline,strictly_inside=True),tile.dem.alt_vec,'SEA',check=True,refine=False)
         UI.vprint(3,"...done.")
-        # 2) finding seeds (transform multilinestring coastline to polygon coastline 
+        # 2) finding seeds (transform multilinestring coastline to polygon coastline
         # linemerge being expensive we first set aside what is already known to be closed loops
         UI.vprint(1,"    * Reconstructing its topology.")
         loops=geometry.MultiLineString([line for line in coastline.geoms if line.is_ring])
         remainder=VECT.ensure_MultiLineString(VECT.cut_to_tile(geometry.MultiLineString([line for line in coastline.geoms if not line.is_ring]),strictly_inside=True))
         UI.vprint(3,"Linemerge...")
-        if not remainder.is_empty: 
+        if not remainder.is_empty:
             remainder=VECT.ensure_MultiLineString(ops.linemerge(remainder))
         UI.vprint(3,"...done.")
         coastline=geometry.MultiLineString([line for line in remainder]+[line for line in loops])
-        sea_area=VECT.ensure_MultiPolygon(VECT.coastline_to_MultiPolygon(coastline,tile.lat,tile.lon,custom_source)) 
+        sea_area=VECT.ensure_MultiPolygon(VECT.coastline_to_MultiPolygon(coastline,tile.lat,tile.lon,custom_source))
         if sea_area.geoms: UI.vprint(1,"      Found ",len(sea_area.geoms),"contiguous patch(es).")
         for polygon in sea_area.geoms:
-            seed=numpy.array(polygon.representative_point()) 
+            seed=numpy.array(polygon.representative_point())
             if 'SEA' in vector_map.seeds:
                 vector_map.seeds['SEA'].append(seed)
             else:
@@ -275,7 +275,7 @@ def include_water(vector_map,tile):
                 UI.vprint(1,"      * ",dicosmtags[osmid]['name'],"will be masked like the sea due to its large area of",area,"km^2.")
                 return True
         else:
-            pt= pol.exterior.coords[0] if 'Multi' not in pol.geom_type else pol[0].exterior.coords[0] 
+            pt= pol.exterior.coords[0] if 'Multi' not in pol.geom_type else pol[0].exterior.coords[0]
             UI.vprint(1,"      * ","Some large OSM water patch close to lat=",'{:.2f}'.format(pt[1]+tile.lon),"lon=",'{:.2f}'.format(pt[0]+tile.lat),"will be masked due to its large area of",area,"km^2.")
             return True
     UI.vprint(0,"-> Dealing with inland water")
@@ -304,24 +304,24 @@ def include_water(vector_map,tile):
             return 0
     UI.vprint(1,"    * Building water multipolygon.")
     (water_area,sea_equiv_area)=OSM.OSM_to_MultiPolygon(water_layer,tile.lat,tile.lon,filter_large_lakes)
-    if not water_area.is_empty: 
+    if not water_area.is_empty:
         UI.vprint(1,"      Cleaning it.")
         try:
             (idx_water,dico_water)=VECT.MultiPolygon_to_Indexed_Polygons(water_area,merge_overlappings=tile.clean_bad_geometries)
         except:
             return 0
-        UI.vprint(2,"      Number of water Multipolygons : "+str(len(dico_water)))  
+        UI.vprint(2,"      Number of water Multipolygons : "+str(len(dico_water)))
         UI.vprint(1,"      Encoding it.")
         vector_map.encode_MultiPolygon(dico_water,tile.dem.alt_vec,'WATER',area_limit=tile.min_area/10000,simplify=tile.water_simplification*GEO.m_to_lat,check=True)
-    if not sea_equiv_area.is_empty: 
+    if not sea_equiv_area.is_empty:
         UI.vprint(1,"      Separate treatment for larger pieces requiring masks.")
         try:
             (idx_water,dico_water)=VECT.MultiPolygon_to_Indexed_Polygons(sea_equiv_area,merge_overlappings=tile.clean_bad_geometries)
         except:
             return 0
-        UI.vprint(2,"      Number of water Multipolygons : "+str(len(dico_water)))  
+        UI.vprint(2,"      Number of water Multipolygons : "+str(len(dico_water)))
         UI.vprint(1,"      Encoding them.")
-        vector_map.encode_MultiPolygon(dico_water,tile.dem.alt_vec,'SEA_EQUIV',area_limit=tile.min_area/10000,simplify=tile.water_simplification*GEO.m_to_lat,check=True)    
+        vector_map.encode_MultiPolygon(dico_water,tile.dem.alt_vec,'SEA_EQUIV',area_limit=tile.min_area/10000,simplify=tile.water_simplification*GEO.m_to_lat,check=True)
     return 1
 ##############################################################################
 
@@ -338,7 +338,7 @@ def include_water(vector_map,tile):
     #    print("    Obtaining part ",4*i+j," of OSM data for "+tag)
     #    response=get_overpass_data(tag,(lat+i/4,lon+j/4,lat+(i+1)/4,lon+(j+1)/4),"FR")
     #    if UI.red_flag: return 0
-    #    if response[0]!='ok': 
+    #    if response[0]!='ok':
     #       print("    Error while trying to obtain ",query,", exiting.")
     #       return 0
     #    building_layer.update_dicosm(response[1],tags_of_interest)
@@ -347,7 +347,7 @@ def include_water(vector_map,tile):
     #    (idx_building,dico_building)=MultiPolygon_to_Indexed_Polygons(building_area,merge_overlappings=True)
     #except:
     #    return 0
-    #UI.vprint(2,"Number of building Multipolygons :",len(dico_pol_building))  
+    #UI.vprint(2,"Number of building Multipolygons :",len(dico_pol_building))
     #vector_map.encode_MultiPolygon(dico_building,dem.alt_vec,'WATER',area_limit=min_area/10000,check=True)
     #return 1
 ##############################################################################
@@ -383,7 +383,7 @@ def include_patches(vector_map,tile):
         waylist=tuple(df['w'].intersection(dt['w']))+tuple(df['w'].difference(dt['w']))
         for wayid in waylist:
             way=numpy.array([dn[nodeid] for nodeid in dw[wayid]],dtype=numpy.float)
-            way=way-numpy.array([[tile.lon,tile.lat]]) 
+            way=way-numpy.array([[tile.lon,tile.lat]])
             alti_way_orig=tile.dem.alt_vec(way)
             cplx_way=False
             if wayid in dt['w']:
@@ -398,7 +398,7 @@ def include_patches(vector_map,tile):
                     try:
                         alti_way=numpy.ones((len(way),1))*float(wtags['altitude'])
                     except:
-                        alti_way=numpy.ones((len(way),1))*numpy.mean(tile.dem.alt_vec(way))    
+                        alti_way=numpy.ones((len(way),1))*numpy.mean(tile.dem.alt_vec(way))
                 elif 'altitude_high' in wtags:
                     cplx_way=True
                     if len(way)!=5 or (way[0]!=way[-1]).all():
@@ -424,7 +424,7 @@ def include_patches(vector_map,tile):
                         alpha=float(wtags['steepness'])
                     except:
                         alpha=2
-                    if 'tanh' in rnw_profile: 
+                    if 'tanh' in rnw_profile:
                         rnw_profile= lambda x:tanh_profile(alpha,x)
                     elif rnw_profile=='spline':
                         rnw_profile=spline_profile
@@ -436,7 +436,7 @@ def include_patches(vector_map,tile):
                     if cuts_long:
                         cuts_long+=1
                         way=numpy.array([way[0]+i/cuts_long*(way[1]-way[0]) for i in range(cuts_long)]+\
-                                [way[1]]+[way[2]+i/cuts_long*(way[3]-way[2]) for i in range(cuts_long)]+[way[3],way[4]]) 
+                                [way[1]]+[way[2]+i/cuts_long*(way[3]-way[2]) for i in range(cuts_long)]+[way[3],way[4]])
                         alti_way=numpy.array([altitude_high-rnw_profile(i/cuts_long)*(altitude_high-altitude_low) for i in range(cuts_long+1)])
                         alti_way=numpy.hstack([alti_way,alti_way[::-1],alti_way[0]])
                 else:
@@ -486,8 +486,8 @@ def include_patches(vector_map,tile):
             except:
                 continue
             firstline=pfile.readline()
-            if not 'ANCHOR' in firstline: 
-                UI.vprint(1,"     Object ",pfile_name, " is missing and ANCHOR in first line, skipping it.") 
+            if not 'ANCHOR' in firstline:
+                UI.vprint(1,"     Object ",pfile_name, " is missing and ANCHOR in first line, skipping it.")
                 continue
             pfile.close()
             try:
@@ -498,7 +498,7 @@ def include_patches(vector_map,tile):
                     alt_anchor=tile.dem.alt((lon_anchor-tile.lon,lat_anchor-tile.lat))
                 except:
                     UI.vprint(1,"     Anchor wrongly encode for : ",pfile_name," skipping that one.")
-                    continue  
+                    continue
             patches_area=patches_area.union(keep_obj8(lat_anchor,lon_anchor,alt_anchor,heading_anchor,pfile_namelong,vector_map,tile))
     return (patches_area,patches_list)
 ##############################################################################
@@ -515,8 +515,8 @@ def keep_obj8(lat_anchor,lon_anchor,alt_anchor,heading_anchor,objfile_name,vecto
     for line in f.readlines():
         if line[0:2]=='VT':
             (xo,yo,zo)=[float(s) for s in line.split()[1:4]]
-            Xo=xo*cos(heading_anchor*pi/180)-zo*sin(heading_anchor*pi/180)  
-            Zo=xo*sin(heading_anchor*pi/180)+zo*cos(heading_anchor*pi/180)  
+            Xo=xo*cos(heading_anchor*pi/180)-zo*sin(heading_anchor*pi/180)
+            Zo=xo*sin(heading_anchor*pi/180)+zo*cos(heading_anchor*pi/180)
             y=numpy.round(lat_anchor-latscale*float(Zo)-tile.lat,7)
             x=numpy.round(lon_anchor+lonscale*float(Xo)-tile.lon,7)
             z=yo+alt_anchor
@@ -539,17 +539,16 @@ def keep_obj8(lat_anchor,lon_anchor,alt_anchor,heading_anchor,objfile_name,vecto
                     (a,b,c)=[dico_idx_nodes[x] for x in list[3*j:3*j+3]]
                     if a==b or a==c or b==c: continue
                     for (initp,endp) in ((a,b),(b,c),(c,a)):
-                        vector_map.insert_edge(initp,endp,vector_map.dico_attributes['INTERP_ALT'],check=True)    
-                    seed=(numpy.array(vector_map.nodes_dico[a])+numpy.array(vector_map.nodes_dico[b])+numpy.array(vector_map.nodes_dico[c]))/3 
+                        vector_map.insert_edge(initp,endp,vector_map.dico_attributes['INTERP_ALT'],check=True)
+                    seed=(numpy.array(vector_map.nodes_dico[a])+numpy.array(vector_map.nodes_dico[b])+numpy.array(vector_map.nodes_dico[c]))/3
                     if 'INTERP_ALT' in vector_map.seeds:
                         vector_map.seeds['INTERP_ALT'].append(seed)
                     else:
-                        vector_map.seeds['INTERP_ALT']=[seed]    
+                        vector_map.seeds['INTERP_ALT']=[seed]
                     polist.append(geometry.Polygon([vector_map.nodes_dico[a],vector_map.nodes_dico[b],vector_map.nodes_dico[c],vector_map.nodes_dico[a]]))
-                multipol=VECT.ensure_MultiPolygon(ops.cascaded_union(polist))    
+                multipol=VECT.ensure_MultiPolygon(ops.cascaded_union(polist))
             except:
                 pass
     f.close()
     return multipol
-#############################################################################    
-
+#############################################################################

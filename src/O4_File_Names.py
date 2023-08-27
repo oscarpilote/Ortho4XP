@@ -89,22 +89,22 @@ def weight_file(tile):
     return os.path.join(tile.build_dir,'Data'+short_latlon(tile.lat,tile.lon)+'.weight')
 def mesh_file(build_dir,lat,lon):
     return os.path.join(build_dir,'Data'+short_latlon(lat,lon)+'.mesh')
-def obj_file(til_x_left,til_y_top,zoomlevel,provider_code):    
+def obj_file(til_x_left,til_y_top,zoomlevel,provider_code):
     return os.path.join(Geotiff_dir,str(til_y_top)+"_"+str(til_x_left)+"_"+provider_code+str(zoomlevel)+'.obj')
-def mtl_file(til_x_left,til_y_top,zoomlevel,provider_code):    
-    return os.path.join(Geotiff_dir,str(til_y_top)+"_"+str(til_x_left)+"_"+provider_code+str(zoomlevel)+'.mtl') 
+def mtl_file(til_x_left,til_y_top,zoomlevel,provider_code):
+    return os.path.join(Geotiff_dir,str(til_y_top)+"_"+str(til_x_left)+"_"+provider_code+str(zoomlevel)+'.mtl')
 ##############################################################################
 
 ##############################################################################
 def preview(lat, lon, zoomlevel, provider_code):
-    return os.path.join(Preview_dir,short_latlon(lat,lon)+"_"+provider_code+str(zoomlevel)+".jpg")  
+    return os.path.join(Preview_dir,short_latlon(lat,lon)+"_"+provider_code+str(zoomlevel)+".jpg")
 ##############################################################################
 
 ##############################################################################
 def custom_coastline(lat, lon):
     return os.path.join(OSM_dir,long_latlon(lat,lon),short_latlon(lat,lon)+'_custom_coastline.osm.bz2')
 def custom_coastline_dir(lat, lon):
-    return os.path.join(OSM_dir,long_latlon(lat,lon),'custom_coastline')    
+    return os.path.join(OSM_dir,long_latlon(lat,lon),'custom_coastline')
 def custom_water(lat, lon):
     return os.path.join(OSM_dir,long_latlon(lat,lon),short_latlon(lat,lon)+'_custom_water.osm.bz2')
 def custom_water_dir(lat, lon):
@@ -132,7 +132,7 @@ def elevation_data(source,lat, lon):
     elif source=='NED1/3':
         return base_file_name(lat,lon)+'_NED13.img'
     elif source=='NED1':
-        return os.path.join(Elevation_dir,long_latlon(lat,lon)+'_NED1','w001001.adf') 
+        return os.path.join(Elevation_dir,long_latlon(lat,lon)+'_NED1','w001001.adf')
 ##############################################################################
 
 ##############################################################################
@@ -154,7 +154,7 @@ def SRTM_1sec(lat, lon):
 def legacy_mask(m_til_x_left,m_til_y_top):
     return str(m_til_y_top)+'_'+str(m_til_x_left)+'.png'
 def mask_file(til_x_left,til_y_top,zoomlevel,provider_code):
-    return str(til_y_top)+"_"+str(til_x_left)+"_ZL"+str(zoomlevel)+".png"   
+    return str(til_y_top)+"_"+str(til_x_left)+"_ZL"+str(zoomlevel)+".png"
 ##############################################################################
 
 ##############################################################################
@@ -163,12 +163,12 @@ def jpeg_file_name_from_attributes(til_x_left,til_y_top,zoomlevel,provider_code)
         file_name=g2xpl_16_prefix+str(zoomlevel)+'_'+str(til_x_left)+'_'+\
                 str(2**zoomlevel-16-til_y_top)+g2xpl_16_suffix+".jpg"
     else:
-        file_name=str(til_y_top)+"_"+str(til_x_left)+"_"+provider_code+str(zoomlevel)+".jpg"   
+        file_name=str(til_y_top)+"_"+str(til_x_left)+"_"+provider_code+str(zoomlevel)+".jpg"
     return file_name
 ##############################################################################
-    
+
 ##############################################################################
-def jpeg_file_dir_from_attributes(lat, lon, zoomlevel,provider): 
+def jpeg_file_dir_from_attributes(lat, lon, zoomlevel,provider):
     if not provider:
         file_dir='.'
     elif provider['imagery_dir']=='normal':
@@ -188,7 +188,7 @@ def dds_file_name_from_attributes(til_x_left,til_y_top,zoomlevel,provider_code,f
         file_name=g2xpl_16_prefix+str(zoomlevel)+'_'+str(til_x_left)+'_'+\
                 str(2**zoomlevel-16-til_y_top)+g2xpl_16_suffix+"."+file_ext
     else:
-        file_name=str(til_y_top)+"_"+str(til_x_left)+"_"+provider_code+str(zoomlevel)+"."+file_ext   
+        file_name=str(til_y_top)+"_"+str(til_x_left)+"_"+provider_code+str(zoomlevel)+"."+file_ext
     return file_name
 ##############################################################################
 

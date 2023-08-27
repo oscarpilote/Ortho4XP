@@ -20,15 +20,15 @@ cmd_line="USAGE: Ortho4XP_v130.py lat lon imagery zl (won't read a tile config)\
 if __name__ == '__main__':
     if not os.path.isdir(FNAMES.Utils_dir):
         print("Missing ",FNAMES.Utils_dir,"directory, check your install. Exiting.")
-        sys.exit()   
+        sys.exit()
     for directory in (FNAMES.Preview_dir, FNAMES.Provider_dir, FNAMES.Extent_dir, FNAMES.Filter_dir, FNAMES.OSM_dir,
                       FNAMES.Mask_dir,FNAMES.Imagery_dir,FNAMES.Elevation_dir,FNAMES.Geotiff_dir,FNAMES.Patch_dir,
                       FNAMES.Tile_dir,FNAMES.Tmp_dir):
         if not os.path.isdir(directory):
-            try: 
+            try:
                 os.makedirs(directory)
                 print("Creating missing directory",directory)
-            except: 
+            except:
                 print("Could not create required directory",directory,". Exit.")
                 sys.exit()
     IMG.initialize_extents_dict()
@@ -38,9 +38,9 @@ if __name__ == '__main__':
     if len(sys.argv)==1: # switch to the graphical interface
         Ortho4XP = GUI.Ortho4XP_GUI()
 
-        Ortho4XP.mainloop()	    
+        Ortho4XP.mainloop()
         print("Bon vol!")
-    else: # sequel is only concerned with command line 
+    else: # sequel is only concerned with command line
         if len(sys.argv)<3:
             print(cmd_line); sys.exit()
         try:
@@ -71,5 +71,3 @@ if __name__ == '__main__':
             print("Bon vol!")
         except:
             print("Crash!")
- 
-        
