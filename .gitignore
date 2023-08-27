@@ -13,4 +13,4 @@ Tiles/
 **/__pycache__
 **/Thumbs.db
 **/*.bak
-.last_gui_params.txt
+.last_gui_params.txt*
