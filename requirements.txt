@@ -7,4 +7,4 @@ pyproj==3.1.0
 requests==2.25.1
 Rtree==0.9.7
 Shapely==1.7.1
-urllib3==1.26.6
+urllib3==1.26.18
