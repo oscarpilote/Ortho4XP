@@ -75,7 +75,10 @@ def get_Here_value():
         time.sleep(3)
     if (not Here_value) or (time.time()-Here_time)>=10000:
         Here_value="loading"
-        Here_value=str(requests.get('https://wego.here.com').content).split('aerial.maps.api.here.com/maptile/2.1')[1][:100].split('"')[4]
+        js_path=str(requests.get('https://wego.here.com').content).split('<script defer="defer" src="')[1][:100].split('"')[0]
+        print("js_path: "+js_path)
+        Here_value=str(requests.get('https://wego.here.com'+js_path).content).split('APP_KEY:"')[1][:100].split('"')[0]
+        print("Here_value: "+Here_value)
         Here_time=time.time()
     return Here_value
 
@@ -105,5 +108,6 @@ def custom_tms_request(tilematrix,til_x,til_y,provider):
         return (url,None)
     elif provider['code']=='Here':
         Here_value=get_Here_value()
-        url="https://"+random.choice(['1','2','3','4'])+".aerial.maps.api.here.com/maptile/2.1/maptile/"+Here_value+"/satellite.day/"+str(tilematrix)+"/"+str(til_x)+"/"+str(til_y)+"/256/jpg?app_id=bC4fb9WQfCCZfkxspD4z&app_code=K2Cpd_EKDzrZb1tz0zdpeQ"   
-        return (url,None)
+        fake_headers={'User-Agent':user_agent_generic,'Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8','Connection':'keep-alive','Accept-Encoding':'gzip, deflate','Referer':'https://wego.here.com/'}
+        url="https://maps.hereapi.com/v3/background/mc/"+str(tilematrix)+"/"+str(til_x)+"/"+str(til_y)+"/jpeg?apikey="+Here_value+"&style=satellite.day&ppi=100&size=256"
+        return (url,fake_headers)
