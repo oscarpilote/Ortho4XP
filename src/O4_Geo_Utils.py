@@ -16,8 +16,8 @@ def dist(A,B):
     return 2*earth_radius*atan2(sqrt(a),sqrt(1-a))
 
 epsg={}
-epsg['4326']=pyproj.Proj(init='epsg:4326')
-epsg['3857']=pyproj.Proj(init='epsg:3857')
+epsg['4326']=pyproj.Proj('epsg:4326')
+epsg['3857']=pyproj.Proj('epsg:3857')
     
 
 ##############################################################################
