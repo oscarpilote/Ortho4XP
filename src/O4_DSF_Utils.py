@@ -100,7 +100,7 @@ def zone_list_to_ortho_dico(tile):
         # where higher lines have priority over lower ones.
         masks_im=Image.new("L",(4096,4096),'black')
         masks_draw=ImageDraw.Draw(masks_im)
-        airport_array=numpy.zeros((4096,4096),dtype=numpy.bool)
+        airport_array=numpy.zeros((4096,4096),dtype=bool)
         if tile.cover_airports_with_highres in ['True','ICAO']:
             UI.vprint(1,"-> Checking airport locations for upgraded zoomlevel.")
             try:
