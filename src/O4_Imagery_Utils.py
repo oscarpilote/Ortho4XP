@@ -3,6 +3,7 @@ import os
 import sys
 import subprocess
 import io
+import pyproj
 import requests
 import queue
 import random
@@ -43,22 +44,23 @@ request_headers_generic={
             'Connection':'keep-alive',
             'Accept-Encoding':'gzip, deflate'
             }
-
+imagemagick = False
 if 'dar' in sys.platform:
     dds_convert_cmd = os.path.join(UI.Ortho4XP_dir,"Utils","nvcompress","nvcompress.app") 
     gdal_transl_cmd = "gdal_translate"
     gdalwarp_cmd    = "gdalwarp"
     devnull_rdir    = " >/dev/null 2>&1"
-elif 'win' in sys.platform: 
+elif 'win' in sys.platform:
     dds_convert_cmd = os.path.join(UI.Ortho4XP_dir, "Utils", "nvcompress", "nvcompress.exe") 
     gdal_transl_cmd = "gdal_translate.exe"
     gdalwarp_cmd    = "gdalwarp.exe"
     devnull_rdir    = " > nul  2>&1"
 else:
-    dds_convert_cmd = "nvcompress" 
+    imagemagick = True
+    dds_convert_cmd = "convert"
     gdal_transl_cmd = "gdal_translate"
-    gdalwarp_cmd    = "gdalwarp"
-    devnull_rdir    = " >/dev/null 2>&1 "
+    gdalwarp_cmd = "gdalwarp"
+    devnull_rdir = " >/dev/null 2>&1 "
     
 ###############################################################################################################################
 #
@@ -94,17 +96,8 @@ def initialize_extents_dict():
                     print("Error for extent",extent_code,"in line",line)
                     continue
                 # structuring data
-                if key=='epsg_code':
-                    try:
-                        GEO.epsg[value]=GEO.pyproj.Proj(init='epsg:'+value)
-                    except:
-                        # HACK for Slovenia 
-                        if int(value)==102060:
-                            GEO.epsg[value]=GEO.pyproj.Proj(init='epsg:3912')
-                        else:
-                            print("Error in epsg code for extent",extent_code)
-                            valid_extent=False
-                elif key=='mask_bounds':
+
+                if key=='mask_bounds':
                     try:
                         extent[key]=[float(x) for x in value.split(",")]
                     except:
@@ -193,16 +186,7 @@ def initialize_providers_dict():
                     except:
                         print("Definition of fake headers for provider",provider_code,"not valid.")
                         valid_provider=False
-                elif key=='epsg_code':
-                    try:
-                        GEO.epsg[value]=GEO.pyproj.Proj(init='epsg:'+value)
-                    except:
-                        # HACK for Slovenia 
-                        if int(value)==102060:
-                            GEO.epsg[value]=GEO.pyproj.Proj(init='epsg:3912')
-                        else:
-                            UI.vprint(0,"Error in epsg code for provider",provider_code)
-                            valid_provider=False
+
                 elif key=='in_GUI':
                     try:
                         provider['in_GUI']=eval(value)
@@ -922,7 +906,15 @@ def build_texture_from_bbox_and_size(t_bbox,t_epsg,t_size,provider):
         UI.vprint(3,"Crop needed")
         big_image=big_image.crop((crop_x0,crop_y0,crop_x1,crop_y1))
     if big_image.size!=t_size:
-        UI.vprint(3,"Resize needed:"+str(t_size[0]/big_image.size[0])+" "+str(t_size[1]/big_image.size[1]))
+        try:
+            UI.vprint(3,"Resize needed:"+str(t_size[0]/big_image.size[0])+" "+str(t_size[1]/big_image.size[1]))
+        except ZeroDivisionError as e:
+            # Something is going wrong here. Non-epsg-3857 may be impacted but apart from the print not working
+            # the following resize doesn't actually throw an error.
+            print("division by zero at build_texture_from_bbox_and_size")
+            pass
+        else:
+            print("works")
         big_image=big_image.resize(t_size,Image.BICUBIC)
     return (success,big_image)
 ###############################################################################################################################
@@ -937,7 +929,7 @@ def download_jpeg_ortho(file_dir,file_name,til_x_left,til_y_top,zoomlevel,provid
             super_resol_factor=2**(max_zl-zoomlevel)
     width=height=int(4096*super_resol_factor)
     # we treat first the case of webmercator grid type servers
-    if 'grid_type' in provider and provider['grid_type']=='webmercator':
+    if 'grid_type' in provider and provider['grid_type']=='webmercator' or provider["epsg_code"] == "3857":
         tilbox=[til_x_left,til_y_top,til_x_left+16,til_y_top+16] 
         tilbox_mod=[int(round(p*super_resol_factor)) for p in tilbox]
         zoom_shift=round(log(super_resol_factor)/log(2))
@@ -1422,10 +1414,30 @@ def convert_texture(tile,til_x_left,til_y_top,zoomlevel,provider_code,type='dds'
         file_to_convert=os.path.join(file_dir,jpeg_file_name)
     # eventually the dds conversion
     if type=='dds':
-        if not dxt5:
-            conv_cmd=[dds_convert_cmd,'-bc1','-fast',file_to_convert,os.path.join(tile.build_dir,'textures',out_file_name),devnull_rdir]
+        if imagemagick is False:
+            if not dxt5:
+                conv_cmd = [dds_convert_cmd, '-bc1', '-fast', file_to_convert,
+                            os.path.join(tile.build_dir, 'textures', out_file_name), devnull_rdir]
+            else:
+                conv_cmd = [dds_convert_cmd, '-bc3', '-fast', file_to_convert,
+                            os.path.join(tile.build_dir, 'textures', out_file_name), devnull_rdir]
         else:
-            conv_cmd=[dds_convert_cmd,'-bc3','-fast',file_to_convert,os.path.join(tile.build_dir,'textures',out_file_name),devnull_rdir]
+            if not dxt5:
+                conv_cmd = [
+                    dds_convert_cmd,
+                    file_to_convert,
+                    "-define",
+                    "dds:compression=dxt1",
+                    os.path.join(tile.build_dir, "textures", out_file_name),
+                ]
+            else:
+                conv_cmd = [
+                    dds_convert_cmd,
+                    file_to_convert,
+                    "-define",
+                    "dds:compression=dxt5",
+                    os.path.join(tile.build_dir, "textures", out_file_name),
+                ]
     else:
         (latmax,lonmin)=GEO.gtile_to_wgs84(til_x_left,til_y_top,zoomlevel)
         (latmin,lonmax)=GEO.gtile_to_wgs84(til_x_left+16,til_y_top+16,zoomlevel)

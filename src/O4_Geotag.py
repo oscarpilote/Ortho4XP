@@ -2,8 +2,8 @@ import os
 import pyproj
 from math import pi, exp, atan
 
-geographic=pyproj.Proj(init='epsg:4326')
-webmercator=pyproj.Proj(init='epsg:3857')
+geographic=pyproj.Proj('epsg:4326')
+webmercator=pyproj.Proj('epsg:3857')
 
 def gtile_to_wgs84(til_x,til_y,zoomlevel):
     rat_x=(til_x/(2**(zoomlevel-1))-1)

@@ -546,7 +546,7 @@ def smoothen(raster,pix_width,mask_im,preserve_boundary=True):
     if not pix_width: return raster
     if not mask_im: return raster
     tmp = numpy.array(raster)
-    mask_array = numpy.array(mask_im,dtype=numpy.float)/255
+    mask_array = numpy.array(mask_im,dtype=float)/255
     kernel=numpy.array(range(1,2*(pix_width+1)))
     kernel[pix_width+1:]=range(pix_width,0,-1)
     kernel=kernel/(pix_width+1)**2
