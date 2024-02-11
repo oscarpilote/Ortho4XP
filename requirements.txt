@@ -1,4 +1,4 @@
-certifi==2021.5.30
+certifi==2023.7.22
 chardet==4.0.0
 idna==2.10
 numpy==1.21.0
