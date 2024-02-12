@@ -15,7 +15,7 @@ custom_overlay_src=''
 
 if 'dar' in sys.platform:
     unzip_cmd    = "7z "
-    dsftool_cmd  = os.path.join(FNAMES.Utils_dir,"DSFTool.app ")
+    dsftool_cmd  = os.path.join(FNAMES.Utils_dir,"DSFTool_app ")
 elif 'win' in sys.platform: 
     unzip_cmd    = os.path.join(FNAMES.Utils_dir,"7z.exe ")
     dsftool_cmd  = os.path.join(FNAMES.Utils_dir,"DSFTool.exe ")
