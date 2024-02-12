@@ -23,7 +23,7 @@ def webmercator_pixel_size(lat,zoomlevel):
 
 ##############################################################################
 def transform(s_epsg, t_epsg, s_x, s_y):
-    return Transformer.from_crs(crs_from=f"EPSG:{s_epsg}", crs_to=f"EPSG:{t_epsg}").transform(s_x, s_y)
+    return Transformer.from_crs(crs_from=f"EPSG:{s_epsg}", crs_to=f"EPSG:{t_epsg}", always_xy=True).transform(s_x, s_y)
 
 ##############################################################################
 
