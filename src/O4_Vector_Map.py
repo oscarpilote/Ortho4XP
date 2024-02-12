@@ -197,7 +197,7 @@ def include_roads(vector_map,tile,apt_array,apt_area):
         (road_network_banked_2,road_network_flat_2)=OSM.OSM_to_MultiLineString(road_layer,\
                 tile.lat,tile.lon,tags_for_exclusion,road_is_too_much_banked) 
         UI.vprint(3,"Time for check :",time.time()-timer)
-        road_network_banked=geometry.MultiLineString(list(road_network_banked)+list(road_network_banked_2.geoms))
+        road_network_banked=geometry.MultiLineString(list(road_network_banked.geoms)+list(road_network_banked_2.geoms))
     if not road_network_banked.is_empty:
         UI.vprint(1,"    * Buffering banked road network as multipolygon.")
         timer=time.time()
