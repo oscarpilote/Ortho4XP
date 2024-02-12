@@ -15,9 +15,9 @@ import O4_OSM_Utils as OSM
 import O4_Version
 
 if 'dar' in sys.platform:
-    Triangle4XP_cmd = os.path.join(FNAMES.Utils_dir,"Triangle4XP.app ")
-    triangle_cmd    = os.path.join(FNAMES.Utils_dir,"triangle.app ")
-    sort_mesh_cmd   = os.path.join(FNAMES.Utils_dir,"moulinette.app ")
+    Triangle4XP_cmd = os.path.join(FNAMES.Utils_dir,"Triangle4XP_app ")
+    triangle_cmd    = os.path.join(FNAMES.Utils_dir,"triangle_app ")
+    sort_mesh_cmd   = os.path.join(FNAMES.Utils_dir,"moulinette_app ")
     unzip_cmd       = "7z "
 elif 'win' in sys.platform: 
     Triangle4XP_cmd = os.path.join(FNAMES.Utils_dir,"Triangle4XP.exe ")
