@@ -21,7 +21,7 @@ Geotiff_dir = os.path.join(Ortho4XP_dir, build_dir, "Geotiffs")
 Patch_dir = os.path.join(Ortho4XP_dir, "Patches")
 Utils_dir = os.path.join(Ortho4XP_dir, "Utils")
 Tile_dir = os.path.join(Ortho4XP_dir, build_dir, "Tiles")
-Tmp_dir = os.path.join(Ortho4XP_dir, build_dir, "tmp")
+Tmp_dir =  os.path.join(Ortho4XP_dir, 'tmp')
 Overlay_dir = os.path.join(Ortho4XP_dir, "yOrtho4XP_Overlays")
 ##############################################################################
 def short_latlon(lat,lon):
