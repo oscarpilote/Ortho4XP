@@ -16,13 +16,13 @@ custom_overlay_src = ""
 
 if "dar" in sys.platform:
     unzip_cmd = "7z "
-    dsftool_cmd = os.path.join(FNAMES.Utils_dir, "DSFTool.app ")
+    dsftool_cmd = os.path.join(FNAMES.Utils_dir, "mac", "DSFTool ")
 elif "win" in sys.platform:
-    unzip_cmd = os.path.join(FNAMES.Utils_dir, "7z.exe ")
-    dsftool_cmd = os.path.join(FNAMES.Utils_dir, "DSFTool.exe ")
+    unzip_cmd = os.path.join(FNAMES.Utils_dir, "win", "7z.exe ")
+    dsftool_cmd = os.path.join(FNAMES.Utils_dir, "win", "DSFTool.exe ")
 else:
     unzip_cmd = "7z "
-    dsftool_cmd = os.path.join(FNAMES.Utils_dir, "DSFTool ")
+    dsftool_cmd = os.path.join(FNAMES.Utils_dir, "lin", "DSFTool ")
 
 ################################################################################
 def build_overlay(lat, lon):
@@ -67,7 +67,7 @@ def build_overlay(lat, lon):
     f.close()
     if dsfid == "7z":
         UI.vprint(1, "-> The original DSF is a 7z archive, uncompressing...")
-        os.rename(file_to_sniff_loc, file_to_sniff_loc + ".7z")
+        os.replace(file_to_sniff_loc, file_to_sniff_loc + ".7z")
         os.system(
             unzip_cmd
             + " e -o"
@@ -76,6 +76,7 @@ def build_overlay(lat, lon):
             + file_to_sniff_loc
             + '.7z"'
         )
+        os.remove(file_to_sniff_loc + ".7z")
     UI.vprint(1, "-> Converting the copy to text format")
     dsfconvertcmd = [
         dsftool_cmd.strip(),
@@ -247,7 +248,5 @@ def build_overlay(lat, lon):
         )
     except:
         pass
-    if dsfid == "7z":
-        os.remove(file_to_sniff_loc + ".7z")
     UI.timings_and_bottom_line(timer)
     return 1

@@ -12,13 +12,13 @@ from shapely import geometry, ops
 
 if 'dar' in sys.platform:
     unzip_cmd    = "7z "
-    dsftool_cmd  = os.path.join(FNAMES.Utils_dir,"DSFTool.app ")
+    dsftool_cmd  = os.path.join(FNAMES.Utils_dir, "mac" ,"DSFTool ")
 elif 'win' in sys.platform: 
-    unzip_cmd    = os.path.join(FNAMES.Utils_dir,"7z.exe ")
-    dsftool_cmd  = os.path.join(FNAMES.Utils_dir,"DSFTool.exe ")
+    unzip_cmd    = os.path.join(FNAMES.Utils_dir, "win", "7z.exe ")
+    dsftool_cmd  = os.path.join(FNAMES.Utils_dir, "win", "DSFTool.exe ")
 else:
     unzip_cmd    = "7z "
-    dsftool_cmd  = os.path.join(FNAMES.Utils_dir,"DSFTool ")
+    dsftool_cmd  = os.path.join(FNAMES.Utils_dir, "lin", "DSFTool ")
 
 dico_for={
     'mixed':('vegetation/mixed.for','255 2'),

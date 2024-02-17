@@ -158,7 +158,7 @@ def build_tile(tile):
         FNAMES.long_latlon(tile.lat, tile.lon) + ".dsf",
     )
     try:
-        os.rename(dsf_file_name + ".tmp", dsf_file_name)
+        os.replace(dsf_file_name + ".tmp", dsf_file_name)
     except:
         UI.vprint(0, "ERROR : could not rename DSF file, tile is not actived.")
     if UI.red_flag:

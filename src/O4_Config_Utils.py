@@ -588,7 +588,7 @@ class Tile:
             )
             return 0
 
-    def write_to_config(self, config_file=None):
+    def write_to_config(self, config_file = None):
         if not config_file:
             config_file = os.path.join(
                 self.build_dir,
@@ -1078,22 +1078,14 @@ class Ortho4XP_Config(tk.Toplevel):
     def write_global_cfg(self):
         old_cfg = os.path.join(FNAMES.Ortho4XP_dir, "Ortho4XP.cfg.bak")
         new_cfg = os.path.join(FNAMES.Ortho4XP_dir, "Ortho4XP.cfg")
-        if os.path.isfile(old_cfg):
-            try:
-                os.remove(old_cfg)
-            except:
-                pass
         try:
-            os.rename(new_cfg, old_cfg)
-        except:
-            pass
-        try:
+            os.replace(new_cfg, old_cfg)
             f = open(new_cfg, "w")
+            for var in list_global_cfg:
+                f.write(var + "=" + self.v_[var].get() + "\n")
+            f.close()
         except:
-            return 0
-        for var in list_global_cfg:
-            f.write(var + "=" + self.v_[var].get() + "\n")
-        f.close()
+            UI.lvprint(1, "Could not write global config.")
         return
 
     def apply_changes(self):

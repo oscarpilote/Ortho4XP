@@ -390,17 +390,18 @@ def extract_elevation_and_bathymetry_data(lat, lon):
     f.close()
     if dsfid == "7z":
         UI.vprint(2, "     The original DSF is a 7z archive, uncompressing...")
-        os.rename(tmp_file, tmp_file + ".7z")
+        os.replace(tmp_file, tmp_file + ".7z")
         os.system(
             OVL.unzip_cmd + " e -o" + FNAMES.Tmp_dir + ' "' + tmp_file + '.7z"'
         )
-
+        os.remove(tmp_file + '.7z')
     file_len = os.path.getsize(tmp_file)
     f = open(tmp_file, "rb")
     # read filetype cookie
     dsfid = f.read(8).decode("ascii")
     if dsfid != "XPLNEDSF":
         UI.exit_message_and_bottom_line("     ERROR: Corrupted DSF file.")
+        os.remove(tmp_file)
         return (b"", b"")
     # skip format number
     f.read(4)
@@ -452,9 +453,7 @@ def extract_elevation_and_bathymetry_data(lat, lon):
         atoms_consumed += atom_len
 
     f.close()
-
-    if dsfid == "7z":
-        os.remove(tmp_file + ".7z")
+    os.remove(tmp_file)
 
     return (bDEMN, bDEMS)
 
@@ -1053,10 +1052,9 @@ def build_dsf(tile, download_queue):
         "Earth nav data",
         FNAMES.long_latlon(tile.lat, tile.lon) + ".dsf",
     )
-    if os.path.exists(dsf_file_name + ".bak"):
-        os.remove(dsf_file_name + ".bak")
+    
     if os.path.exists(dsf_file_name):
-        os.rename(dsf_file_name, dsf_file_name + ".bak")
+        os.replace(dsf_file_name, dsf_file_name + ".bak")
 
     # Note: present code should always choose the first branch.
     if bPROP == b"":

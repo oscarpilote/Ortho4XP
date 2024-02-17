@@ -677,7 +677,7 @@ def include_patches(vector_map, tile):
         )
         for wayid in waylist:
             way = numpy.array(
-                [dn[nodeid] for nodeid in dw[wayid]], dtype=numpy.float
+                [dn[nodeid] for nodeid in dw[wayid]], dtype=float
             )
             way = way - numpy.array([[tile.lon, tile.lat]])
             alti_way_orig = tile.dem.alt_vec(way)
