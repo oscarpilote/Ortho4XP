@@ -1564,8 +1564,10 @@ def download_jpeg_ortho(
         [latmin, lonmax] = GEO.gtile_to_wgs84(
             til_x_left + 16, til_y_top + 16, zoomlevel
         )
-        [xmin, ymax] = GEO.geo_to_webm(lonmin, latmax)
-        [xmax, ymin] = GEO.geo_to_webm(lonmax, latmin)
+        #[xmin, ymax] = GEO.geo_to_webm(lonmin, latmax)
+        #[xmax, ymin] = GEO.geo_to_webm(lonmax, latmin)
+        [xmin,ymax]=GEO.transform('4326','3857',lonmin,latmax)
+        [xmax,ymin]=GEO.transform('4326','3857',lonmax,latmin) 
         (success, big_image) = build_texture_from_bbox_and_size(
             [xmin, ymax, xmax, ymin], "3857", (width, height), provider
         )
