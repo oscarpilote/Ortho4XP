@@ -483,7 +483,7 @@ def include_water(vector_map, tile):
             pt = (
                 pol.exterior.coords[0]
                 if "Multi" not in pol.geom_type
-                else pol[0].exterior.coords[0]
+                else pol.geoms[0].exterior.coords[0]
             )
             UI.vprint(
                 1,
