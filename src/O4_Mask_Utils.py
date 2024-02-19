@@ -155,7 +155,7 @@ def build_masks(tile, for_imagery=False):
             del(dem_array)
 
         if tile.masks_custom_extent:
-            custom_array = build_custom_pre_mask(sea_level, tile)
+            custom_array = build_custom_pre_mask(til_x, til_y, sea_level, tile)
 
         if (pre_mask.max() == 0) and (
                 not tile.masks_custom_extent or custom_array.max() == 0):
@@ -330,11 +330,13 @@ def build_water_pre_mask(til_x, til_y, mesh_list, dico_sea, dico_inland,
 
 ################################################################################
 def build_dem_pre_mask(til_x, til_y, tile):
+    (latm0, lonm0) = GEO.gtile_to_wgs84(til_x, til_y, tile.mask_zl)
+    (px0, py0) = GEO.wgs84_to_pix(latm0, lonm0, tile.mask_zl)
+    px0 -= 1024
+    py0 -= 1024
     # computing the part of the mask coming from the DEM:
     (latmax, lonmin) = GEO.pix_to_wgs84(px0, py0, tile.mask_zl)
-    (latmin, lonmax) = GEO.pix_to_wgs84(
-        px0 + 6144, py0 + 6144, tile.mask_zl
-    )
+    (latmin, lonmax) = GEO.pix_to_wgs84(px0 + 6144, py0 + 6144, tile.mask_zl)
     (x03857, y03857) = GEO.geo_to_webm(lonmin, latmax)
     (x13857, y13857) = GEO.geo_to_webm(lonmax, latmin)
     (
@@ -365,11 +367,10 @@ def build_dem_pre_mask(til_x, til_y, tile):
 ################################################################################
 
 ################################################################################
-def build_custom_pre_mask(sea_level, tile):
+def build_custom_pre_mask(til_x, til_y, sea_level, tile):
     custom_mask_array = numpy.zeros((4096, 4096), dtype=numpy.uint8)
-    (latm1, lonm1) = GEO.gtile_to_wgs84(
-        til_x + 16, til_y + 16, tile.mask_zl
-    )
+    (latm0, lonm0) = GEO.gtile_to_wgs84(til_x, til_y, tile.mask_zl)
+    (latm1, lonm1) = GEO.gtile_to_wgs84(til_x + 16, til_y + 16, tile.mask_zl)
     bbox_4326 = (lonm0, latm0, lonm1, latm1)
     masks_im = IMG.has_data(
         bbox_4326,
@@ -387,8 +388,6 @@ def build_custom_pre_mask(sea_level, tile):
     return custom_mask_array
 ################################################################################
 
-
-    
 ################################################################################
 def record_water_tris(tile):
     mesh_list = []
