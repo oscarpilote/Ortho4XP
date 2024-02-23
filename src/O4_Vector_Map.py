@@ -164,7 +164,7 @@ def build_poly_file(tile):
             vector_map.seeds["SEA"] = [numpy.array([1000, 1000])]
         else:
             vector_map.seeds["SEA"] = [numpy.array([0.5, 0.5])]
-    vector_map.snap_to_grid(7) # 1cm
+    vector_map.snap_to_grid(9) 
     vector_map.write_node_file(node_file)
     vector_map.write_poly_file(poly_file)
 
@@ -343,7 +343,9 @@ def include_roads(vector_map, tile, apt_array, apt_area):
         )
         if UI.red_flag:
             return 0
-    if not road_network_flat.is_empty:
+    # Hack (23/02/2024 : seems better without actually, keep it just in case)
+    if False and not road_network_flat.is_empty:
+        road_network_flat = road_network_flat.difference(road_network_banked)
         road_network_flat = road_network_flat.difference(
             VECT.improved_buffer(apt_area, 15, 0, 0)
         ).simplify(0.00001)

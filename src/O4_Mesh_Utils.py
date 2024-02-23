@@ -637,13 +637,20 @@ def build_mesh(tile):
     tri_verbosity = "Q" if UI.verbosity <= 1 else "V"
     output_poly = "P" if UI.cleaning_level else ""
     do_refine = "r" if tile.iterate else "A"
-    limit_tris = (
-        "S" + str(max(int(tile.limit_tris / 1.9 - input_nodes), 0))
-        if tile.limit_tris
-        else ""
-    )
+    try:
+        max_tris = float(tile.limit_tris) * 1e6
+    except:
+        UI.vprint(1, "   Warning : limit_tris wrongly set, defaults to 5M.")
+        max_tris = 5e6
+    if max_tris <= 0 or max_tris >= 5e7:
+        max_tris = 5e6
+    max_steiner = max_tris / 1.9 - input_nodes
+    max_steiner = max(max_steiner, 5e5)
+
+    limit_tris = "S" + str(max_steiner)
     Tri_option = (
-        "-pq" + "{:.9g}".format(tile.min_angle) + do_refine + "uYB" + tri_verbosity + output_poly + limit_tris
+        "-pq" + "{:.9g}".format(tile.min_angle) + do_refine + 
+        "uYB" + tri_verbosity + output_poly + limit_tris
     )
 
     weight_array = numpy.ones((1001, 1001), dtype=numpy.float32)
@@ -652,13 +659,11 @@ def build_mesh(tile):
     del weight_array
 
     # Hack
-    curv_tol_scaling = sqrt(tile.dem.nxdem / (3601 * (tile.dem.x1 - tile.dem.x0))
-    )
+    # Better meshes by not modifying curv_tol but having limit_tris set
+    # tu a reasonable value.
+    #curv_tol_scaling = sqrt(tile.dem.nxdem / (3601 * (tile.dem.x1 - tile.dem.x0))
+    #)
 
-    hmin_effective = max(
-        tile.hmin,
-        (tile.dem.y1 - tile.dem.y0) * GEO.lat_to_m / tile.dem.nydem / 2,
-    )
     mesh_cmd = [
         Triangle4XP_cmd.strip(),
         Tri_option.strip(),
@@ -671,9 +676,7 @@ def build_mesh(tile):
         "{:.9g}".format(tile.dem.x1),
         "{:.9g}".format(tile.dem.y1),
         "{:.9g}".format(tile.dem.nodata),
-        "{:.9g}".format(tile.curvature_tol * curv_tol_scaling),
-        "{:.9g}".format(tile.min_angle),
-        str(hmin_effective),
+        "{:.9g}".format(tile.curvature_tol),
         alt_file,
         weight_file,
         poly_file,

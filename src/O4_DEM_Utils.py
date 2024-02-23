@@ -460,7 +460,8 @@ def read_elevation_from_file(
                 if not info_only:
                     fill_nodata_values_with_nearest_neighbor(alt_dem, nodata)
                     alt_dem = upsample(alt_dem)
-        except:
+        except Exception as e:
+            print(e)
             UI.lvprint(
                 1,
                 "    ERROR: in reading elevation from",
@@ -883,9 +884,14 @@ def fill_nodata_values_with_nearest_neighbor(alt_dem, nodata):
         alt01[:, 0] = alt_dem[:, 0]
         alt02 = numpy.roll(alt_dem, -1, axis=1)
         alt02[:, -1] = alt_dem[:, -1]
-        atemp = numpy.maximum(alt10, alt20)
-        atemp = numpy.maximum(atemp, alt01)
-        atemp = numpy.maximum(atemp, alt02)
+        if (nodata < 0):
+            atemp = numpy.maximum(alt10, alt20)
+            atemp = numpy.maximum(atemp, alt01)
+            atemp = numpy.maximum(atemp, alt02)
+        else:
+            atemp = numpy.minimum(alt10, alt20)
+            atemp = numpy.minimum(atemp, alt01)
+            atemp = numpy.minimum(atemp, alt02)
         alt_dem[alt_dem == nodata] = atemp[alt_dem == nodata]
         step += 1
         if step > 20:

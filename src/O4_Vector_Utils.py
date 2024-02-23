@@ -135,10 +135,10 @@ class Vector_Map:
             # check for encroachment, slightly different than intersection, see
             # the details below in the function definition
             coeffs = self.are_encroached(
-                numpy.array(self.nodes_dico[id0]),
-                numpy.array(self.nodes_dico[id1]),
-                numpy.array(self.nodes_dico[id2]),
-                numpy.array(self.nodes_dico[id3]),
+                numpy.array(self.nodes_dico[id0], dtype = float),
+                numpy.array(self.nodes_dico[id1], dtype = float),
+                numpy.array(self.nodes_dico[id2], dtype = float),
+                numpy.array(self.nodes_dico[id3], dtype = float),
             )
             # coeffs=[]
             if not coeffs:
@@ -250,6 +250,62 @@ class Vector_Map:
         return (xmin, ymin, xmax, ymax)
 
     def are_encroached(self, a, b, c, d):
+        # A crucial one !
+        # returns False if the only mutual points of the closed segments a->b
+        #    and c->d are in {a,b,c,d}
+        # returns [alpha,beta] where (1-alpha)*a * alpha*b =
+        #    (1-beta)*c+beta*d otherwise and if the segments otherwise cut each
+        #    other transversally (possibly only in one point)
+        # returns [alpha0,alpha1,beta0,beta1] where
+        #    alpha0*(a-b)=(a-c), alpha1*(a-b)=(a-d),
+        #    beta0*(c-d)=(c-a), beta1*(c-d)=(c-b)
+        #    otherwise and if the segments are colinear.
+        # In the last case we hence have :
+        #    c=(1-alpha0)*a+alpha0*b, d=(1-alpha1)*a+alpha1*b,
+        #    a=(1-beta0)*c+beta0*d, b=(1-beta1)*c+beta1*d
+        # First a speed check when a==d (should happen for any new edge within
+        # insert_way) or when (b==c) (should happen once at closing within
+        # insert_way)
+        ab = b - a
+        dc = c - d
+        pnorm = numpy.linalg.norm(ab) * numpy.linalg.norm(dc)
+        ac = c - a
+        ab_dot_dc = numpy.dot(ab, dc)
+        if ((a == d).all() or (b == c).all()) and ab_dot_dc < 0.9999 * pnorm:
+            return False
+        if ((a == c).all() or (b == d).all()) and ab_dot_dc > -0.9999 * pnorm:
+            return False
+        eps = 1e-8
+        oneminuseps = 1.0 - eps
+        A = numpy.column_stack((ab, dc))
+        if abs(numpy.linalg.det(A)) > eps * pnorm:
+            # ad and bc are not considered parallel
+            [alpha, beta] = numpy.linalg.solve(A, ac)
+            return (
+                (alpha >= 0 and alpha <= 1)
+                and (beta >= 0 and beta <= 1)
+                and (
+                    (alpha > eps and alpha < oneminuseps)
+                    or (beta > eps and beta < oneminuseps)
+                )
+                and (alpha, beta)
+            )
+        elif abs(ab[0] * ac[1] - ab[1] * ac[0]) > eps * numpy.linalg.norm(ab) * numpy.linalg.norm(ac):
+            # ad and bc are parallel but not colinear
+            return False
+        else:
+            # ad and bc are parallel and colinear
+            g_idx = numpy.argmax(abs(ab))
+            d_idx = numpy.argmax(abs(dc))
+            alpha0, alpha1 = ac[g_idx] / ab[g_idx], (d - a)[g_idx] / ab[g_idx]
+            beta0, beta1 = ac[d_idx] / dc[d_idx], (c - b)[d_idx] / dc[d_idx]
+            return (
+                (alpha0 > eps or alpha1 > eps)
+                and (alpha0 < oneminuseps or alpha1 < oneminuseps)
+                and (alpha0, alpha1, beta0, beta1)
+            )
+    
+    def are_encroached_old(self, a, b, c, d):
         # A crucial one !
         # returns False if the only mutual points of the closed segments a->b
         #    and c->d are in {a,b,c,d}
@@ -490,7 +546,7 @@ class Vector_Map:
                 + " "
                 + " ".join(
                     [
-                        "{:.15f}".format(x)
+                        "{:.9f}".format(x)
                         for x in (
                             self.nodes_dico[idx][0],
                             self.nodes_dico[idx][1],
