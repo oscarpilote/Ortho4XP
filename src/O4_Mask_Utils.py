@@ -363,6 +363,8 @@ def build_dem_pre_mask(til_x, til_y, tile):
         ).astype(numpy.uint8) * 255
         del demim3857
         del demim4326
+    else:
+        dem_array = numpy.zeros((6144, 6144), dtype=numpy.uint8)
     return dem_array
 ################################################################################
 
