@@ -330,6 +330,7 @@ def build_water_pre_mask(til_x, til_y, mesh_list, dico_sea, dico_inland,
 
 ################################################################################
 def build_dem_pre_mask(til_x, til_y, tile):
+    dem_array = numpy.zeros((6144, 6144), dtype=numpy.uint8)
     (latm0, lonm0) = GEO.gtile_to_wgs84(til_x, til_y, tile.mask_zl)
     (px0, py0) = GEO.wgs84_to_pix(latm0, lonm0, tile.mask_zl)
     px0 -= 1024
