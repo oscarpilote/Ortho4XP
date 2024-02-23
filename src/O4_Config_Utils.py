@@ -1073,7 +1073,8 @@ class Ortho4XP_Config(tk.Toplevel):
         old_cfg = os.path.join(FNAMES.Ortho4XP_dir, "Ortho4XP.cfg.bak")
         new_cfg = os.path.join(FNAMES.Ortho4XP_dir, "Ortho4XP.cfg")
         try:
-            os.replace(new_cfg, old_cfg)
+            if (os.path.exists(new_cfg)):
+                os.replace(new_cfg, old_cfg)
             f = open(new_cfg, "w")
             for var in list_global_cfg:
                 f.write(var + "=" + self.v_[var].get() + "\n")
