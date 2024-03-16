@@ -12,6 +12,7 @@ Tiles/
 **/Ortho4XP.log
 **/__pycache__
 **/Thumbs.db
+**/.DS_Store
 **/*.bak
 **/*.swp
 .last_gui_params.txt
