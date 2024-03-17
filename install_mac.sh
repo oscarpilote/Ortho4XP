@@ -1,5 +1,5 @@
 # Install dependencies
-brew install python gdal spatialindex p7zip proj python-tk
+brew install gdal spatialindex p7zip proj
 
 # Install pyproj
 pip3 install pyproj
