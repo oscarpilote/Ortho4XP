@@ -35,41 +35,19 @@ Python module names may be different on other distributions.
 Windows
 -------
 
-1) Download and install Python 3 from www.python.org 
+1) Download and install Python 3.11.9 from www.python.org 
 
-Just select one for your Windows OS, there is no benefit in our case to 
-download the pretty lastest version of Python, since you might get difficulties 
-further down to find modules already built for it. As of 10/2018, I would 
-recommend using 3.7.    
 Make sure during the process that "pip" (package management system for Python)
 is installed along and made accessible from your PATH [there is a checkbox
-for this during the Python install process wich by default ISN'T checked].  
+for this during the Python install process wich by default ISN'T checked].
 
-2) Download the following packages from https://www.lfd.uci.edu/~gohlke/pythonlibs/
+2) From a command window launch successively 
 
-Pyproj, Numpy, Gdal, Shapely, Rtree, Pillow (or alternatively Pillow-SIMD)
-
-Pay attention to take the ones that correspond to the Python version which you picked
-at Step 1) and to your OS nbr of bits (32 or 64, I guess 64 in all but a few cases).
-As an example, if Python 3.7.*  was selected at Step 1) above and you
-have a 64bit windows, then you would choose these files that have -cp37- and _amd64 
-within their filename.   
-
-In order to use the build geotiff feature of the custom_zl map, you will need to 
-add the directory containing gdal_translate and gdalwarp (***/python**/lib/site-packages/osgeo/) 
-into your PATH variable.
-
-Finally, if you do not already have them : download and install the build tools for visual studio (2017):
-https://visualstudio.microsoft.com/fr/downloads/  
-
-3) From a command window launch successively 
-
-pip install --upgrade pip  [if this goes wrong you probably missed the last point in 1)]
-pip install requests
-pip install *******.whl [replacing ******** successively by each of the files downloaded at Step 2]
+python -m venv .venv
+pip install -r requirements.txt
 
 You should be done. Open a command window in the Ortho4XP directory (freshly downloaded from Github)
-and launch "python Ortho4XP_v130.py".
+and launch "python Ortho4XP.py".
 
 OS X
 ----
