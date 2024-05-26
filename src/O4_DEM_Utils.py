@@ -671,10 +671,25 @@ def ensure_elevation(source, lat, lon, verbose=True):
                 "P36",
                 "Q36",
                 "R36",
+                # New Zealand
+                "SL58",
+                "SI59",
+                "SJ59",
+                "SK59",
+                "SL59",
+                "SI60",
+                "SJ60",
+                "SK60",
+                "SL60",
             ):
                 resol = 1
             else:
                 resol = 3
+
+            # Wellington Intl has missing elevation data in 1" resolution
+            if (lat, lon) == (-42, 174):
+                resol = 3
+
             url = (
                 "http://viewfinderpanoramas.org/dem"
                 + str(resol)
