@@ -524,6 +524,10 @@ def read_elevation_from_file(
                 if not info_only:
                     alt_dem[alt_dem == nodata] = -32768
                 nodata = -32768
+                
+            #Replace NaN with nodata
+            alt_dem=numpy.nan_to_num(alt_dem,nan=nodata)
+            
             try:
                 epsg = int(ds.GetProjection().split('"')[-2])
             except:
