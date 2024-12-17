@@ -172,7 +172,7 @@ def build_masks(tile, for_imagery=False):
         )[1024 : 4096 + 1024, 1024 : 4096 + 1024]
         
         if tile.masks_custom_extent:
-            blured_mask = numpy.maximum(blured_mask, custom_mask)
+            blured_mask = numpy.maximum(blured_mask, custom_array)
 
         if not (blured_mask.max() == 0 or blured_mask.min() == 255):
             mask_im = Image.fromarray(blured_mask)
