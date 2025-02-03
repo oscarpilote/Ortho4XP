@@ -708,7 +708,13 @@ def build_mesh(tile):
             "It will be tempted now with no angle constraint ",
             "(i.e. min_angle=0).",
         )
-        mesh_cmd[-5] = "{:.9g}".format(0)
+        Tri_option = (
+        "-pq" + "{:.9g}".format(0) + do_refine + 
+        "uYB" + tri_verbosity + output_poly + limit_tris)
+       
+        mesh_cmd[1] =Tri_option
+        
+        UI.vprint(2, "   Mesh command:", " ".join(mesh_cmd))
         fingers_crossed = subprocess.Popen(
             mesh_cmd, stdout=subprocess.PIPE, bufsize=0
         )
