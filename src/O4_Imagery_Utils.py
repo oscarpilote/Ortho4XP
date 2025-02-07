@@ -54,9 +54,7 @@ request_headers_generic = {
 }
 
 if "dar" in sys.platform:
-    dds_convert_cmd = os.path.join(
-        UI.Ortho4XP_dir, "Utils", "mac", "nvcompress"
-    )
+    dds_convert_cmd = "magick"
     gdal_transl_cmd = "gdal_translate"
     gdalwarp_cmd = "gdalwarp"
     devnull_rdir = " >/dev/null 2>&1"
@@ -2062,7 +2060,7 @@ def gdalwarp_alternative(s_bbox, s_epsg, s_im, t_bbox, t_epsg, t_size):
             y += y_step
 
     inv_proj = GEO.transformer(t_epsg, s_epsg)
-    
+
     for quad in cut_quad_into_grid(t_quad, 8):
         s_quad = []
         for (t_pixx, t_pixy) in [
@@ -2434,23 +2432,42 @@ def convert_texture(
     # eventually the dds conversion
     if type == "dds":
         if not dxt5:
-            conv_cmd = [
-                dds_convert_cmd,
-                "-bc1",
-                "-fast",
-                file_to_convert,
-                os.path.join(tile.build_dir, "textures", out_file_name),
-                devnull_rdir,
-            ]
+            if "dar" in sys.platform:
+                conv_cmd = [
+                    dds_convert_cmd,
+                    "-define",
+                    "dds:compression=dxt3",
+                    file_to_convert,
+                    os.path.join(tile.build_dir, "textures", out_file_name)
+                ]
+            else:
+                conv_cmd = [
+                    dds_convert_cmd,
+                    "-bc1",
+                    "-fast",
+                    file_to_convert,
+                    os.path.join(tile.build_dir, "textures", out_file_name),
+                    devnull_rdir,
+                ]
         else:
-            conv_cmd = [
-                dds_convert_cmd,
-                "-bc3",
-                "-fast",
-                file_to_convert,
-                os.path.join(tile.build_dir, "textures", out_file_name),
-                devnull_rdir,
-            ]
+            if "dar" in sys.platform:
+                conv_cmd = [
+                    dds_convert_cmd,
+                    "-define",
+                    "dds:compression=dxt5",
+                    file_to_convert,
+                    os.path.join(tile.build_dir, "textures", out_file_name),
+                ]
+                print(conv_cmd)
+            else:
+                conv_cmd = [
+                    dds_convert_cmd,
+                    "-bc3",
+                    "-fast",
+                    file_to_convert,
+                    os.path.join(tile.build_dir, "textures", out_file_name),
+                    devnull_rdir,
+                ]
     else:
         (latmax, lonmin) = GEO.gtile_to_wgs84(til_x_left, til_y_top, zoomlevel)
         (latmin, lonmax) = GEO.gtile_to_wgs84(
