@@ -55,6 +55,9 @@ request_headers_generic = {
 
 if "dar" in sys.platform:
     dds_convert_cmd = "magick"
+    dds_convert_cmd = os.path.join(
+        UI.Ortho4XP_dir, "Utils", "mac", "DDSTool"
+    )
     gdal_transl_cmd = "gdal_translate"
     gdalwarp_cmd = "gdalwarp"
     devnull_rdir = " >/dev/null 2>&1"
@@ -2433,13 +2436,20 @@ def convert_texture(
     if type == "dds":
         if not dxt5:
             if "dar" in sys.platform:
+                # conv_cmd = [
+                #     dds_convert_cmd,
+                #     "-define",
+                #     "dds:compression=dxt3",
+                #     file_to_convert,
+                #     os.path.join(tile.build_dir, "textures", out_file_name)
+                # ]
                 conv_cmd = [
                     dds_convert_cmd,
-                    "-define",
-                    "dds:compression=dxt3",
+                    "--png2dxt1",
                     file_to_convert,
                     os.path.join(tile.build_dir, "textures", out_file_name)
                 ]
+                print(conv_cmd)
             else:
                 conv_cmd = [
                     dds_convert_cmd,
@@ -2451,12 +2461,18 @@ def convert_texture(
                 ]
         else:
             if "dar" in sys.platform:
+                # conv_cmd = [
+                #     dds_convert_cmd,
+                #     "-define",
+                #     "dds:compression=dxt5",
+                #     file_to_convert,
+                #     os.path.join(tile.build_dir, "textures", out_file_name),
+                # ]
                 conv_cmd = [
                     dds_convert_cmd,
-                    "-define",
-                    "dds:compression=dxt5",
+                    "--png2dxt5",
                     file_to_convert,
-                    os.path.join(tile.build_dir, "textures", out_file_name),
+                    os.path.join(tile.build_dir, "textures", out_file_name)
                 ]
                 print(conv_cmd)
             else:
