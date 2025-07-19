@@ -7,13 +7,7 @@ import itertools
 from math import sqrt
 import array
 import numpy
-
-try:
-    from osgeo import gdal
-    has_gdal = True
-    gdal.UseExceptions()
-except:
-    has_gdal = False
+import rasterio
 from PIL import Image
 import O4_UI_Utils as UI
 import O4_File_Names as FNAMES
@@ -501,14 +495,13 @@ def read_elevation_from_file(
         x1 = y1 = 1
         epsg = 4326
         nodata = -32768
-    elif has_gdal:
+    else:
         try:
-            ds = gdal.Open(file_name)
-            rs = ds.GetRasterBand(1)
+            dataset = rasterio.open(file_name)
             if not info_only:
-                alt_dem = rs.ReadAsArray().astype(numpy.float32)
-            (nxdem, nydem) = (ds.RasterXSize, ds.RasterYSize)
-            nodata = rs.GetNoDataValue()
+                alt_dem= dataset.read(1).astype(numpy.float32)
+            (nxdem, nydem)=(dataset.width, dataset.height)
+            nodata=dataset.nodata
             if nodata is None:
                 UI.vprint(
                     1,
@@ -525,11 +518,12 @@ def read_elevation_from_file(
                     alt_dem[alt_dem == nodata] = -32768
                 nodata = -32768
                 
-            #Replace NaN with nodata
+            #Replace nan with nodata
             alt_dem=numpy.nan_to_num(alt_dem,nan=nodata)
             
             try:
-                epsg = int(ds.GetProjection().split('"')[-2])
+                crs=dataset.crs
+                epsg=crs.to_epsg()
             except:
                 UI.vprint(
                     1,
@@ -550,7 +544,8 @@ def read_elevation_from_file(
                     ". Only EPSG:4326 is supported, result is likely to ",
                     "be non sense.",
                 )
-            geo = ds.GetGeoTransform()
+            transform=dataset.transform
+            geo=(transform.c, transform.a, transform.b, transform.f, transform.d, transform.e)
             # We are assuming AREA_OR_POINT is area here
             x0 = geo[0] + 0.5 * geo[1] - lon
             y1 = geo[3] + 0.5 * geo[5] - lat
@@ -572,22 +567,6 @@ def read_elevation_from_file(
             x1 = y1 = 1
             epsg = 4326
             nodata = -32768
-    elif not has_gdal:
-        UI.lvprint(
-            1,
-            "   WARNING: unsupported raster (install Gdal):",
-            file_name,
-            "-> replaced with zero altitude.",
-        )
-        nxdem = nydem = base_if_error
-        if not info_only:
-            alt_dem = numpy.zeros(
-                (base_if_error, base_if_error), dtype=numpy.float32
-            )
-        x0 = y0 = 0
-        x1 = y1 = 1
-        epsg = 4326
-        nodata = -32768
     return (epsg, x0, y0, x1, y1, nodata, nxdem, nydem, alt_dem)
 
 
