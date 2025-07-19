@@ -5,3 +5,4 @@ requests
 Rtree
 Shapely
 scikit-fmm
+rasterio
