@@ -701,51 +701,44 @@ def build_mesh(tile):
                 pass
     time.sleep(0.3)
     fingers_crossed.poll()
-    if fingers_crossed.returncode:
-        
-      min_angles_to_try = [5, 2, 0]
 
-      for mina in min_angles_to_try:
-      
-        print("\n\nWARNING: Triangle4XP could not achieve the requested quality",
-              "(min_angle), most probably due to an uncatched OSM error\n",
-              f"        It will be retried with lower value (min_angle = {mina})\n\n")
-           
-        Tri_option = (
-        "-pq" + "{:.9g}".format(mina) + do_refine + 
-        "uYB" + tri_verbosity + output_poly + limit_tris)
-       
-        mesh_cmd[1] =Tri_option
-        
-        UI.vprint(2, "   Mesh command:", " ".join(mesh_cmd))
-        fingers_crossed = subprocess.Popen(
-            mesh_cmd, stdout=subprocess.PIPE, bufsize=0
-        )
-        
-        while True:
-            line = fingers_crossed.stdout.readline()
-            if not line:
+    if fingers_crossed.returncode:
+        min_angles_to_try = [5, 2, 0]
+        for mina in min_angles_to_try:
+            print(
+                "\n\nWARNING: Triangle4XP could not achieve the requested quality",
+                "(min_angle), most probably due to an uncatched OSM error\n",
+                f"        It will be retried with lower value (min_angle = {mina})\n\n",
+            )
+
+            Tri_option = (
+               "-pq" + "{:.9g}".format(mina) + do_refine +
+               "uYB" + tri_verbosity + output_poly + limit_tris
+            )
+
+            mesh_cmd[1] = Tri_option
+
+            UI.vprint(2, "   Mesh command:", " ".join(mesh_cmd))
+            fingers_crossed = subprocess.Popen(mesh_cmd, stdout=subprocess.PIPE, bufsize=0)
+
+            while True:
+                line = fingers_crossed.stdout.readline()
+                if not line:
+                    break
+                else:
+                    try:
+                        print(line.decode("utf-8")[:-1])
+                    except:
+                        pass
+            time.sleep(0.3)
+            fingers_crossed.poll()
+
+            if fingers_crossed.returncode == 0:
+                # If return code is 0, process succeeded
+                print(f"\nSuccess with min_angle = {mina}\n")
                 break
-            else:
-                try:
-                    print(line.decode("utf-8")[:-1])
-                except:
-                    pass
-        time.sleep(0.3)
-        fingers_crossed.poll()
-        if fingers_crossed.returncode is None:
-           # Process hasn't exited yet; continue waiting
-           continue
-    
-         # If return code indicates an error, print a warning and try next min_angle
-        if fingers_crossed.returncode != 0:
-           continue
-        else:
-           # If return code is 0, process succeeded
-           print(f"\nSuccess with min_angle = {mina}\n")
-           break
-                    
-      if fingers_crossed.returncode:
+
+        if fingers_crossed.returncode:
             UI.exit_message_and_bottom_line(
                 "\nERROR: Triangle4XP really couldn't make it !\n\n",
                 "If the reason is not due to the limited amount of ",
