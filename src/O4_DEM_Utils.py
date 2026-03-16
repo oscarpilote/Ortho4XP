@@ -7,13 +7,7 @@ import itertools
 from math import sqrt
 import array
 import numpy
-
-try:
-    from osgeo import gdal
-    has_gdal = True
-    gdal.UseExceptions()
-except:
-    has_gdal = False
+import rasterio
 from PIL import Image
 import O4_UI_Utils as UI
 import O4_File_Names as FNAMES
@@ -501,14 +495,13 @@ def read_elevation_from_file(
         x1 = y1 = 1
         epsg = 4326
         nodata = -32768
-    elif has_gdal:
+    else:
         try:
-            ds = gdal.Open(file_name)
-            rs = ds.GetRasterBand(1)
+            dataset = rasterio.open(file_name)
             if not info_only:
-                alt_dem = rs.ReadAsArray().astype(numpy.float32)
-            (nxdem, nydem) = (ds.RasterXSize, ds.RasterYSize)
-            nodata = rs.GetNoDataValue()
+                alt_dem= dataset.read(1).astype(numpy.float32)
+            (nxdem, nydem)=(dataset.width, dataset.height)
+            nodata=dataset.nodata
             if nodata is None:
                 UI.vprint(
                     1,
@@ -516,16 +509,21 @@ def read_elevation_from_file(
                     "value, assuming -32768.",
                 )
                 nodata = -32768
-            else:  
-                # elevations being stored as float32, we push the nodata to that 
-                # framework too, and then replace no_data values by -32768 
+            else:
+                # elevations being stored as float32, we push the nodata to that
+                # framework too, and then replace no_data values by -32768
                 # anyway for uniformity
                 nodata = numpy.float32(nodata)
                 if not info_only:
                     alt_dem[alt_dem == nodata] = -32768
                 nodata = -32768
+                
+            #Replace nan with nodata
+            alt_dem=numpy.nan_to_num(alt_dem,nan=nodata)
+            
             try:
-                epsg = int(ds.GetProjection().split('"')[-2])
+                crs=dataset.crs
+                epsg=crs.to_epsg()
             except:
                 UI.vprint(
                     1,
@@ -536,8 +534,8 @@ def read_elevation_from_file(
             if epsg not in (
                 4326,
                 4269,
-            ):  
-            # let's be blind about 4269 which might be sufficiently close to 
+            ):
+            # let's be blind about 4269 which might be sufficiently close to
             # 4326 for our purposes
                 UI.lvprint(
                     1,
@@ -546,7 +544,8 @@ def read_elevation_from_file(
                     ". Only EPSG:4326 is supported, result is likely to ",
                     "be non sense.",
                 )
-            geo = ds.GetGeoTransform()
+            transform=dataset.transform
+            geo=(transform.c, transform.a, transform.b, transform.f, transform.d, transform.e)
             # We are assuming AREA_OR_POINT is area here
             x0 = geo[0] + 0.5 * geo[1] - lon
             y1 = geo[3] + 0.5 * geo[5] - lat
@@ -568,22 +567,6 @@ def read_elevation_from_file(
             x1 = y1 = 1
             epsg = 4326
             nodata = -32768
-    elif not has_gdal:
-        UI.lvprint(
-            1,
-            "   WARNING: unsupported raster (install Gdal):",
-            file_name,
-            "-> replaced with zero altitude.",
-        )
-        nxdem = nydem = base_if_error
-        if not info_only:
-            alt_dem = numpy.zeros(
-                (base_if_error, base_if_error), dtype=numpy.float32
-            )
-        x0 = y0 = 0
-        x1 = y1 = 1
-        epsg = 4326
-        nodata = -32768
     return (epsg, x0, y0, x1, y1, nodata, nxdem, nydem, alt_dem)
 
 
@@ -592,90 +575,64 @@ def read_elevation_from_file(
 ##############################################################################
 def ensure_elevation(source, lat, lon, verbose=True):
     if source == "View":
-        # Viewfinderpanorama grouping of files and resolutions is a 
+        # Viewfinderpanorama grouping of files and resolutions is a
         # bit complicated...
-        if (lat, lon) in (
-            (44, 5),
-            (45, 5),
-            (46, 5),
-            (43, 6),
-            (44, 6),
-            (45, 6),
-            (46, 6),
-            (47, 6),
-            (43, 7),
-            (44, 7),
-            (45, 7),
-            (46, 7),
-            (47, 7),
-            (45, 8),
-            (46, 8),
-            (47, 8),
-            (45, 9),
-            (46, 9),
-            (47, 9),
-            (45, 10),
-            (46, 10),
-            (47, 10),
-            (45, 11),
-            (46, 11),
-            (47, 11),
-            (45, 12),
-            (46, 12),
-            (47, 12),
-            (46, 13),
-            (47, 13),
-            (46, 14),
-            (47, 14),
-            (46, 15),
-            (47, 15),
-        ):
-            resol = 1
-            url = (
-                "http://viewfinderpanoramas.org/dem1/"
-                + os.path.basename(FNAMES.base_file_name(lat, lon)).lower()
-                + ".zip"
-            )
+
+        deferranti_nbr = 31 + lon // 6
+        if deferranti_nbr < 10:
+            deferranti_nbr = "0" + str(deferranti_nbr)
         else:
-            deferranti_nbr = 31 + lon // 6
-            if deferranti_nbr < 10:
-                deferranti_nbr = "0" + str(deferranti_nbr)
-            else:
-                deferranti_nbr = str(deferranti_nbr)
-            alphabet = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-            deferranti_letter = (
-                alphabet[lat // 4] if lat >= 0 else alphabet[(-1 - lat) // 4]
-            )
-            if lat < 0:
-                deferranti_letter = "S" + deferranti_letter
-            if deferranti_letter + deferranti_nbr in (
-                "O31",
-                "P31",
-                "N32",
-                "O32",
-                "P32",
-                "Q32",
-                "N33",
-                "O33",
-                "P33",
-                "Q33",
-                "R33",
-                "O34",
-                "P34",
-                "Q34",
-                "R34",
-                "O35",
-                "P35",
-                "Q35",
-                "R35",
-                "P36",
-                "Q36",
-                "R36",
+            deferranti_nbr = str(deferranti_nbr)
+        alphabet = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+        deferranti_letter = (
+            alphabet[lat // 4] if lat >= 0 else alphabet[(-1 - lat) // 4]
+        )
+        if lat < 0:
+            deferranti_letter = "S" + deferranti_letter
+        if deferranti_letter + deferranti_nbr in (
+               # "L31",
+               # "L32",
+               # "L33",
+               # "K32",
+               # "O31",
+               # "P31",
+               # "N32",
+               # "O32",
+               # "P32",
+               # "Q32",
+               # "N33",
+               # "O33",
+               # "P33",
+               # "Q33",
+               # "R33",
+               # "O34",
+               # "P34",
+               # "Q34",
+               # "R34",
+               # "O35",
+               # "P35",
+               # "Q35",
+               # "R35",
+               # "P36",
+               # "Q36",
+               # "R36",
+                 #Greenland
+                "U19","U20","U21","U22","U23","U24","U25","U26","U27","U28","U29",
+                "T18","T19","T20","T21","T22","T23","T24","T25","T26","T27","T28",
+                "S19","S20","S21","S22","S23","S24","S25","S26","S27","S28",
+                "R21","R22","R23","R24","R25","R26","R27",
+                "Q22","Q23","Q24","Q25",
+                "P22","P23","P24",
+                "O23",
             ):
                 resol = 1
-            else:
+        else:
                 resol = 3
-            url = (
+                # 3" DEM elevation data for Iceland
+                if deferranti_letter+str(deferranti_nbr) in ("Q27","Q28"):
+                   deferranti_letter = "ISL"
+                   deferranti_nbr = ""
+        url = (
                 "http://viewfinderpanoramas.org/dem"
                 + str(resol)
                 + "/"
@@ -719,7 +676,7 @@ def ensure_elevation(source, lat, lon, verbose=True):
                 if ("W" in fname) or ("w" in fname):
                     lon0 *= -1
                 out_filename = FNAMES.viewfinderpanorama(lat0, lon0)
-                # we don't wish to overwrite a 1" version by downloading 
+                # we don't wish to overwrite a 1" version by downloading
                 # the whole archive of a nearby 3" one
                 if (
                     not os.path.exists(out_filename)
@@ -741,7 +698,7 @@ def ensure_elevation(source, lat, lon, verbose=True):
             "    WARNING : This elevation source has no longer direct downloads !"
         )
         return 0
-        # TODO : is there a way to get it back (worth it ?) 
+        # TODO : is there a way to get it back (worth it ?)
         url = "https://cloud.sdsc.edu/v1/AUTH_opentopography/Raster/"
         if source == "SRTM":
             url += "SRTM_GL1/SRTM_GL1_srtm/"
