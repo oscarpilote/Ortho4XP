@@ -34,7 +34,7 @@ import O4_Tile_Utils as TILE
 import O4_UI_Utils as UI
 import O4_Config_Utils as CFG
 
-# Set OsX=True if you prefer the OsX way of drawing existing tiles but 
+# Set OsX=True if you prefer the OsX way of drawing existing tiles but
 # are on Linux or Windows.
 OsX = "dar" in sys.platform
 
@@ -158,7 +158,7 @@ class Ortho4XP_GUI(tk.Tk):
         # Widgets instances and placement
         # First row (Tile data)
         self.lat = tk.StringVar()
-        self.lat.trace("w", self.tile_change)
+        self.lat.trace_add("write", self.tile_change)
         tk.Label(self.frame_tile, text="Latitude:", bg="light green").grid(
             row=0, column=0, padx=5, pady=5, sticky=E + W
         )
@@ -172,7 +172,7 @@ class Ortho4XP_GUI(tk.Tk):
         self.lat_entry.grid(row=0, column=1, padx=5, pady=5, sticky=W)
 
         self.lon = tk.StringVar()
-        self.lon.trace("w", self.tile_change)
+        self.lon.trace_add("write", self.tile_change)
         tk.Label(
             self.frame_tile, anchor=W, text="Longitude:", bg="light green"
         ).grid(row=0, column=2, padx=5, pady=5, sticky=E + W)
@@ -186,7 +186,7 @@ class Ortho4XP_GUI(tk.Tk):
         self.lon_entry.grid(row=0, column=3, padx=5, pady=5, sticky=W)
 
         self.default_website = tk.StringVar()
-        self.default_website.trace("w", self.update_cfg)
+        self.default_website.trace_add("write", self.update_cfg)
         tk.Label(
             self.frame_tile, anchor=W, text="Imagery:", bg="light green"
         ).grid(row=0, column=4, padx=5, pady=5, sticky=E + W)
@@ -201,7 +201,7 @@ class Ortho4XP_GUI(tk.Tk):
         self.img_combo.grid(row=0, column=5, padx=5, pady=5, sticky=W)
 
         self.default_zl = tk.StringVar()
-        self.default_zl.trace("w", self.update_cfg)
+        self.default_zl.trace_add("write", self.update_cfg)
         tk.Label(
             self.frame_tile, anchor=W, text="Zoomlevel:", bg="light green"
         ).grid(row=0, column=6, padx=5, pady=5, sticky=E + W)
@@ -405,8 +405,8 @@ class Ortho4XP_GUI(tk.Tk):
         self.callback_pgrb = self.after(100, self.pgrb_update)
 
     def tile_change(self, *args):
-        # HACK : user preference is to not trash custom_dem and zone_list on 
-        # tile change. Instead added a new shortcut for trashing all high zl 
+        # HACK : user preference is to not trash custom_dem and zone_list on
+        # tile change. Instead added a new shortcut for trashing all high zl
         # list in the custom ZL window at once.
         return
         CFG.custom_dem = ""
@@ -898,7 +898,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
             0, 0, anchor=NW, image=self.photo
         )
         self.canvas.config(scrollregion=self.canvas.bbox(ALL))
-        if "dar" in sys.platform:
+        if "dar" in sys.platform and tk.TkVersion < 9:
             self.canvas.bind("<ButtonPress-2>", self.scroll_start)
             self.canvas.bind("<B2-Motion>", self.scroll_move)
             self.canvas.bind("<Control-ButtonPress-2>", self.delPol)
@@ -1366,7 +1366,7 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
         self.canvas.yview_moveto(y0 / self.resolution)
         self.nx0 = int((8 * x0) // self.resolution)
         self.ny0 = int((8 * y0) // self.resolution)
-        if "dar" in sys.platform:
+        if "dar" in sys.platform and tk.TkVersion < 9:
             self.canvas.bind("<ButtonPress-2>", self.scroll_start)
             self.canvas.bind("<B2-Motion>", self.scroll_move)
         else:
@@ -1434,7 +1434,7 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
                         lon = int(dir_name.split("XP_")[1][3:7])
                     except:
                         continue
-                    # With the enlarged accepetance rule for directory name 
+                    # With the enlarged accepetance rule for directory name
                     # there might be more than one tile for the same (lat,lon),
                     # we skip all but the first encountered.
                     if (lat, lon) in self.dico_tiles_done:
