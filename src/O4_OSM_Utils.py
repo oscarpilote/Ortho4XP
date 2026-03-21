@@ -11,12 +11,14 @@ import O4_File_Names as FNAMES
 
 overpass_servers = {
     "DE": "http://overpass-api.de/api/interpreter",
+    "PC": "https://overpass.private.coffee/api/interpreter",
+    "VK": "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
     "FR": "http://api.openstreetmap.fr/oapi/interpreter",
     "KU": "https://overpass.kumi.systems/api/interpreter",
     "RU": "http://overpass.osm.rambler.ru/cgi/interpreter",
 }
 overpass_server_choice = "DE"
-max_osm_tentatives = 8
+max_osm_tentatives = 80
 
 ################################################################################
 class OSM_layer:
@@ -542,7 +544,7 @@ def get_overpass_data(query, bbox, server_code=None):
                         true_server_code,
                         "sent a corrupted answer (no closing </osm> tag in ",
                         "answer), new tentative in",
-                        2 ** tentative,
+                        min(2 ** tentative, 120),
                         "sec...",
                     )
                 elif len(r.content) <= 1000 and b"error" in r.content:
@@ -552,7 +554,7 @@ def get_overpass_data(query, bbox, server_code=None):
                         true_server_code,
                         "sent us an error code for the data (data too big ?), ",
                         "new tentative in",
-                        2 ** tentative,
+                        min(2 ** tentative, 120),
                         "sec...",
                     )
                 else:
@@ -563,7 +565,7 @@ def get_overpass_data(query, bbox, server_code=None):
                     "        OSM server",
                     true_server_code,
                     "rejected our query, new tentative in",
-                    2 ** tentative,
+                    min(2 ** tentative, 120),
                     "sec...",
                 )
         except:
@@ -572,14 +574,14 @@ def get_overpass_data(query, bbox, server_code=None):
                 "        OSM server",
                 true_server_code,
                 "was too busy, new tentative in",
-                2 ** tentative,
+                min(2 ** tentative, 120),
                 "sec...",
             )
         if tentative >= max_osm_tentatives:
             return 0
         if UI.red_flag:
             return 0
-        time.sleep(2 ** tentative)
+        time.sleep(min(2 ** tentative, 120))
         tentative += 1
     return r.content
 
