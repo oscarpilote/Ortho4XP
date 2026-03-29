@@ -9,6 +9,30 @@ from PyInstaller.utils.hooks import collect_submodules
 # rather than letting PyInstaller pick up the outdated one bundled with pyproj.
 # Supports macOS, Linux, and Windows.
 # ---------------------------------------------------------------------------
+def get_osgeo4w_root():
+    """Look up the OSGeo4W install location from the Windows registry.
+    Falls back to the OSGEO4W_ROOT environment variable if the registry
+    key is not found, and returns None if neither is available."""
+    try:
+        import winreg
+        for hive in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+            for key_path in (
+                r"SOFTWARE\OSGeo4W",
+                r"SOFTWARE\WOW6432Node\OSGeo4W",  # 32-bit install on 64-bit Windows
+            ):
+                try:
+                    with winreg.OpenKey(hive, key_path) as key:
+                        value, _ = winreg.QueryValueEx(key, "InstallPath")
+                        if value and os.path.isdir(value):
+                            return value
+                except OSError:
+                    continue
+    except ImportError:
+        pass  # Not on Windows
+    # Fall back to environment variable if set
+    return os.environ.get("OSGEO4W_ROOT")
+
+
 def get_system_proj_db():
     # First, try asking the 'proj' CLI for its search path.
     # Windows uses ';' as the path separator; macOS/Linux use ':'.
@@ -24,13 +48,12 @@ def get_system_proj_db():
 
     # Fallback: common install locations per platform
     if os.name == "nt":
-        # Windows: OSGeo4W and conda are the most common PROJ providers
-        osgeo = os.environ.get("OSGEO4W_ROOT", r"C:\OSGeo4W")
+        osgeo = get_osgeo4w_root()
         conda = os.environ.get("CONDA_PREFIX", "")
         candidates = [
-            os.path.join(osgeo, "share", "proj"),                    # OSGeo4W
-            os.path.join(conda, "Library", "share", "proj"),         # conda on Windows
-            r"C:\Program Files\PROJ\share\proj",                     # standalone PROJ installer
+            os.path.join(osgeo, "share", "proj") if osgeo else None,    # OSGeo4W (registry-resolved)
+            os.path.join(conda, "Library", "share", "proj") if conda else None,  # conda on Windows
+            r"C:\Program Files\PROJ\share\proj",                         # standalone PROJ installer
         ]
     else:
         candidates = [
