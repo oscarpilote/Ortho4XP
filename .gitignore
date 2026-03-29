@@ -17,6 +17,5 @@ venv*/
 **/Thumbs.db
 **/*.bak
 **/*.swp
-*.spec
 .last_gui_params.txt
 .DS_Store
