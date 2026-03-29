@@ -594,61 +594,22 @@ def ensure_elevation(source, lat, lon, verbose=True):
     if source == "View":
         # Viewfinderpanorama grouping of files and resolutions is a 
         # bit complicated...
-        if (lat, lon) in (
-            (44, 5),
-            (45, 5),
-            (46, 5),
-            (43, 6),
-            (44, 6),
-            (45, 6),
-            (46, 6),
-            (47, 6),
-            (43, 7),
-            (44, 7),
-            (45, 7),
-            (46, 7),
-            (47, 7),
-            (45, 8),
-            (46, 8),
-            (47, 8),
-            (45, 9),
-            (46, 9),
-            (47, 9),
-            (45, 10),
-            (46, 10),
-            (47, 10),
-            (45, 11),
-            (46, 11),
-            (47, 11),
-            (45, 12),
-            (46, 12),
-            (47, 12),
-            (46, 13),
-            (47, 13),
-            (46, 14),
-            (47, 14),
-            (46, 15),
-            (47, 15),
-        ):
-            resol = 1
-            url = (
-                "http://viewfinderpanoramas.org/dem1/"
-                + os.path.basename(FNAMES.base_file_name(lat, lon)).lower()
-                + ".zip"
-            )
+        deferranti_nbr = 31 + lon // 6
+        if deferranti_nbr < 10:
+            deferranti_nbr = "0" + str(deferranti_nbr)
         else:
-            deferranti_nbr = 31 + lon // 6
-            if deferranti_nbr < 10:
-                deferranti_nbr = "0" + str(deferranti_nbr)
-            else:
-                deferranti_nbr = str(deferranti_nbr)
-            alphabet = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
-            deferranti_letter = (
-                alphabet[lat // 4] if lat >= 0 else alphabet[(-1 - lat) // 4]
-            )
-            if lat < 0:
-                deferranti_letter = "S" + deferranti_letter
-            if deferranti_letter + deferranti_nbr in (
+            deferranti_nbr = str(deferranti_nbr)
+        alphabet = list("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+        deferranti_letter = (
+            alphabet[lat // 4] if lat >= 0 else alphabet[(-1 - lat) // 4]
+        )
+        if lat < 0:
+            deferranti_letter = "S" + deferranti_letter
+        if deferranti_letter + deferranti_nbr in (
+                "L31",
+                "L32",
+                "L33",
+                "K32",
                 "O31",
                 "P31",
                 "N32",
@@ -671,22 +632,37 @@ def ensure_elevation(source, lat, lon, verbose=True):
                 "P36",
                 "Q36",
                 "R36",
+                # New Zealand
+                "SL58",
+                "SI59",
+                "SJ59",
+                "SK59",
+                "SL59",
+                "SI60",
+                "SJ60",
+                "SK60",
+                "SL60",
             ):
                 resol = 1
-            else:
-                resol = 3
-            url = (
-                "http://viewfinderpanoramas.org/dem"
-                + str(resol)
-                + "/"
-                + deferranti_letter
-                + deferranti_nbr
-                + ".zip"
-            )
-        if os.path.exists(FNAMES.viewfinderpanorama(lat, lon)) and (
-            resol == 3
-            or os.path.getsize(FNAMES.viewfinderpanorama(lat, lon)) >= 25934402
-        ):
+        else:
+            resol = 3
+        # Wellington Intl has missing elevation data in 1" resolution
+        if (lat, lon) == (-42, 174):
+            resol = 3
+        url = (
+            "http://viewfinderpanoramas.org/dem"
+            + str(resol)
+            + "/"
+            + deferranti_letter
+            + deferranti_nbr
+            + ".zip"
+        )
+        # if os.path.exists(FNAMES.viewfinderpanorama(lat, lon)) and (
+        #     resol == 3
+        #     or os.path.getsize(FNAMES.viewfinderpanorama(lat, lon)) >= 25934402
+        # ):
+        #  Removed check for resol and file size as this was causing issues with using custom_dems
+        if os.path.exists(FNAMES.viewfinderpanorama(lat, lon)):
             UI.vprint(2, "   Recycling ", FNAMES.viewfinderpanorama(lat, lon))
             return 1
         UI.vprint(

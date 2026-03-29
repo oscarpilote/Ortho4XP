@@ -13,15 +13,21 @@ ovl_exclude_net = []
 
 # the following is meant to be modified by the CFG module at run time
 custom_overlay_src = ""
+custom_overlay_src_alternate = ""
 
 if "dar" in sys.platform:
-    unzip_cmd = "7z "
+    unzip_cmd = os.path.join(FNAMES.Utils_dir, "mac", "7zz")
+    # As of version 1.40.08, the 7zz executable was added to Utils/mac
+    # For user upgrading from previous versions (only updated the Ortho4XP executable),
+    # we continue to use 7z installed on the system.
+    if not os.path.exists(unzip_cmd):
+        unzip_cmd = "7z"
     dsftool_cmd = os.path.join(FNAMES.Utils_dir, "mac", "DSFTool ")
 elif "win" in sys.platform:
-    unzip_cmd = os.path.join(FNAMES.Utils_dir, "win", "7z.exe ")
+    unzip_cmd = os.path.join(FNAMES.Utils_dir, "win", "7z.exe")
     dsftool_cmd = os.path.join(FNAMES.Utils_dir, "win", "DSFTool.exe ")
 else:
-    unzip_cmd = "7z "
+    unzip_cmd = "7z"
     dsftool_cmd = os.path.join(FNAMES.Utils_dir, "lin", "DSFTool ")
 
 ################################################################################
@@ -41,7 +47,13 @@ def build_overlay(lat, lon):
         custom_overlay_src,
         "Earth nav data",
         FNAMES.long_latlon(lat, lon) + ".dsf",
-    )
+        )
+    if not os.path.exists(file_to_sniff):
+        file_to_sniff = os.path.join(
+        custom_overlay_src_alternate,
+        "Earth nav data",
+        FNAMES.long_latlon(lat, lon) + ".dsf",
+        )
     if not os.path.exists(file_to_sniff):
         UI.exit_message_and_bottom_line(
             "   ERROR: file ",
@@ -68,14 +80,7 @@ def build_overlay(lat, lon):
     if dsfid == "7z":
         UI.vprint(1, "-> The original DSF is a 7z archive, uncompressing...")
         os.replace(file_to_sniff_loc, file_to_sniff_loc + ".7z")
-        os.system(
-            unzip_cmd
-            + " e -o"
-            + FNAMES.Tmp_dir
-            + ' "'
-            + file_to_sniff_loc
-            + '.7z"'
-        )
+        subprocess.run([unzip_cmd, "e", f"-o{FNAMES.Tmp_dir}", f"{file_to_sniff_loc}.7z"])
         os.remove(file_to_sniff_loc + ".7z")
     UI.vprint(1, "-> Converting the copy to text format")
     dsfconvertcmd = [
@@ -198,7 +203,7 @@ def build_overlay(lat, lon):
     dest_dir = os.path.join(
         FNAMES.Overlay_dir, "Earth nav data", FNAMES.round_latlon(lat, lon)
     )
-    UI.vprint(1, "-> Coping the final overlay DSF in " + dest_dir)
+    UI.vprint(1, "-> Copying the final overlay DSF in " + dest_dir)
     if not os.path.exists(dest_dir):
         try:
             os.makedirs(dest_dir)

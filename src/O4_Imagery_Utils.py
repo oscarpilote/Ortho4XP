@@ -1,22 +1,25 @@
-from O4_Parallel_Utils import parallel_execute
-import O4_Mask_Utils as MASK
-import O4_OSM_Utils as OSM
-import O4_Mesh_Utils as MESH
-import O4_Vector_Utils as VECT
-import O4_File_Names as FNAMES
-import O4_Geo_Utils as GEO
-import O4_UI_Utils as UI
-import time
-import os
-import sys
-import subprocess
 import io
-import requests
+import os
 import queue
 import random
-from math import ceil, log, tan, pi
+import subprocess
+import sys
+import time
+from math import ceil, log, pi, tan
+from pathlib import Path
+
 import numpy
-from PIL import Image, ImageFilter, ImageEnhance, ImageOps
+from PIL import Image, ImageEnhance, ImageFilter, ImageOps
+import requests
+
+import O4_File_Names as FNAMES
+import O4_Geo_Utils as GEO
+import O4_Mask_Utils as MASK
+import O4_Mesh_Utils as MESH
+import O4_OSM_Utils as OSM
+import O4_UI_Utils as UI
+import O4_Vector_Utils as VECT
+from O4_Parallel_Utils import parallel_execute
 
 Image.MAX_IMAGE_PIXELS = 1000000000  # Not a decompression bomb attack!
 
@@ -42,6 +45,8 @@ http_timeout = 10
 check_tms_response = False
 max_connect_retries = 10
 max_baddata_retries = 10
+incomplete_imgs = {}
+
 
 user_agent_generic = (
     "Mozilla/5.0 (X11; Linux x86_64; rv:52.0) Gecko/20100101 Firefox/52.0"
@@ -55,14 +60,14 @@ request_headers_generic = {
 
 if "dar" in sys.platform:
     dds_convert_cmd = os.path.join(
-        UI.Ortho4XP_dir, "Utils", "mac", "nvcompress"
+        FNAMES.resource_path("Utils"), "mac", "DDSTool"
     )
     gdal_transl_cmd = "gdal_translate"
     gdalwarp_cmd = "gdalwarp"
     devnull_rdir = " >/dev/null 2>&1"
 elif "win" in sys.platform:
     dds_convert_cmd = os.path.join(
-        UI.Ortho4XP_dir, "Utils", "win", "nvcompress", "nvcompress.exe"
+        FNAMES.resource_path("Utils"), "win", "nvcompress", "nvcompress.exe"
     )
     gdal_transl_cmd = "gdal_translate.exe"
     gdalwarp_cmd = "gdalwarp.exe"
@@ -70,7 +75,7 @@ elif "win" in sys.platform:
 else:
     #dds_convert_cmd = "nvcompress"
     dds_convert_cmd = os.path.join(
-        UI.Ortho4XP_dir, "Utils", "lin", "nvcompress"
+        FNAMES.resource_path("Utils"), "lin", "nvcompress"
         )
     gdal_transl_cmd = "gdal_translate"
     gdalwarp_cmd = "gdalwarp"
@@ -1580,6 +1585,8 @@ def download_jpeg_ortho(
             "could not be obtained ",
             "(even at lower ZL), it was filled with white there.",
         )
+        tile_coords = Path(file_dir).parent.name
+        incomplete_imgs.setdefault(tile_coords, []).append(file_name)
     if not os.path.exists(file_dir):
         os.makedirs(file_dir)
     try:
@@ -2307,8 +2314,7 @@ def convert_texture(
                 pass
         png_file_name = out_file_name.replace("tif", "png")
         tmp_tif_file_name = os.path.join(
-            UI.Ortho4XP_dir, "tmp", out_file_name.replace("4326", "3857")
-        )
+            FNAMES.resource_path("tmp"), out_file_name.replace("4326", "3857"))
     UI.vprint(
         1, "   Converting orthophoto(s) to build texture " + out_file_name + "."
     )
@@ -2389,7 +2395,7 @@ def convert_texture(
                 except:
                     pass
             dxt5 = True
-        file_to_convert = os.path.join(UI.Ortho4XP_dir, "tmp", png_file_name)
+        file_to_convert = os.path.join(FNAMES.resource_path("tmp"), png_file_name)
         erase_tmp_png = True
         big_image.save(file_to_convert)
         # If one wanted to distribute jpegs instead of dds, uncomment the
@@ -2425,7 +2431,7 @@ def convert_texture(
                 except:
                     pass
             dxt5 = True
-        file_to_convert = os.path.join(UI.Ortho4XP_dir, "tmp", png_file_name)
+        file_to_convert = os.path.join(FNAMES.resource_path("tmp"), png_file_name)
         erase_tmp_png = True
         big_image.save(file_to_convert)
     # finally if nothing needs to be done prior to the conversion
@@ -2434,23 +2440,39 @@ def convert_texture(
     # eventually the dds conversion
     if type == "dds":
         if not dxt5:
-            conv_cmd = [
-                dds_convert_cmd,
-                "-bc1",
-                "-fast",
-                file_to_convert,
-                os.path.join(tile.build_dir, "textures", out_file_name),
-                devnull_rdir,
-            ]
+            if "dar" in sys.platform:
+                conv_cmd = [
+                    dds_convert_cmd,
+                    "--png2dxt1",
+                    file_to_convert,
+                    os.path.join(tile.build_dir, "textures", out_file_name)
+                ]
+            else:
+                conv_cmd = [
+                    dds_convert_cmd,
+                    "-bc1",
+                    "-fast",
+                    file_to_convert,
+                    os.path.join(tile.build_dir, "textures", out_file_name),
+                    devnull_rdir,
+                ]
         else:
-            conv_cmd = [
-                dds_convert_cmd,
-                "-bc3",
-                "-fast",
-                file_to_convert,
-                os.path.join(tile.build_dir, "textures", out_file_name),
-                devnull_rdir,
-            ]
+            if "dar" in sys.platform:
+                conv_cmd = [
+                    dds_convert_cmd,
+                    "--png2dxt5",
+                    file_to_convert,
+                    os.path.join(tile.build_dir, "textures", out_file_name)
+                ]
+            else:
+                conv_cmd = [
+                    dds_convert_cmd,
+                    "-bc3",
+                    "-fast",
+                    file_to_convert,
+                    os.path.join(tile.build_dir, "textures", out_file_name),
+                    devnull_rdir,
+                ]
     else:
         (latmax, lonmin) = GEO.gtile_to_wgs84(til_x_left, til_y_top, zoomlevel)
         (latmin, lonmax) = GEO.gtile_to_wgs84(
@@ -2503,7 +2525,7 @@ def convert_texture(
                 )
                 try:
                     os.remove(
-                        os.path.join(UI.Ortho4XP_dir, "tmp", png_file_name)
+                        os.path.join(FNAMES.resource_path("tmp"), png_file_name)
                     )
                 except:
                     pass
@@ -2548,12 +2570,12 @@ def convert_texture(
         time.sleep(1)
     if erase_tmp_png:
         try:
-            os.remove(os.path.join(UI.Ortho4XP_dir, "tmp", png_file_name))
+            os.remove(os.path.join(FNAMES.resource_path("tmp"), png_file_name))
         except:
             pass
     if erase_tmp_tif:
         try:
-            os.remove(os.path.join(UI.Ortho4XP_dir, "tmp", png_file_name))
+            os.remove(os.path.join(FNAMES.resource_path("tmp"), png_file_name))
         except:
             pass
     return

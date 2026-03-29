@@ -1,10 +1,10 @@
-certifi==2023.7.22
-chardet==4.0.0
-idna==2.10
-numpy==1.21.0
-Pillow==10.2.0
-pyproj==3.1.0
-requests==2.31.0
-Rtree==0.9.7
-Shapely==1.7.1
-urllib3==1.26.18
+numpy==2.3.4
+pillow==12.0.0
+pyproj==3.7.2
+requests==2.32.5
+Rtree==1.4.1
+shapely==2.1.2
+scikit-fmm==2025.6.23
+gdal==3.11.4; platform_system == 'Darwin'
+gdal==3.11.1; platform_system == 'Windows'
+gdal==3.9.0; platform_system == 'Linux'

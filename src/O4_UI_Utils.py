@@ -2,7 +2,8 @@ import os
 import sys
 import time
 
-Ortho4XP_dir = ".." if getattr(sys, "frozen", False) else "."
+import O4_File_Names as FNAMES
+
 verbosity = 1
 red_flag = False
 is_working = False
@@ -25,7 +26,7 @@ def vprint(min_verbosity, *args):
 ################################################################################
 def logprint(*args):
     try:
-        f = open(os.path.join(Ortho4XP_dir, "Ortho4XP.log"), "a")
+        f = open(FNAMES.resource_path("Ortho4XP.log"), "a")
         f.write(
             time.strftime("%c")
             + " | "
