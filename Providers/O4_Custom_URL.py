@@ -75,7 +75,7 @@ def get_Here_value():
         time.sleep(3)
     if (not Here_value) or (time.time()-Here_time)>=10000:
         Here_value="loading"
-        js_path=str(requests.get('https://wego.here.com').content).split('<script defer="defer" src="')[1][:100].split('"')[0]
+        js_path = str(requests.get('https://wego.here.com').content).split('script type="module" crossorigin src="')[1].split('"')[0]
         print("js_path: "+js_path)
         Here_value=str(requests.get('https://wego.here.com'+js_path).content).split('PLATFORM_API_KEY:"')[1][:100].split('"')[0]
         print("Here_value: "+Here_value)
