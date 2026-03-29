@@ -53,6 +53,7 @@ The specific changes in this forked version:
 * Use DDSTool instead of nvcompress for Mac.
 * Update DFSTool to latest version 24-5.
 * Removed unused tools.
+* Update numpy to 2.3.4 and included specific .whl file for Python 3.13 to avoid an issue on Mac.
 
 #### Bug Fixes
 * If one-click symlink feature is used, added removal of symlink when "Erase cached data" "Tile (whole)" option is used.

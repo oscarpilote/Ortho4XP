@@ -81,6 +81,17 @@ else:
     gdalwarp_cmd = "gdalwarp"
     devnull_rdir = " >/dev/null 2>&1 "
 
+
+def _subprocess_env():
+    """Return a subprocess environment that suppresses macOS CoreFoundation
+    fork-safety warnings when DDSTools or other tools are launched via
+    subprocess on macOS (see GitHub issue #60)."""
+    env = os.environ.copy()
+    if "dar" in sys.platform:
+        env["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
+    return env
+
+
 ################################################################################
 #
 #  PART I : Initialization of providers, extents, and color filters
@@ -2516,7 +2527,8 @@ def convert_texture(
             ]
             erase_tmp_tif = True
             if subprocess.call(
-                geotag_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
+                geotag_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT,
+                env=_subprocess_env()
             ):
                 UI.vprint(
                     1,
@@ -2550,7 +2562,8 @@ def convert_texture(
     tentative = 0
     while True:
         if not subprocess.call(
-            conv_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT
+            conv_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT,
+            env=_subprocess_env()
         ):
             break
         tentative += 1
@@ -2613,7 +2626,7 @@ def geotag(input_file_name):
     ]
     tentative = 0
     while True:
-        if not subprocess.call(conv_cmd):
+        if not subprocess.call(conv_cmd, env=_subprocess_env()):
             break
         tentative += 1
         if tentative == 10:
