@@ -70,6 +70,8 @@ The specific changes in this forked version:
 * Fixed a bug and improved handling of complex meshes (e.g., +30-085) that would cause the build process to get stuck.
 * Fixed and improved automatically trying a lower `min_angle` value when the current value fails.
 * Reverted to previous triangle.exe to fix issues with creation of extent masks and certain providers.
+* Fixed issue with latest version of shapely.
+* Fixed OSM.lay provider to resolve 403 error with "Preview / Custom Zoom levels" window. @d41k4n
 
 ## Installation
 
