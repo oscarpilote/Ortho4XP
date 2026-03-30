@@ -73,6 +73,7 @@ The specific changes in this forked version:
 * Reverted to previous triangle.exe to fix issues with creation of extent masks and certain providers.
 * Fixed issue with latest version of shapely.
 * Fixed OSM.lay provider to resolve 403 error with "Preview / Custom Zoom levels" window. @d41k4n
+* Fixed issue in Triangle4XP.c with `scaly2` and rebuilt Triangle4XP executables for Windows, Mac (Universal) and Linux.
 
 ## Installation
 
