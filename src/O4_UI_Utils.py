@@ -11,6 +11,17 @@ cleaning_level = 1
 gui = None
 log = True
 
+
+################################################################################
+def subprocess_env():
+    """Return a subprocess environment with OBJC_DISABLE_INITIALIZE_FORK_SAFETY
+    set on macOS to suppress CoreFoundation fork-safety warnings."""
+    env = os.environ.copy()
+    if "dar" in sys.platform:
+        env["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
+    return env
+
+
 ################################################################################
 def progress_bar(nbr, percentage, message=None):
     if gui:

@@ -86,7 +86,8 @@ def community_mesh(tile):
                     "-o" + tile.build_dir,
                     FNAMES.mesh_file(tile.build_dir, tile.lat, tile.lon)
                     + ".7z",
-                ]
+                ],
+                env=UI.subprocess_env(),
             ):
                 UI.exit_message_and_bottom_line(
                     "\nERROR: Could not extract community_mesh from archive."
@@ -689,7 +690,7 @@ def build_mesh(tile):
     UI.vprint(1, "-> Start of the mesh algorithm Triangle4XP.")
     UI.vprint(2, "   Mesh command:", " ".join(mesh_cmd))
     fingers_crossed = subprocess.Popen(
-        mesh_cmd, stdout=subprocess.PIPE, bufsize=0
+        mesh_cmd, stdout=subprocess.PIPE, bufsize=0, env=UI.subprocess_env()
     )
     while True:
         line = fingers_crossed.stdout.readline()
@@ -724,7 +725,7 @@ def build_mesh(tile):
             )
             mesh_cmd[1] = Tri_option
             fingers_crossed = subprocess.Popen(
-                mesh_cmd, stdout=subprocess.PIPE, bufsize=0
+                mesh_cmd, stdout=subprocess.PIPE, bufsize=0, env=UI.subprocess_env()
             )
             while True:
                 line = fingers_crossed.stdout.readline()
@@ -815,7 +816,7 @@ def sort_mesh(tile):
     UI.vprint(1, "-> Reorganizing mesh triangles.")
     timer = time.time()
     moulinette = subprocess.Popen(
-        sort_mesh_cmd_list, stdout=subprocess.PIPE, bufsize=0
+        sort_mesh_cmd_list, stdout=subprocess.PIPE, bufsize=0, env=UI.subprocess_env()
     )
     while True:
         line = moulinette.stdout.readline()
@@ -844,7 +845,7 @@ def triangulate(name, path_to_Ortho4XP_dir):
         name + ".poly",
     ]
     fingers_crossed = subprocess.Popen(
-        mesh_cmd, stdout=subprocess.PIPE, bufsize=0
+        mesh_cmd, stdout=subprocess.PIPE, bufsize=0, env=UI.subprocess_env()
     )
     while True:
         line = fingers_crossed.stdout.readline()

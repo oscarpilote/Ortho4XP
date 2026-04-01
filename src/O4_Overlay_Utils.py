@@ -92,7 +92,7 @@ def build_overlay(lat, lon):
         ),
     ]
     fingers_crossed = subprocess.Popen(
-        dsfconvertcmd, stdout=subprocess.PIPE, bufsize=0
+        dsfconvertcmd, stdout=subprocess.PIPE, bufsize=0, env=UI.subprocess_env()
     )
     while True:
         line = fingers_crossed.stdout.readline()
@@ -192,7 +192,7 @@ def build_overlay(lat, lon):
         ),
     ]
     fingers_crossed = subprocess.Popen(
-        dsfconvertcmd, stdout=subprocess.PIPE, bufsize=0
+        dsfconvertcmd, stdout=subprocess.PIPE, bufsize=0, env=UI.subprocess_env()
     )
     while True:
         line = fingers_crossed.stdout.readline()
