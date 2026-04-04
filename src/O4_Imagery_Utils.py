@@ -64,14 +64,12 @@ if "dar" in sys.platform:
     )
     gdal_transl_cmd = "gdal_translate"
     gdalwarp_cmd = "gdalwarp"
-    devnull_rdir = " >/dev/null 2>&1"
 elif "win" in sys.platform:
     dds_convert_cmd = os.path.join(
         FNAMES.resource_path("Utils"), "win", "nvcompress", "nvcompress.exe"
     )
     gdal_transl_cmd = "gdal_translate.exe"
     gdalwarp_cmd = "gdalwarp.exe"
-    devnull_rdir = " > nul  2>&1"
 else:
     #dds_convert_cmd = "nvcompress"
     dds_convert_cmd = os.path.join(
@@ -79,7 +77,6 @@ else:
         )
     gdal_transl_cmd = "gdal_translate"
     gdalwarp_cmd = "gdalwarp"
-    devnull_rdir = " >/dev/null 2>&1 "
 
 
 
@@ -919,7 +916,7 @@ def has_data(
             if is_sharp_resize:
                 return mask_im.resize(mask_size)
             else:
-                return mask_im.resize(mask_size, Image.BICUBIC)
+                return mask_im.resize(mask_size, Image.Resampling.BICUBIC)
         else:
             # following code only visited when is_mask_layer is True
             # in which case it is passed as (lat,lon,mask_zl)
@@ -962,7 +959,7 @@ def has_data(
                 if is_sharp_resize:
                     mask_im = mask_im.resize(mask_size)
                 else:
-                    mask_im = mask_im.resize(mask_size, Image.BICUBIC)
+                    mask_im = mask_im.resize(mask_size, Image.Resampling.BICUBIC)
             else:
                 mask_im = Image.new("L", mask_size, "white")
             # build sea mask_im2
@@ -977,7 +974,7 @@ def has_data(
             pxy0 = int((ymax - y0) / (ymax - ymin) * sizey)
             pxy1 = int((ymax - y1) / (ymax - ymin) * sizey)
             mask_im2 = mask_im2.crop((pxx0, pxy0, pxx1, pxy1)).resize(
-                mask_size, Image.BICUBIC
+                mask_size, Image.Resampling.BICUBIC
             )
             # invert it
             mask_array2 = 255 - numpy.array(mask_im2, dtype=numpy.uint8)
@@ -1275,7 +1272,7 @@ def get_wmts_image(tilematrix, til_x, til_y, provider, http_session):
             return (
                 success,
                 data.crop((x0, y0, x1, y1)).resize(
-                    (width, height), Image.BICUBIC
+                    (width, height), Image.Resampling.BICUBIC
                 ),
             )
         elif "[404]" in data:
@@ -1326,7 +1323,7 @@ def get_and_paste_wmts_part(
     if not subt_size:
         big_image.paste(small_image, (x0, y0))
     else:
-        big_image.paste(small_image.resize(subt_size, Image.BICUBIC), (x0, y0))
+        big_image.paste(small_image.resize(subt_size, Image.Resampling.BICUBIC), (x0, y0))
     return success
 
 
@@ -1533,7 +1530,7 @@ def build_texture_from_bbox_and_size(t_bbox, t_epsg, t_size, provider):
             + " "
             + str(t_size[1] / big_image.size[1]),
         )
-        big_image = big_image.resize(t_size, Image.BICUBIC)
+        big_image = big_image.resize(t_size, Image.Resampling.BICUBIC)
     return (success, big_image)
 
 
@@ -1600,7 +1597,7 @@ def download_jpeg_ortho(
                     int(width / super_resol_factor),
                     int(height / super_resol_factor),
                 ),
-                Image.BICUBIC,
+                Image.Resampling.BICUBIC,
             ).save(os.path.join(file_dir, file_name))
     except Exception as e:
         UI.lvprint(
@@ -1871,7 +1868,7 @@ def build_combined_ortho(
             )
         if crop:
             true_im = true_im.crop((pixx0, pixy0, pixx1, pixy1)).resize(
-                (4096, 4096), Image.BICUBIC
+                (4096, 4096), Image.Resampling.BICUBIC
             )
         # in case the smoothing of the extent mask was too strong we remove the
         # the mask (where it is nor 0 nor 255) the pixels for which the true_im
@@ -2087,7 +2084,7 @@ def gdalwarp_alternative(s_bbox, s_epsg, s_im, t_bbox, t_epsg, t_size):
             s_pixy = int(round((s_uly - s_y) / (s_uly - s_lry) * s_h))
             s_quad.extend((s_pixx, s_pixy))
         meshes.append((quad, s_quad))
-    return s_im.transform(t_size, Image.MESH, meshes, Image.BICUBIC)
+    return s_im.transform(t_size, Image.MESH, meshes, Image.Resampling.BICUBIC)
 
 
 ################################################################################
@@ -2199,7 +2196,7 @@ def combine_textures(tile, til_x_left, til_y_top, zoomlevel, provider_code):
             )
         if crop:
             true_im = true_im.crop((pixx0, pixy0, pixx1, pixy1)).resize(
-                (4096, 4096), Image.BICUBIC
+                (4096, 4096), Image.Resampling.BICUBIC
             )
         UI.vprint(2, "Finished imprinting", til_x_left, til_y_top)
         return true_im
@@ -2260,7 +2257,7 @@ def combine_textures(tile, til_x_left, til_y_top, zoomlevel, provider_code):
             )
         if crop:
             true_im = true_im.crop((pixx0, pixy0, pixx1, pixy1)).resize(
-                (4096, 4096), Image.BICUBIC
+                (4096, 4096), Image.Resampling.BICUBIC
             )
         # in case the smoothing of the extent mask was too strong we remove the
         # the mask (where it is nor 0 nor 255) the pixels for which the true_im
@@ -2382,7 +2379,7 @@ def convert_texture(
         )
         if masked_texture:
             UI.vprint(2, "      Applying alpha mask directly to orthophoto.")
-            big_image.putalpha(mask_im.resize((4096, 4096), Image.BICUBIC))
+            big_image.putalpha(mask_im.resize((4096, 4096), Image.Resampling.BICUBIC))
             if type == "dds":
                 try:
                     os.remove(
@@ -2418,7 +2415,7 @@ def convert_texture(
             )
         if masked_texture:
             UI.vprint(2, "      Applying alpha mask directly to orthophoto.")
-            big_image.putalpha(mask_im.resize((4096, 4096), Image.BICUBIC))
+            big_image.putalpha(mask_im.resize((4096, 4096), Image.Resampling.BICUBIC))
             if type == "dds":
                 try:
                     os.remove(
@@ -2455,8 +2452,7 @@ def convert_texture(
                     "-bc1",
                     "-fast",
                     file_to_convert,
-                    os.path.join(tile.build_dir, "textures", out_file_name),
-                    devnull_rdir,
+                    os.path.join(tile.build_dir, "textures", out_file_name)
                 ]
         else:
             if "dar" in sys.platform:
@@ -2472,8 +2468,7 @@ def convert_texture(
                     "-bc3",
                     "-fast",
                     file_to_convert,
-                    os.path.join(tile.build_dir, "textures", out_file_name),
-                    devnull_rdir,
+                    os.path.join(tile.build_dir, "textures", out_file_name)
                 ]
     else:
         (latmax, lonmin) = GEO.gtile_to_wgs84(til_x_left, til_y_top, zoomlevel)
@@ -2579,7 +2574,7 @@ def convert_texture(
             pass
     if erase_tmp_tif:
         try:
-            os.remove(os.path.join(FNAMES.resource_path("tmp"), png_file_name))
+            os.remove(tmp_tif_file_name)
         except:
             pass
     return

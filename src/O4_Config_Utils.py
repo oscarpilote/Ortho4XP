@@ -112,7 +112,7 @@ try:
         if line[0] == "#":
             continue
         try:
-            (var, value) = line.split("=")
+            (var, value) = line.split("=", 1)
             value = config_compatibility(value)
             # Set all tile and app config variables
             set_global_variables(var, value)
@@ -213,7 +213,7 @@ class Tile:
                 if line[0] == "#":
                     continue
                 try:
-                    (var, value) = line.split("=")
+                    (var, value) = line.split("=", 1)
                     # compatibility with config files from version <= 1.20
                     value = config_compatibility(value)
                     if cfg_vars[var]["type"] in (bool, list):
@@ -1027,7 +1027,7 @@ class Ortho4XP_Config(tk.Toplevel):
             if not line or line[0] == "#":
                 continue
             try:
-                (var, value) = line.split("=")
+                (var, value) = line.split("=", 1)
                 value = config_compatibility(value)
                 self.v_[var].set(value)
             except Exception as e:
@@ -1076,7 +1076,7 @@ class Ortho4XP_Config(tk.Toplevel):
             if line[0] == "#":
                 continue
             try:
-                (var, value) = line.split("=")
+                (var, value) = line.split("=", 1)
                 value = config_compatibility(value)
                 self.v_[var].set(value)
             except Exception as e:

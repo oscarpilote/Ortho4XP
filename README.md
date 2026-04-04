@@ -74,6 +74,9 @@ The specific changes in this forked version:
 * Fixed issue with latest version of shapely.
 * Fixed OSM.lay provider to resolve 403 error with "Preview / Custom Zoom levels" window. @d41k4n
 * Fixed issue in Triangle4XP.c with `scaly2` and rebuilt Triangle4XP executables for Windows, Mac (Universal) and Linux.
+* Fixed redundant output supression with `subprocess.call`.
+* Fixed temporary tif not being removed in `convert_texture` function.
+* Update deprecated pillow method `BICUBIC` with `Resampling.BICUBIC`.
 
 ## Installation
 

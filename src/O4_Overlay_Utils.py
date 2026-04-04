@@ -80,7 +80,7 @@ def build_overlay(lat, lon):
     if dsfid == "7z":
         UI.vprint(1, "-> The original DSF is a 7z archive, uncompressing...")
         os.replace(file_to_sniff_loc, file_to_sniff_loc + ".7z")
-        subprocess.run([unzip_cmd, "e", f"-o{FNAMES.Tmp_dir}", f"{file_to_sniff_loc}.7z"])
+        subprocess.run([unzip_cmd, "e", f"-o{FNAMES.Tmp_dir}", f"{file_to_sniff_loc}.7z"], env=UI.subprocess_env())
         os.remove(file_to_sniff_loc + ".7z")
     UI.vprint(1, "-> Converting the copy to text format")
     dsfconvertcmd = [
