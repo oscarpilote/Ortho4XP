@@ -1,7 +1,7 @@
 numpy==2.4.4
-pillow==12.1.1
+pillow==12.2.0
 pyproj==3.7.2
-requests==2.33.0
+requests==2.33.1
 Rtree==1.4.1
 shapely==2.1.2
 scikit-fmm==2025.6.23

@@ -46,7 +46,7 @@ The specific changes in this forked version:
 * Updated Python and pin requirements to latest working versions.
 * Adds a bash script to automate the setup process for those that prefer not to use the packaged version.
 * Removed Maxar and Mapbox image providers which are no longer publically available.
-* Removed unavailable OSM FR, updated/added RU and JP overpass servers.
+* Update overpass servers.
 * Include 7-zip executable for Mac.
 * Update EOX url template and deleted the broken EOX2.lay file. @A346fan
 * Updated Windows & Linux nvcompress to latest version. @tlinkin
