@@ -275,7 +275,7 @@ def include_roads(vector_map, tile, apt_array, apt_area):
         cached_suffix="big_roads",
     ):
         return 0
-    UI.vprint(1, "    * Checking which large roads need levelling.")
+    UI.vprint(1, "    * Checking which large roads need leveling.")
     (road_network_banked, road_network_flat) = OSM.OSM_to_MultiLineString(
         road_layer,
         tile.lat,
@@ -306,7 +306,7 @@ def include_roads(vector_map, tile, apt_array, apt_area):
             cached_suffix="small_roads",
         ):
             return 0
-        UI.vprint(1, "    * Checking which smaller roads need levelling.")
+        UI.vprint(1, "    * Checking which smaller roads need leveling.")
         timer = time.time()
         (
             road_network_banked_2,

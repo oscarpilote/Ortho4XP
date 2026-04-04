@@ -1,3 +1,5 @@
+import ast
+import logging
 import os
 import sys
 import shutil
@@ -6,7 +8,6 @@ import queue
 import threading
 import tkinter as tk
 from tkinter import (
-    RIDGE,
     N,
     S,
     E,
@@ -22,6 +23,13 @@ from tkinter import (
 )
 import tkinter.ttk as ttk
 from PIL import Image, ImageTk
+from O4_Cfg_Vars import (
+    cfg_vars,
+    cfg_global_tile_vars,
+    global_prefix,
+    list_global_tile_vars,
+    list_tile_vars,
+)
 import O4_Version
 import O4_Imagery_Utils as IMG
 import O4_File_Names as FNAMES
@@ -34,7 +42,12 @@ import O4_Tile_Utils as TILE
 import O4_UI_Utils as UI
 import O4_Config_Utils as CFG
 
-# Set OsX=True if you prefer the OsX way of drawing existing tiles but 
+_LOGGER = logging.getLogger(__name__)
+_LOGGER.setLevel(logging.INFO)
+handler = logging.StreamHandler()
+_LOGGER.addHandler(handler)
+
+# Set OsX=True if you prefer the OsX way of drawing existing tiles but
 # are on Linux or Windows.
 OsX = "dar" in sys.platform
 
@@ -81,6 +94,11 @@ class Ortho4XP_GUI(tk.Tk):
 
         # Let UI know ourself
         UI.gui = self
+
+        # Catch operating system close button; does not cover SIGTERM or SIGINT
+        # when application closed using "Exit" (e.g. Command-Q on macOS).
+        self.protocol("WM_DELETE_WINDOW", self.exit_prg)
+
         # Initialize providers combobox entries
         self.map_list = sorted(
             [
@@ -126,13 +144,9 @@ class Ortho4XP_GUI(tk.Tk):
 
         # Frame instances and placement
         # Level 0
-        self.frame_top = tk.Frame(
-            self, border=4, relief=RIDGE, bg="light green"
-        )
+        self.frame_top = tk.Frame(self, border=4, bg="light green")
         self.frame_top.grid(row=0, column=0, sticky=N + S + W + E)
-        self.frame_console = tk.Frame(
-            self, border=4, relief=RIDGE, bg="light green"
-        )
+        self.frame_console = tk.Frame(self, border=5, bg="light green")
         self.frame_console.grid(row=1, column=0, sticky=N + S + W + E)
         # Level 1
         self.frame_tile = tk.Frame(
@@ -155,10 +169,14 @@ class Ortho4XP_GUI(tk.Tk):
             row=1, column=0, columnspan=8, sticky=N + S + W + E
         )
 
+        # Track existance of tile configuration file for active tile
+        self.tile_cfg_exists = tk.BooleanVar()
+        self.tile_cfg_exists.trace_add("write", self.update_tile_cfg_status)
+
         # Widgets instances and placement
         # First row (Tile data)
         self.lat = tk.StringVar()
-        self.lat.trace("w", self.tile_change)
+        self.lat.trace_add("write", self.tile_change)
         tk.Label(self.frame_tile, text="Latitude:", bg="light green").grid(
             row=0, column=0, padx=5, pady=5, sticky=E + W
         )
@@ -172,7 +190,7 @@ class Ortho4XP_GUI(tk.Tk):
         self.lat_entry.grid(row=0, column=1, padx=5, pady=5, sticky=W)
 
         self.lon = tk.StringVar()
-        self.lon.trace("w", self.tile_change)
+        self.lat.trace_add("write", self.tile_change)
         tk.Label(
             self.frame_tile, anchor=W, text="Longitude:", bg="light green"
         ).grid(row=0, column=2, padx=5, pady=5, sticky=E + W)
@@ -186,7 +204,7 @@ class Ortho4XP_GUI(tk.Tk):
         self.lon_entry.grid(row=0, column=3, padx=5, pady=5, sticky=W)
 
         self.default_website = tk.StringVar()
-        self.default_website.trace("w", self.update_cfg)
+        self.default_website.trace_add("write", self.update_website)
         tk.Label(
             self.frame_tile, anchor=W, text="Imagery:", bg="light green"
         ).grid(row=0, column=4, padx=5, pady=5, sticky=E + W)
@@ -201,9 +219,9 @@ class Ortho4XP_GUI(tk.Tk):
         self.img_combo.grid(row=0, column=5, padx=5, pady=5, sticky=W)
 
         self.default_zl = tk.StringVar()
-        self.default_zl.trace("w", self.update_cfg)
+        self.default_zl.trace_add("write", self.update_zl)
         tk.Label(
-            self.frame_tile, anchor=W, text="Zoomlevel:", bg="light green"
+            self.frame_tile, anchor=W, text="Zoom Level:", bg="light green"
         ).grid(row=0, column=6, padx=5, pady=5, sticky=E + W)
         self.zl_combo = ttk.Combobox(
             self.frame_tile,
@@ -356,9 +374,7 @@ class Ortho4XP_GUI(tk.Tk):
 
         # reinitialization from last visit
         try:
-            f = open(
-                os.path.join(FNAMES.Ortho4XP_dir, ".last_gui_params.txt"), "r"
-            )
+            f = open(FNAMES.resource_path(".last_gui_params.txt"), "r")
             (lat, lon, default_website, default_zl) = f.readline().split()
             custom_build_dir = f.readline().strip()
             self.lat.set(lat)
@@ -373,6 +389,11 @@ class Ortho4XP_GUI(tk.Tk):
             self.default_website.set("BI")
             self.default_zl.set(16)
             self.custom_build_dir.set("")
+        # Needed for load_tile_cfg to check if the window is open
+        self.config_window = None
+        # If the tile doesn't have a config, we do end up loading the global settings
+        # again which is redundant as that's already been done in O4_Config_Utils
+        self.load_tile_cfg(int(self.lat.get()), int(self.lon.get()))
 
     # GUI methods
     def write(self, line):
@@ -405,20 +426,110 @@ class Ortho4XP_GUI(tk.Tk):
         self.callback_pgrb = self.after(100, self.pgrb_update)
 
     def tile_change(self, *args):
-        # HACK : user preference is to not trash custom_dem and zone_list on 
-        # tile change. Instead added a new shortcut for trashing all high zl 
-        # list in the custom ZL window at once.
+        """Load tile configuration on tile change."""
+        # TODO: Implement config loading on tile change here instead of using select_tile
+        # so we can catch if the tile is changed manually or with the mouse in the map view.
+        # Problem is right now this is being called if the lat or lon is changed so it 
+        # gets called twice. Also, having issues with the lat/lon not being accurate when
+        # trying to implement here.
         return
-        CFG.custom_dem = ""
-        try:
-            self.config_window.v_["custom_dem"].set("")
-        except:
-            pass
-        CFG.zone_list = []
 
-    def update_cfg(self, *args):
+    def load_tile_cfg(self, lat: int, lon: int) -> None:
+        """
+        Load tile configuration settings for specified tile.
+        Used for loading a config file when the tile is changed using the map view.
+        Does not execute when active tile changed using coordinate inputs.
+
+        :param int lat: latitude in degrees (e.g., 35)
+        :param int lon: longitude in degrees (e.g., -115)
+        :return: None
+        """
+        custom_build_dir = self.custom_build_dir_entry.get()
+        build_dir = FNAMES.build_dir(lat, lon, custom_build_dir)
+
+        tile_cfg_file = os.path.join(build_dir, "Ortho4XP_" + FNAMES.short_latlon(lat, lon) + ".cfg")
+
+        if os.path.exists(tile_cfg_file):
+            f = open(tile_cfg_file, "r")
+            for line in f.readlines():
+                line = line.strip()
+                if not line or line[0] == "#":
+                    continue
+                try:
+                    (var, value) = line.split("=")
+                    value = CFG.config_compatibility(value)
+                    target = (
+                        cfg_vars[var]["module"] + "." + var
+                        if "module" in cfg_vars[var]
+                        else "CFG." + var
+                    )
+                    if cfg_vars[var]["type"] in (bool, list):
+                        cmd = target + "=" + value
+                    else:
+                        cmd = target + "=cfg_vars['" + var + "']['type'](value)"
+                    if var == "zone_list":
+                        # Append zones from config to global zone_list but also check if it's a duplicate
+                        for zone in ast.literal_eval(value):
+                            if zone not in CFG.zone_list:
+                                CFG.zone_list.append(zone)
+                        # Stop the loop here since we don't want to override the global zone_list which cmd will do
+                        continue
+                    exec(cmd)
+                except Exception as e:
+                    # compatibility with zone_list config files from version <= 1.20
+                    if "zone_list.append" in line:
+                        try:
+                            exec(line)
+                        except Exception as e:
+                            print(e)
+                            pass
+                    else:
+                        UI.vprint(2, e)
+                        pass
+                # Update main window GUI values
+                self.default_website.set(CFG.default_website)
+                self.default_zl.set(CFG.default_zl)
+            self.tile_cfg_exists.set(True)
+            UI.vprint(1, f"Configuration loaded for tile at {lat} {lon}")
+            f.close()
+        else:
+            for var in list_global_tile_vars:
+                # Set the value of CFG.* from the value of CFG.global_*
+                _var = "CFG." + var.replace(global_prefix, "")
+                # Get the value of CFG.global_*
+                value = eval("CFG." + var)
+                if cfg_global_tile_vars[var]["type"] in (bool, list):
+                    cmd = _var + "=" + str(value)
+                else:
+                    cmd = _var + "=cfg_global_tile_vars['" + var + "']['type'](value)"
+                exec(cmd)
+            self.tile_cfg_exists.set(False)
+        # Update config window tile tab values if it's open
+        if self.config_window is not None and self.config_window.winfo_exists():
+            self.load_tiles_config_interface_from_variables()
+
+    def update_tile_cfg_status(self, *args) -> None:
+        """Update config window of tile_cfg_exist state."""
+        if self.config_window is not None and self.config_window.winfo_exists():
+            self.config_window.tile_cfg_status(*args)
+
+    def load_tiles_config_interface_from_variables(self) -> None:
+        """Load the configuration interface values for only the tile config tab."""
+        # Skip default_website and default_zl since they're not on the config tab
+        for var in list_tile_vars:
+            if var == "default_website" or var == "default_zl":
+                continue
+            target = "CFG." + var
+            # Set tile and app config tab values from global variables
+            self.config_window.v_[var].set(str(eval(target)))
+
+    def update_website(self, *args) -> None:
+        """Update global default_website variable from GUI."""
         if self.default_website.get():
             CFG.default_website = str(self.default_website.get())
+
+    def update_zl(self, *args) -> None:
+        """Update global default_zl variable from GUI."""
         if self.default_zl.get():
             CFG.default_zl = int(self.default_zl.get())
 
@@ -430,14 +541,16 @@ class Ortho4XP_GUI(tk.Tk):
                 error_string += (
                     "Latitude out of range (-85,84) for webmercator grid. "
                 )
-        except:
+        except Exception as e:
             error_string += "Latitude wrongly encoded. "
+            _LOGGER.exception(e)
         try:
             lon = int(self.lon.get())
             if lon < -180 or lon > 179:
                 error_string += "Longitude out of range (-180,179)."
-        except:
+        except Exception as e:
             error_string += "Longitude wrongly encoded."
+            _LOGGER.exception(e)
         if error_string and check:
             UI.vprint(0, "Error: " + error_string)
             return None
@@ -445,7 +558,21 @@ class Ortho4XP_GUI(tk.Tk):
             return (48, -6)
         return (lat, lon)
 
-    def tile_from_interface(self):
+    def tile_from_interface(self) -> CFG.Tile | bool:
+        """
+        Create a Tile object for building a tile from the main window.
+
+        :return: Tile object or False
+        ;rtype: Tile object or False
+        """
+        # Check for unsaved changes
+        if (
+            self.config_window is not None
+            and self.config_window.winfo_exists()
+        ):
+            response = self.config_window.check_unsaved_changes()
+            if response == "cancel":
+                return False
         try:
             (lat, lon) = self.get_lat_lon()
             return CFG.Tile(lat, lon, str(self.custom_build_dir.get()))
@@ -455,9 +582,13 @@ class Ortho4XP_GUI(tk.Tk):
     def build_poly_file(self):
         try:
             tile = self.tile_from_interface()
-            tile.make_dirs()
-        except:
+            if tile:
+                tile.make_dirs()
+            else:
+                return
+        except Exception as e:
             UI.vprint(1, "Process aborted.\n")
+            _LOGGER.exception(e)
             return 0
         self.working_thread = threading.Thread(
             target=VMAP.build_poly_file, args=[tile]
@@ -467,9 +598,13 @@ class Ortho4XP_GUI(tk.Tk):
     def build_mesh(self, event):
         try:
             tile = self.tile_from_interface()
-            tile.make_dirs()
-        except:
+            if tile:
+                tile.make_dirs()
+            else:
+                return
+        except Exception as e:
             UI.vprint(1, "Process aborted.\n")
+            _LOGGER.exception("Exception on build_mesh")
             return 0
         self.working_thread = threading.Thread(
             target=MESH.build_mesh, args=[tile]
@@ -479,9 +614,13 @@ class Ortho4XP_GUI(tk.Tk):
     def sort_mesh(self, event):
         try:
             tile = self.tile_from_interface()
-            tile.make_dirs()
-        except:
+            if tile:
+                tile.make_dirs()
+            else:
+                return
+        except Exception as e:
             UI.vprint(1, "Process aborted.\n")
+            _LOGGER.exception("Exception on sort_mesh")
             return 0
         self.working_thread = threading.Thread(
             target=MESH.sort_mesh, args=[tile]
@@ -491,9 +630,13 @@ class Ortho4XP_GUI(tk.Tk):
     def community_mesh(self, event):
         try:
             tile = self.tile_from_interface()
-            tile.make_dirs()
-        except:
+            if tile:
+                tile.make_dirs()
+            else:
+                return
+        except Exception as e:
             UI.vprint(1, "Process aborted.\n")
+            _LOGGER.exception("Exception on community_mesh")
             return 0
         self.working_thread = threading.Thread(
             target=MESH.community_mesh, args=[tile]
@@ -504,9 +647,13 @@ class Ortho4XP_GUI(tk.Tk):
         for_imagery = "Shift" in str(event) or "shift" in str(event)
         try:
             tile = self.tile_from_interface()
-            tile.make_dirs()
-        except:
+            if tile:
+                tile.make_dirs()
+            else:
+                return
+        except Exception as e:
             UI.vprint(1, "Process aborted.\n")
+            _LOGGER.exception(e)
             return 0
         self.working_thread = threading.Thread(
             target=MASK.build_masks, args=[tile, for_imagery]
@@ -516,9 +663,13 @@ class Ortho4XP_GUI(tk.Tk):
     def build_tile(self):
         try:
             tile = self.tile_from_interface()
-            tile.make_dirs()
-        except:
+            if tile:
+                tile.make_dirs()
+            else:
+                return
+        except Exception as e:
             UI.vprint(1, "Process aborted.\n")
+            _LOGGER.exception(e)
             return 0
         self.working_thread = threading.Thread(
             target=TILE.build_tile, args=[tile]
@@ -526,11 +677,23 @@ class Ortho4XP_GUI(tk.Tk):
         self.working_thread.start()
 
     def build_all(self):
+        # Check for unsaved changes
+        if (
+            self.config_window is not None
+            and self.config_window.winfo_exists()
+        ):
+            response = self.config_window.check_unsaved_changes()
+            if response == "cancel":
+                return
         try:
             tile = self.tile_from_interface()
-            tile.make_dirs()
-        except:
+            if tile:
+                tile.make_dirs()
+            else:
+                return
+        except Exception as e:
             UI.vprint(1, "Process aborted.\n")
+            _LOGGER.exception(e)
             return 0
         self.working_thread = threading.Thread(
             target=TILE.build_all, args=[tile]
@@ -550,7 +713,8 @@ class Ortho4XP_GUI(tk.Tk):
         except:
             try:
                 (lat, lon) = self.get_lat_lon()
-            except:
+            except Exception as e:
+                _LOGGER.exception(e)
                 return 0
             self.config_window = CFG.Ortho4XP_Config(self)
             return 1
@@ -582,11 +746,18 @@ class Ortho4XP_GUI(tk.Tk):
     def set_red_flag(self):
         UI.red_flag = True
 
-    def exit_prg(self):
+    def exit_prg(self) -> None:
+        """Close the Ortho4XP application."""
+        if (
+            self.config_window is not None
+            and self.config_window.winfo_exists()
+            and not UI.is_working
+        ):
+            result = self.config_window.check_unsaved_changes(select_tile=True)
+            if result == "cancel":
+                return        
         try:
-            f = open(
-                os.path.join(FNAMES.Ortho4XP_dir, ".last_gui_params.txt"), "w"
-            )
+            f = open(FNAMES.resource_path(".last_gui_params.txt"), "w")
             f.write(
                 self.lat.get()
                 + " "
@@ -650,7 +821,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         self.polyobj_list = []
 
         tk.Toplevel.__init__(self)
-        self.title("Preview / Custom zoomlevels")
+        self.title("Preview / Custom Zoom Levels")
         self.columnconfigure(1, weight=1)
         self.rowconfigure(0, weight=1)
 
@@ -677,12 +848,12 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
 
         # Frames
         self.frame_left = tk.Frame(
-            self, border=4, relief=RIDGE, bg="light green"
+            self, border=4, bg="light green"
         )
         self.frame_left.grid(row=0, column=0, sticky=N + S + W + E)
 
         self.frame_right = tk.Frame(
-            self, border=4, relief=RIDGE, bg="light green"
+            self, border=1, relief="solid", bg="light green"
         )
         self.frame_right.grid(row=0, column=1, sticky=N + S + W + E)
         self.frame_right.rowconfigure(0, weight=1)
@@ -715,7 +886,7 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         row += 1
 
         tk.Label(
-            self.frame_left, anchor=W, text="Zoomlevel : ", bg="light green"
+            self.frame_left, anchor=W, text="Zoom Level : ", bg="light green"
         ).grid(row=row, column=0, padx=5, pady=3, sticky=W)
         self.zl_combo = ttk.Combobox(
             self.frame_left,
@@ -817,8 +988,8 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
         row += 1
         tk.Label(
             self.frame_left,
-            text="Ctrl+B1 : add texture\nShift+B1: add zone point\n" + \
-                 "Ctrl+B2 : delete zone",
+            text="Ctrl+B1 : Add texture\nShift+B1: Add zone point\n" + \
+                 "Ctrl+B2 : Delete zone",
             bg="light green",
             justify=LEFT,
         ).grid(row=row, column=0, padx=5, pady=20, sticky=N + S + E + W)
@@ -898,14 +1069,14 @@ class Ortho4XP_Custom_ZL(tk.Toplevel):
             0, 0, anchor=NW, image=self.photo
         )
         self.canvas.config(scrollregion=self.canvas.bbox(ALL))
-        if "dar" in sys.platform:
+        # As of Python3.13.5, the mouse button mappings changed
+        if "dar" in sys.platform and sys.version_info <= (3, 12):
             self.canvas.bind("<ButtonPress-2>", self.scroll_start)
             self.canvas.bind("<B2-Motion>", self.scroll_move)
             self.canvas.bind("<Control-ButtonPress-2>", self.delPol)
-        else:
-            self.canvas.bind("<ButtonPress-3>", self.scroll_start)
-            self.canvas.bind("<B3-Motion>", self.scroll_move)
-            self.canvas.bind("<Control-ButtonPress-3>", self.delPol)
+        self.canvas.bind("<ButtonPress-3>", self.scroll_start)
+        self.canvas.bind("<B3-Motion>", self.scroll_move)
+        self.canvas.bind("<Control-ButtonPress-3>", self.delPol)
         self.canvas.bind(
             "<ButtonPress-1>", lambda event: self.canvas.focus_set()
         )
@@ -1223,7 +1394,7 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
         "Draw water masks",
         "Build imagery/DSF",
         "Extract overlays",
-        "Read per tile cfg",
+        "Override tile configs",
     ]
 
     canvas_min_x = 900
@@ -1231,7 +1402,7 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
 
     def __init__(self, parent, lat, lon):
         tk.Toplevel.__init__(self)
-        self.title("Tiles collection and management")
+        self.title("Tiles Collection and Management")
         self.columnconfigure(1, weight=1)
         self.rowconfigure(0, weight=1)
 
@@ -1249,11 +1420,11 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
 
         # Frames
         self.frame_left = tk.Frame(
-            self, border=4, relief=RIDGE, bg="light green"
+            self, border=4, bg="light green"
         )
         self.frame_left.grid(row=0, column=0, sticky=N + S + W + E)
         self.frame_right = tk.Frame(
-            self, border=4, relief=RIDGE, bg="light green"
+            self, border=1, bg="light green"
         )
         self.frame_right.grid(row=0, rowspan=60, column=1, sticky=N + S + W + E)
         self.frame_right.rowconfigure(0, weight=1, minsize=self.canvas_min_y)
@@ -1301,7 +1472,7 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
             ).grid(row=row, column=0, padx=5, pady=5, sticky=N + S + E + W)
             row += 1
         ttk.Button(
-            self.frame_left, text="  Delete    ", command=self.trash
+            self.frame_left, text="  Batch Delete    ", command=self.trash
         ).grid(row=row, column=0, padx=5, pady=5, sticky=N + S + E + W)
         row += 1
         # Batch build
@@ -1329,6 +1500,18 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
             self.frame_left, text="  Batch Build   ", command=self.batch_build
         ).grid(row=row, column=0, padx=5, pady=5, sticky=N + S + E + W)
         row += 1
+        ttk.Separator(self.frame_left, orient=HORIZONTAL).grid(row=row, column=0, padx=5, pady=5, sticky=N + S + E + W)
+        row +=1
+        tk.Label(
+            self.frame_left,
+            text="B2-click+hold: Move map\n" + \
+                 "B1-double-click: Select active\n" + \
+                 "Shift+B1: Select multiple tiles\nCtrl+B1: Link in Custom Scenery\n" + \
+                 "O: Link overlays in Custom Scenery",
+            bg="light green",
+            justify=LEFT
+        ).grid(row=row, column=0, padx=0, pady=5, sticky=N + S + E + W)
+        row += 1
         # Refresh window
         ttk.Button(
             self.frame_left, text="    Refresh     ", command=self.refresh
@@ -1338,14 +1521,6 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
         ttk.Button(
             self.frame_left, text="      Exit      ", command=self.exit
         ).grid(row=row, column=0, padx=5, pady=5, sticky=N + S + E + W)
-        row += 1
-        tk.Label(
-            self.frame_left,
-            text="Shortcuts :\n-----------------\nB2-press+hold=move map\n" + \
-                 "B1-double-click=select active\n" + \
-                 "Shift+B1=add to batch build\nCtrl+B1=link in Custom Scenery",
-            bg="light green",
-        ).grid(row=row, column=0, padx=0, pady=5, sticky=N + S + E + W)
         row += 1
 
         self.canvas = tk.Canvas(self.frame_right, bd=0)
@@ -1366,15 +1541,17 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
         self.canvas.yview_moveto(y0 / self.resolution)
         self.nx0 = int((8 * x0) // self.resolution)
         self.ny0 = int((8 * y0) // self.resolution)
-        if "dar" in sys.platform:
+        # As of Python3.13.5, the mouse button mappings changed
+        if "dar" in sys.platform and sys.version_info <= (3, 12):
             self.canvas.bind("<ButtonPress-2>", self.scroll_start)
             self.canvas.bind("<B2-Motion>", self.scroll_move)
-        else:
-            self.canvas.bind("<ButtonPress-3>", self.scroll_start)
-            self.canvas.bind("<B3-Motion>", self.scroll_move)
+            self.canvas.bind("<Control-ButtonPress-2>", self.delPol)
+        self.canvas.bind("<ButtonPress-3>", self.scroll_start)
+        self.canvas.bind("<B3-Motion>", self.scroll_move)
         self.canvas.bind("<Double-Button-1>", self.select_tile)
         self.canvas.bind("<Shift-ButtonPress-1>", self.add_tile)
         self.canvas.bind("<Control-ButtonPress-1>", self.toggle_to_custom)
+        self.canvas.bind("o", self.add_overlay_symlink)
         self.canvas.focus_set()
         self.draw_canvas(self.nx0, self.ny0)
         self.active_lat = lat
@@ -1392,10 +1569,142 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
         self.threaded_preview()
         return
 
+    def add_symlink(self, lat: int, lon: int) -> None:
+        """Add symlink to custom_scenery_dir."""
+        custom_scenery_dir = os.path.normpath(CFG.custom_scenery_dir)
+        custom_build_dir = os.path.normpath(self.custom_build_dir)
+        # Check if scenery and build directory are the same (symlinks not applicable)
+        if custom_scenery_dir == custom_build_dir:
+            return
+
+        if not self.grouped:
+            link = os.path.join(
+                CFG.custom_scenery_dir,
+                "zOrtho4XP_" + FNAMES.short_latlon(lat, lon),
+            )
+            target = os.path.realpath(
+                os.path.join(self.working_dir, self.dico_tiles_done[(lat, lon)][-1])
+            )
+        elif self.grouped:
+            link = os.path.join(
+                CFG.custom_scenery_dir,
+                "zOrtho4XP_" + os.path.basename(self.working_dir),
+            )
+            target = os.path.realpath(self.working_dir)
+        if ("dar" in sys.platform) or ("win" not in sys.platform):
+            # Mac and Linux
+            os.system("ln -s " + ' "' + target + '" "' + link + '"')
+        else:
+            os.system('MKLINK /J "' + link + '" "' + target + '"')
+        if not self.grouped:
+            if not OsX:
+                self.canvas.itemconfig(
+                    self.dico_tiles_done[(lat, lon)][0], stipple="gray50"
+                )
+            else:
+                self.canvas.itemconfig(
+                    self.dico_tiles_done[(lat, lon)][1],
+                    font=("Helvetica", "12", "bold underline"),
+                )
+        else:
+            for lat0, lon0 in self.dico_tiles_done:
+                if not OsX:
+                    self.canvas.itemconfig(
+                        self.dico_tiles_done[(lat0, lon0)][0], stipple="gray50"
+                    )
+                else:
+                    self.canvas.itemconfig(
+                        self.dico_tiles_done[(lat, lon)][1],
+                        font=("Helvetica", "12", "bold underline"),
+                    )
+
+    def remove_symlink(self, lat: int, lon: int) -> None:
+        """Remove symlink from custom_scenery_dir."""
+        custom_scenery_dir = os.path.normpath(CFG.custom_scenery_dir)
+        custom_build_dir = os.path.normpath(self.custom_build_dir)
+        # Check if scenery and build directory are the same (symlinks not applicable)
+        if custom_scenery_dir == custom_build_dir:
+            return
+
+        if not self.grouped:
+            link = os.path.join(
+                CFG.custom_scenery_dir,
+                "zOrtho4XP_" + FNAMES.short_latlon(lat, lon),
+            )
+            target = os.path.realpath(
+                os.path.join(self.working_dir, self.dico_tiles_done[(lat, lon)][-1])
+            )
+            if os.path.isdir(link) and os.path.samefile(os.path.realpath(link), target):
+                os.remove(link)
+                if not OsX:
+                    self.canvas.itemconfig(
+                        self.dico_tiles_done[(lat, lon)][0], stipple="gray12"
+                    )
+                else:
+                    self.canvas.itemconfig(
+                        self.dico_tiles_done[(lat, lon)][1],
+                        font=("Helvetica", "12", "normal"),
+                    )
+                return True
+
+        elif self.grouped:
+            link = os.path.join(
+                CFG.custom_scenery_dir,
+                "zOrtho4XP_" + os.path.basename(self.working_dir),
+            )
+            target = os.path.realpath(self.working_dir)
+            if os.path.isdir(link) and os.path.samefile(
+                os.path.realpath(link), os.path.realpath(self.working_dir)
+            ):
+                os.remove(link)
+                for lat, lon in self.dico_tiles_done:
+                    if not OsX:
+                        self.canvas.itemconfig(
+                            self.dico_tiles_done[(lat, lon)][0],
+                            stipple="gray12",
+                        )
+                    else:
+                        self.canvas.itemconfig(
+                            self.dico_tiles_done[(lat, lon)][1],
+                            font=("Helvetica", "12", "normal"),
+                        )
+                return True
+        # in case this was a broken link
+        try:
+            os.remove(link)
+        except:
+            pass
+
+    def add_overlay_symlink(self, *args) -> None:
+        """Add/remove symlink for overlays to custom_scenery_dir."""
+        if not CFG.custom_scenery_dir:
+            UI.vprint(1, "Custom Scenery directory not set.")
+            return
+        link = os.path.join(CFG.custom_scenery_dir, "yOrtho4XP_Overlays")
+        # Remove symlink if it already exists
+        if os.path.isdir(link) and os.path.samefile(
+            os.path.realpath(link), FNAMES.Overlay_dir
+        ):
+            os.remove(link)
+            UI.vprint(
+                1,
+                f"yOrtho4XP_Overlays link removed from: {CFG.custom_scenery_dir}",
+            )
+            return
+        # Add symlink if it doesn't exist
+        if ("dar" in sys.platform) or ("win" not in sys.platform):
+            # Mac and Linux
+            os.system("ln -s " + ' "' + FNAMES.Overlay_dir + '" "' + link + '"')
+        else:
+            os.system('MKLINK /J "' + link + '" "' + FNAMES.Overlay_dir + '"')
+        UI.vprint(
+            1, f"yOrtho4XP_Overlays link added to: {CFG.custom_scenery_dir}"
+        )
+
     def set_working_dir(self):
         self.custom_build_dir = self.parent.custom_build_dir.get()
-        self.grouped = (
-            self.custom_build_dir and self.custom_build_dir[-1] != "/"
+        self.grouped = self.custom_build_dir and not self.custom_build_dir.endswith(
+            ("/", "\\")
         )
         self.working_dir = (
             self.custom_build_dir if self.custom_build_dir else FNAMES.Tile_dir
@@ -1434,7 +1743,7 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
                         lon = int(dir_name.split("XP_")[1][3:7])
                     except:
                         continue
-                    # With the enlarged accepetance rule for directory name 
+                    # With the enlarged accepetance rule for directory name
                     # there might be more than one tile for the same (lat,lon),
                     # we skip all but the first encountered.
                     if (lat, lon) in self.dico_tiles_done:
@@ -1478,11 +1787,14 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
                                 found_config = False
                         if found_config:
                             prov = zl = ""
+                            zone_list_exists = False
                             for line in tmpf.readlines():
                                 if line[:15] == "default_website":
                                     prov = line.strip().split("=")[1][:4]
                                 elif line[:10] == "default_zl":
                                     zl = int(line.strip().split("=")[1])
+                                elif line[:9] == "zone_list" and len(line[10:]) > 3:
+                                    zone_list_exists = True
                                     break
                             tmpf.close()
                             if not prov:
@@ -1491,6 +1803,8 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
                                 color = dico_color[zl]
                             else:
                                 zl = "?"
+                            if zone_list_exists:
+                                zl = str(zl) + "*"
                             content = prov + "\n" + str(zl)
                         else:
                             content = "?"
@@ -1638,65 +1952,155 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
             )
         return
 
-    def trash(self):
-        if self.v_["OSM data"].get():
-            try:
-                shutil.rmtree(FNAMES.osm_dir(self.active_lat, self.active_lon))
-            except Exception as e:
-                UI.vprint(3, e)
-        if self.v_["Mask data"].get():
-            try:
-                shutil.rmtree(FNAMES.mask_dir(self.active_lat, self.active_lon))
-            except Exception as e:
-                UI.vprint(3, e)
-        if self.v_["Jpeg imagery"].get():
-            try:
-                shutil.rmtree(
-                    os.path.join(
-                        FNAMES.Imagery_dir,
-                        FNAMES.long_latlon(self.active_lat, self.active_lon),
-                    )
-                )
-            except Exception as e:
-                UI.vprint(3, e)
-        if self.v_["Tile (whole)"].get() and not self.grouped:
-            try:
-                shutil.rmtree(
-                    FNAMES.build_dir(
-                        self.active_lat, self.active_lon, self.custom_build_dir
-                    )
-                )
-            except Exception as e:
-                UI.vprint(3, e)
-            if (self.active_lat, self.active_lon) in self.dico_tiles_done:
-                for objid in self.dico_tiles_done[
-                    (self.active_lat, self.active_lon)
-                ][:2]:
-                    self.canvas.delete(objid)
-                del self.dico_tiles_done[(self.active_lat, self.active_lon)]
-        if self.v_["Tile (textures)"].get() and not self.grouped:
-            try:
-                shutil.rmtree(
-                    os.path.join(
-                        FNAMES.build_dir(
-                            self.active_lat,
-                            self.active_lon,
-                            self.custom_build_dir,
-                        ),
-                        "textures",
-                    )
-                )
-            except Exception as e:
-                UI.vprint(3, e)
+    def trash(self) -> None:
+        """Delete cached data for selected tiles."""
+        if not self.dico_tiles_todo:
+            UI.vprint(1, "Unable to erase cached data: No tiles selected.")
+            return
+        list_lat_lon = sorted(self.dico_tiles_todo.keys())
+        data_deleted = False
+        for lat, lon in list_lat_lon:
+            if self.v_["OSM data"].get():
+                data_deleted = self.delete_osm_data(lat, lon)
+            if self.v_["Mask data"].get():
+                data_deleted = self.delete_mask_data(lat, lon)
+            if self.v_["Jpeg imagery"].get():
+                data_deleted = self.delete_jpeg_imagery(lat, lon)
+            if self.v_["Tile (whole)"].get() and not self.grouped:
+                data_deleted = self.delete_tile_whole(lat, lon)
+            if self.v_["Tile (textures)"].get() and not self.grouped:
+                data_deleted = self.delete_tile_textures(lat, lon)
+        if data_deleted:
+            UI.vprint(1, "Selected cached data removed.")
+        else:
+            UI.vprint(1, "No cached data found.")
         return
 
+    def delete_osm_data(self, lat: int, lon: int) -> None:
+        """Delete cached OSM data."""
+        try:
+            shutil.rmtree(FNAMES.osm_dir(lat, lon))
+            UI.vprint(
+                3,
+                "OSM data removed for tile at " + str(lat) + str(lon),
+            )
+            return True
+        except FileNotFoundError:
+            UI.vprint(
+                3,
+                "No OSM data exists for tile at " + str(lat) + str(lon),
+            )
+        except Exception as e:
+            UI.vprint(3, e)
+            _LOGGER.exception(e)
+
+    def delete_mask_data(self, lat: int, lon: int) -> None:
+        """Delete cached mask data."""
+        try:
+            shutil.rmtree(FNAMES.mask_dir(lat, lon))
+            UI.vprint(
+                3,
+                "Mask data removed for tile at " + str(lat) + str(lon),
+            )
+            return True
+        except FileNotFoundError:
+            UI.vprint(
+                3,
+                "No mask data exists for tile at " + str(lat) + str(lon),
+            )
+        except Exception as e:
+            UI.vprint(3, e)
+            _LOGGER.exception(e)
+
+    def delete_jpeg_imagery(self, lat: int, lon: int) -> None:
+        """Delete ortho JPEG immagery."""
+        try:
+            shutil.rmtree(
+                os.path.join(
+                    FNAMES.Imagery_dir,
+                    FNAMES.long_latlon(lat, lon),
+                )
+            )
+            UI.vprint(
+                3,
+                "Jpeg imagery removed for tile at " + str(lat) + str(lon),
+            )
+            return True
+        except FileNotFoundError:
+            UI.vprint(
+                3,
+                "No jpeg imagery exists for tile at " + str(lat) + str(lon),
+            )
+        except Exception as e:
+            UI.vprint(3, e)
+            _LOGGER.exception(e)
+
+    def delete_tile_whole(self, lat: int, lon: int) -> None:
+        """Delete all tile data."""
+        try:
+            shutil.rmtree(FNAMES.build_dir(lat, lon, self.custom_build_dir))
+            UI.vprint(
+                3,
+                "Tile (whole) removed for tile at " + str(lat) + str(lon),
+            )
+            if (lat, lon) in self.dico_tiles_done:
+                self.remove_symlink(lat, lon)
+                for objid in self.dico_tiles_done[(lat, lon)][:2]:
+                    self.canvas.delete(objid)
+                del self.dico_tiles_done[(lat, lon)]
+            return True
+        except FileNotFoundError:
+            UI.vprint(
+                3,
+                "No tile data exists for tile at " + str(lat) + str(lon),
+            )
+        except Exception as e:
+            UI.vprint(3, e)
+            _LOGGER.exception(e)
+
+    def delete_tile_textures(self, lat: int, lon: int) -> None:
+        """Delete tile textures."""
+        try:
+            shutil.rmtree(
+                os.path.join(
+                    FNAMES.build_dir(
+                        lat,
+                        lon,
+                        self.custom_build_dir,
+                    ),
+                    "textures",
+                )
+            )
+            UI.vprint(
+                3,
+                "Tile (textures) removed for tile at " + str(lat) + str(lon),
+            )
+            return True
+        except FileNotFoundError:
+            UI.vprint(
+                3,
+                "No tile textures exists for tile at " + str(lat) + str(lon),
+            )
+        except Exception as e:
+            UI.vprint(3, e)
+
     def select_tile(self, event):
+        """Set active tile."""
         x = self.canvas.canvasx(event.x)
         y = self.canvas.canvasy(event.y)
         (lat, lon) = [floor(t) for t in GEO.pix_to_wgs84(x, y, self.earthzl)]
         self.active_lat = lat
         self.active_lon = lon
         self.latlon.set(FNAMES.short_latlon(lat, lon))
+        if (
+            self.parent.config_window is not None
+            and self.parent.config_window.winfo_exists()
+            and not UI.is_working
+        ):
+            result = self.parent.config_window.check_unsaved_changes(select_tile=True)
+            if result == "cancel":
+                return
+
         try:
             self.canvas.delete(self.active_tile)
         except:
@@ -1708,94 +2112,19 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
         )
         self.parent.lat.set(lat)
         self.parent.lon.set(lon)
+        self.parent.load_tile_cfg(lat, lon)
         return
 
-    def toggle_to_custom(self, event):
+    def toggle_to_custom(self, event: tk.Event) -> None:
+        """Create or delete symlink to custom_scenery_dir on user action."""
         x = self.canvas.canvasx(event.x)
         y = self.canvas.canvasy(event.y)
         (lat, lon) = [floor(t) for t in GEO.pix_to_wgs84(x, y, self.earthzl)]
         if (lat, lon) not in self.dico_tiles_done:
             return
-        if not self.grouped:
-            link = os.path.join(
-                CFG.custom_scenery_dir,
-                "zOrtho4XP_" + FNAMES.short_latlon(lat, lon),
-            )
-            # target=os.path.realpath(os.path.join(self.working_dir,
-            # 'zOrtho4XP_'+FNAMES.short_latlon(lat,lon)))
-            target = os.path.realpath(
-                os.path.join(
-                    self.working_dir, self.dico_tiles_done[(lat, lon)][-1]
-                )
-            )
-            if os.path.isdir(link) and os.path.samefile(
-                os.path.realpath(link), target
-            ):
-                os.remove(link)
-                if not OsX:
-                    self.canvas.itemconfig(
-                        self.dico_tiles_done[(lat, lon)][0], stipple="gray12"
-                    )
-                else:
-                    self.canvas.itemconfig(
-                        self.dico_tiles_done[(lat, lon)][1],
-                        font=("Helvetica", "12", "normal"),
-                    )
-                return
-        elif self.grouped:
-            link = os.path.join(
-                CFG.custom_scenery_dir,
-                "zOrtho4XP_" + os.path.basename(self.working_dir),
-            )
-            target = os.path.realpath(self.working_dir)
-            if os.path.isdir(link) and os.path.samefile(
-                os.path.realpath(link), os.path.realpath(self.working_dir)
-            ):
-                os.remove(link)
-                for (lat0, lon0) in self.dico_tiles_done:
-                    if not OsX:
-                        self.canvas.itemconfig(
-                            self.dico_tiles_done[(lat, lon)][0],
-                            stipple="gray12",
-                        )
-                    else:
-                        self.canvas.itemconfig(
-                            self.dico_tiles_done[(lat, lon)][1],
-                            font=("Helvetica", "12", "normal"),
-                        )
-                return
-        # in case this was a broken link
-        try:
-            os.remove(link)
-        except:
-            pass
-        if ("dar" in sys.platform) or (
-            "win" not in sys.platform
-        ):  # Mac and Linux
-            os.system("ln -s " + ' "' + target + '" "' + link + '"')
-        else:
-            os.system('MKLINK /J "' + link + '" "' + target + '"')
-        if not self.grouped:
-            if not OsX:
-                self.canvas.itemconfig(
-                    self.dico_tiles_done[(lat, lon)][0], stipple="gray50"
-                )
-            else:
-                self.canvas.itemconfig(
-                    self.dico_tiles_done[(lat, lon)][1],
-                    font=("Helvetica", "12", "bold underline"),
-                )
-        else:
-            for (lat0, lon0) in self.dico_tiles_done:
-                if not OsX:
-                    self.canvas.itemconfig(
-                        self.dico_tiles_done[(lat0, lon0)][0], stipple="gray50"
-                    )
-                else:
-                    self.canvas.itemconfig(
-                        self.dico_tiles_done[(lat, lon)][1],
-                        font=("Helvetica", "12", "bold underline"),
-                    )
+        if self.remove_symlink(lat, lon):
+            return
+        self.add_symlink(lat, lon)
         return
 
     def add_tile(self, event):
@@ -1819,13 +2148,24 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
         return
 
     def batch_build(self):
+        # Check if config window is open and if unsaved changes exist
+        if (
+            self.parent.config_window is not None
+            and self.parent.config_window.winfo_exists()
+        ):
+            result = self.parent.config_window.check_unsaved_changes()
+            if result == "cancel":
+                return
+
         list_lat_lon = sorted(self.dico_tiles_todo.keys())
         if not list_lat_lon:
+            UI.vprint(1, "Unable to batch build: No tiles selected.")
             return
         (lat, lon) = list_lat_lon[0]
         try:
             tile = CFG.Tile(lat, lon, self.custom_build_dir)
-        except:
+        except Exception as e:
+            _LOGGER.exception(e)
             return 0
         args = [
             tile,
@@ -1835,7 +2175,7 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
             self.v_["Draw water masks"].get(),
             self.v_["Build imagery/DSF"].get(),
             self.v_["Extract overlays"].get(),
-            self.v_["Read per tile cfg"].get(),
+            self.v_["Override tile configs"].get(),
         ]
         threading.Thread(target=TILE.build_tile_list, args=args).start()
         return
@@ -1901,13 +2241,14 @@ class Ortho4XP_Earth_Preview(tk.Toplevel):
                 image=self.photoNW,
             )
             self.canvas.tag_lower(self.canv_imgNW)
-        except:
+        except Exception as e:
             UI.lvprint(
                 0,
                 "Could not find Earth preview file",
                 filepreviewNW,
                 ", please update your installation from a fresh copy.",
             )
+            _LOGGER.exception(e)
             return
         if nx0 < 2 ** (self.earthzl - 3) - 1:
             filepreviewNE = fileprefix + str(nx0 + 1) + "_" + str(ny0) + ".jpg"

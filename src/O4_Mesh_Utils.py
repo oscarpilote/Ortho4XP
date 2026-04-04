@@ -18,12 +18,14 @@ if "dar" in sys.platform:
     Triangle4XP_cmd = os.path.join(FNAMES.Utils_dir, "mac", "Triangle4XP ")
     triangle_cmd = os.path.join(FNAMES.Utils_dir, "mac", "triangle ")
     sort_mesh_cmd = os.path.join(FNAMES.Utils_dir, "mac", "moulinette ")
-    unzip_cmd = "7z "
+    unzip_cmd = os.path.join(FNAMES.Utils_dir, "mac", "7zz")
+    if not os.path.exists(unzip_cmd):
+        unzip_cmd = "7z"
 elif "win" in sys.platform:
     Triangle4XP_cmd = os.path.join(FNAMES.Utils_dir, "win", "Triangle4XP.exe ")
     triangle_cmd = os.path.join(FNAMES.Utils_dir, "win", "triangle.exe ")
     sort_mesh_cmd = os.path.join(FNAMES.Utils_dir, "win", "moulinette.exe ")
-    unzip_cmd = os.path.join(FNAMES.Utils_dir, "win", "7z.exe ")
+    unzip_cmd = os.path.join(FNAMES.Utils_dir, "win", "7z.exe")
 else:
     Triangle4XP_cmd = os.path.join(FNAMES.Utils_dir, "lin", "Triangle4XP ")
     triangle_cmd = os.path.join(FNAMES.Utils_dir, "lin", "triangle ")
@@ -32,9 +34,9 @@ else:
 
 
 community_server = False
-if os.path.exists(os.path.join(FNAMES.Ortho4XP_dir, "community_server.txt")):
+if os.path.exists(FNAMES.resource_path("community_server.txt")):
     try:
-        f = open(os.path.join(FNAMES.Ortho4XP_dir, "community_server.txt"), "r")
+        f = open(FNAMES.resource_path("community_server.txt"), "r")
         for line in f.readlines():
             line = line.strip()
             if not line:
@@ -84,7 +86,8 @@ def community_mesh(tile):
                     "-o" + tile.build_dir,
                     FNAMES.mesh_file(tile.build_dir, tile.lat, tile.lon)
                     + ".7z",
-                ]
+                ],
+                env=UI.subprocess_env(),
             ):
                 UI.exit_message_and_bottom_line(
                     "\nERROR: Could not extract community_mesh from archive."
@@ -661,8 +664,8 @@ def build_mesh(tile):
     # Hack
     # Better meshes by not modifying curv_tol but having limit_tris set
     # tu a reasonable value.
-    #curv_tol_scaling = sqrt(tile.dem.nxdem / (3601 * (tile.dem.x1 - tile.dem.x0))
-    #)
+    # curv_tol_scaling = sqrt(tile.dem.nxdem / (3601 * (tile.dem.x1 - tile.dem.x0))
+    # )
 
     mesh_cmd = [
         Triangle4XP_cmd.strip(),
@@ -687,7 +690,7 @@ def build_mesh(tile):
     UI.vprint(1, "-> Start of the mesh algorithm Triangle4XP.")
     UI.vprint(2, "   Mesh command:", " ".join(mesh_cmd))
     fingers_crossed = subprocess.Popen(
-        mesh_cmd, stdout=subprocess.PIPE, bufsize=0
+        mesh_cmd, stdout=subprocess.PIPE, bufsize=0, env=UI.subprocess_env()
     )
     while True:
         line = fingers_crossed.stdout.readline()
@@ -701,29 +704,43 @@ def build_mesh(tile):
     time.sleep(0.3)
     fingers_crossed.poll()
     if fingers_crossed.returncode:
-        UI.vprint(
-            0,
-            "\nWARNING: Triangle4XP could not achieve the requested quality ",
-            "(min_angle), most probably due to an uncatched OSM error.\n",
-            "It will be tempted now with no angle constraint ",
-            "(i.e. min_angle=0).",
-        )
-        mesh_cmd[-5] = "{:.9g}".format(0)
-        fingers_crossed = subprocess.Popen(
-            mesh_cmd, stdout=subprocess.PIPE, bufsize=0
-        )
-        while True:
-            line = fingers_crossed.stdout.readline()
-            if not line:
+        min_angles = [8, 6, 4, 2, 0]
+        for min_angle in min_angles:
+            if tile.min_angle <= min_angle:
+                continue
+            UI.vprint(
+                0,
+                "\nWARNING: Triangle4XP could not achieve the requested quality ",
+                "(min_angle) most likely due to an uncatched OSM error.\n",
+                f"Reattempting with a lower angle constraint (min_angle={min_angle}).",
+            )
+            Tri_option = (
+                "-pq"
+                + "{:.9g}".format(min_angle)
+                + do_refine
+                + "uYB"
+                + tri_verbosity
+                + output_poly
+                + limit_tris
+            )
+            mesh_cmd[1] = Tri_option
+            fingers_crossed = subprocess.Popen(
+                mesh_cmd, stdout=subprocess.PIPE, bufsize=0, env=UI.subprocess_env()
+            )
+            while True:
+                line = fingers_crossed.stdout.readline()
+                if not line:
+                    break
+                else:
+                    try:
+                        print(line.decode("utf-8")[:-1])
+                    except:
+                        pass
+            time.sleep(0.3)
+            fingers_crossed.poll()
+            if fingers_crossed.returncode == 0:
                 break
-            else:
-                try:
-                    print(line.decode("utf-8")[:-1])
-                except:
-                    pass
-        time.sleep(0.3)
-        fingers_crossed.poll()
-        if fingers_crossed.returncode:
+        else:
             UI.exit_message_and_bottom_line(
                 "\nERROR: Triangle4XP really couldn't make it !\n\n",
                 "If the reason is not due to the limited amount of ",
@@ -799,7 +816,7 @@ def sort_mesh(tile):
     UI.vprint(1, "-> Reorganizing mesh triangles.")
     timer = time.time()
     moulinette = subprocess.Popen(
-        sort_mesh_cmd_list, stdout=subprocess.PIPE, bufsize=0
+        sort_mesh_cmd_list, stdout=subprocess.PIPE, bufsize=0, env=UI.subprocess_env()
     )
     while True:
         line = moulinette.stdout.readline()
@@ -828,7 +845,7 @@ def triangulate(name, path_to_Ortho4XP_dir):
         name + ".poly",
     ]
     fingers_crossed = subprocess.Popen(
-        mesh_cmd, stdout=subprocess.PIPE, bufsize=0
+        mesh_cmd, stdout=subprocess.PIPE, bufsize=0, env=UI.subprocess_env()
     )
     while True:
         line = fingers_crossed.stdout.readline()
@@ -893,4 +910,3 @@ def read_mesh_file(mesh_file):
 
     return (mesh_version, nbr_nodes, node_coords, nbr_tris, tri_idx, tri_types)
 ##############################################################################
-

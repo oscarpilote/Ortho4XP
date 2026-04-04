@@ -2,13 +2,25 @@ import os
 import sys
 import time
 
-Ortho4XP_dir = ".." if getattr(sys, "frozen", False) else "."
+import O4_File_Names as FNAMES
+
 verbosity = 1
 red_flag = False
 is_working = False
 cleaning_level = 1
 gui = None
 log = True
+
+
+################################################################################
+def subprocess_env():
+    """Return a subprocess environment with OBJC_DISABLE_INITIALIZE_FORK_SAFETY
+    set on macOS to suppress CoreFoundation fork-safety warnings."""
+    env = os.environ.copy()
+    if "dar" in sys.platform:
+        env["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
+    return env
+
 
 ################################################################################
 def progress_bar(nbr, percentage, message=None):
@@ -25,7 +37,7 @@ def vprint(min_verbosity, *args):
 ################################################################################
 def logprint(*args):
     try:
-        f = open(os.path.join(Ortho4XP_dir, "Ortho4XP.log"), "a")
+        f = open(FNAMES.resource_path("Ortho4XP.log"), "a")
         f.write(
             time.strftime("%c")
             + " | "
