@@ -1003,7 +1003,7 @@ def smooth_raster_over_airports(tile, dico_airports, preserve_boundary=True):
                 ]
                 airport_draw.polygon(interior_pol_pix, fill="black")
         airport_im = airport_im.resize(
-            (colmax - colmin + 1, rowmax - rowmin + 1), Image.BICUBIC
+            (colmax - colmin + 1, rowmax - rowmin + 1), Image.Resampling.BICUBIC
         )
         tile.dem.alt_dem[
             rowmin : rowmax + 1, colmin : colmax + 1

@@ -1,21 +1,22 @@
+import array
+import hashlib
+import io
+import numpy
 import os
 import pickle
 import shutil
-import io
-from math import floor, ceil
-import array
-import numpy
-from PIL import Image, ImageDraw
-from collections import defaultdict
 import struct
-import hashlib
+from collections import defaultdict
+from math import ceil, floor
+from PIL import Image, ImageDraw
+import subprocess
+import O4_Bathymetry as BATHY
 import O4_File_Names as FNAMES
 import O4_Geo_Utils as GEO
 import O4_Mask_Utils as MASK
-import O4_UI_Utils as UI
-import O4_Overlay_Utils as OVL
 import O4_Mesh_Utils as MESH
-import O4_Bathymetry as BATHY
+import O4_Overlay_Utils as OVL
+import O4_UI_Utils as UI
 
 quad_init_level = 3
 quad_capacity_high = 50000
@@ -75,7 +76,8 @@ class QuadTree(dict):
             if key in self:
                 break
             level += 1
-        if self[key]["size"] < self.bucket_size:
+        # Complex meshes can cause level to exceed 14, so we cap it
+        if self[key]["size"] < self.bucket_size or level >= 14:
             self[key]["idx_nodes"].add(self.last_node)
             self[key]["size"] += 1
             self.nodes[self.last_node] = (bx, by)
@@ -365,6 +367,12 @@ def extract_elevation_and_bathymetry_data(lat, lon):
         FNAMES.long_latlon(lat, lon) + ".dsf",
     )
     if not os.path.exists(global_scenery_dsf):
+        global_scenery_dsf = os.path.join(
+        OVL.custom_overlay_src_alternate,
+        "Earth nav data",
+        FNAMES.long_latlon(lat, lon) + ".dsf",
+        )
+    if not os.path.exists(global_scenery_dsf):
         UI.exit_message_and_bottom_line(
             "   ERROR: file ",
             global_scenery_dsf,
@@ -391,9 +399,7 @@ def extract_elevation_and_bathymetry_data(lat, lon):
     if dsfid == "7z":
         UI.vprint(2, "     The original DSF is a 7z archive, uncompressing...")
         os.replace(tmp_file, tmp_file + ".7z")
-        os.system(
-            OVL.unzip_cmd + " e -o" + FNAMES.Tmp_dir + ' "' + tmp_file + '.7z"'
-        )
+        subprocess.run([OVL.unzip_cmd, "e", f"-o{FNAMES.Tmp_dir}", f"{tmp_file}.7z"], env=UI.subprocess_env())
         os.remove(tmp_file + '.7z')
     file_len = os.path.getsize(tmp_file)
     f = open(tmp_file, "rb")
@@ -490,9 +496,9 @@ def build_dsf(tile, download_queue):
                             nbr_nodes, node_coords, node_types, tile)
     
     UI.vprint(1, "-> Computing point pools and texture requirements")
-    
+
     # 5 Compute quadtree
-    if (tile.use_masks_for_inland):
+    if tile.use_masks_for_inland:
         quad_capacity = quad_capacity_low
     else:
         quad_capacity = quad_capacity_high
@@ -522,10 +528,14 @@ def build_dsf(tile, download_queue):
         plist = sorted(list(pool_quadtree[key]["idx_nodes"]))
         node_icoords[[5 * idx_node for idx_node in plist]] = [
             int(pool_quadtree.nodes[idx_node][0][level : level + 16], 2)
+            if pool_quadtree.nodes[idx_node][0][level : level + 16]
+            else 0
             for idx_node in plist
         ]
         node_icoords[[5 * idx_node + 1 for idx_node in plist]] = [
             int(pool_quadtree.nodes[idx_node][1][level : level + 16], 2)
+            if pool_quadtree.nodes[idx_node][1][level : level + 16]
+            else 0
             for idx_node in plist
         ]
         altitudes = numpy.array(
@@ -1039,8 +1049,6 @@ def build_dsf(tile, download_queue):
                 total_cross_pool += 1
                 textured_tris[0]["cross-pool"].extend(tri_p)
     
-    download_queue.put("quit")
-
     UI.vprint(1, "-> Encoding of the DSF file")
     UI.vprint(1, "     Final nbr of nodes: " + str(len_textured_nodes))
     UI.vprint(2, "     Final nbr of cross pool tris: " + str(total_cross_pool))

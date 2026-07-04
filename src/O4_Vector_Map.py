@@ -49,6 +49,21 @@ def build_poly_file(tile):
         UI.exit_message_and_bottom_line()
         return 0
 
+    # Load DEM up front so every include_* helper below can rely on
+    # tile.dem being valid even if the OSM airport query later fails.
+    # The DEM has no data dependency on OSM; previously this load was
+    # nested inside include_airports after the OSM query, so an Overpass
+    # timeout left tile.dem = None and crashed include_water with
+    # AttributeError: 'NoneType' object has no attribute 'alt_vec'.
+    UI.vprint(1, "   Loading elevation data.")
+    tile.dem = DEM.DEM(
+        tile.lat,
+        tile.lon,
+        tile.custom_dem,
+        tile.fill_nodata or "to zero",
+        info_only=False,
+    )
+
     # Airports
     (apt_array, apt_area) = include_airports(vector_map, tile)
     UI.vprint(
@@ -203,14 +218,7 @@ def include_airports(vector_map, tile):
     APT.build_taxiway_areas(tile, airport_layer, dico_airports)
     APT.update_airport_boundaries(tile, dico_airports)
     APT.list_airports_and_runways(dico_airports)
-    UI.vprint(1, "   Loading elevation data and smoothing it over airports.")
-    tile.dem = DEM.DEM(
-        tile.lat,
-        tile.lon,
-        tile.custom_dem,
-        tile.fill_nodata or "to zero",
-        info_only=False,
-    )
+    UI.vprint(1, "   Smoothing elevation data over airports.")
     APT.smooth_raster_over_airports(tile, dico_airports)
     (patches_area, patches_list) = include_patches(vector_map, tile)
     runway_taxiway_apron_area = APT.encode_runways_taxiways_and_aprons(
@@ -275,7 +283,7 @@ def include_roads(vector_map, tile, apt_array, apt_area):
         cached_suffix="big_roads",
     ):
         return 0
-    UI.vprint(1, "    * Checking which large roads need levelling.")
+    UI.vprint(1, "    * Checking which large roads need leveling.")
     (road_network_banked, road_network_flat) = OSM.OSM_to_MultiLineString(
         road_layer,
         tile.lat,
@@ -306,7 +314,7 @@ def include_roads(vector_map, tile, apt_array, apt_area):
             cached_suffix="small_roads",
         ):
             return 0
-        UI.vprint(1, "    * Checking which smaller roads need levelling.")
+        UI.vprint(1, "    * Checking which smaller roads need leveling.")
         timer = time.time()
         (
             road_network_banked_2,

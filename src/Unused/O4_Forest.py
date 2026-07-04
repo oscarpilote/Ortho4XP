@@ -11,10 +11,12 @@ import O4_Copernicus as COP
 from shapely import geometry, ops
 
 if 'dar' in sys.platform:
-    unzip_cmd    = "7z "
+    unzip_cmd = os.path.join(FNAMES.Utils_dir, "mac", "7zz")
+    if not os.path.exists(unzip_cmd):
+        unzip_cmd = "7z"
     dsftool_cmd  = os.path.join(FNAMES.Utils_dir, "mac" ,"DSFTool ")
 elif 'win' in sys.platform: 
-    unzip_cmd    = os.path.join(FNAMES.Utils_dir, "win", "7z.exe ")
+    unzip_cmd    = os.path.join(FNAMES.Utils_dir, "win", "7z.exe")
     dsftool_cmd  = os.path.join(FNAMES.Utils_dir, "win", "DSFTool.exe ")
 else:
     unzip_cmd    = "7z "

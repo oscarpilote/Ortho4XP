@@ -8,22 +8,38 @@ import numpy
 from shapely import geometry, ops
 import O4_UI_Utils as UI
 import O4_File_Names as FNAMES
+from O4_Version import version as O4XP_VERSION
 
-overpass_servers = {
-    "DE": "http://overpass-api.de/api/interpreter",
-    "FR": "http://api.openstreetmap.fr/oapi/interpreter",
-    "KU": "https://overpass.kumi.systems/api/interpreter",
-    "RU": "http://overpass.osm.rambler.ru/cgi/interpreter",
-}
-overpass_server_choice = "DE"
+# Default overpass_server_choice if not in config
+overpass_server_choice = "random"
 max_osm_tentatives = 8
 
-################################################################################
+
+def _load_overpass_servers() -> dict:
+    """Create dictionary from overpass_servers.txt."""
+    servers = {}
+    try:
+        with open(FNAMES.resource_path("overpass_servers.txt"), "r") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" in line:
+                    key, _, url = line.partition("=")
+                    key, url = key.strip(), url.strip()
+                    if key and url:
+                        servers[key] = url
+    except Exception as e:
+        UI.lvprint(1, e)
+    return servers
+
+
+overpass_servers = _load_overpass_servers()
+
+
 class OSM_layer:
     def __init__(self):
-        self.dicosmn = (
-            {}
-        )  # keys are ints (ids) and values are tuple of (lat,lon)
+        self.dicosmn = {}  # keys are ints (ids) and values are tuple of (lat,lon)
         self.dicosmn_reverse = {}  # reverese of the previous one
         self.dicosmw = {}
         self.next_node_id = -1
@@ -49,8 +65,8 @@ class OSM_layer:
 
     def update_dicosm(self, osm_input, input_tags=None, target_tags=None):
         # input_tags (dict or None) are the input query tags (per osm type)
-        # target_tags (dict or None) are the the tags which should be kept 
-        # (per osm type) It is expected that if not None the target_tags 
+        # target_tags (dict or None) are the the tags which should be kept
+        # (per osm type) It is expected that if not None the target_tags
         # contains the input_tags
         initnodes = len(self.dicosmn)
         initways = len(self.dicosmfirst["w"])
@@ -172,7 +188,7 @@ class OSM_layer:
                         self.dicosmtags[osmtype][osmid] = {items[1]: items[3]}
                     else:
                         self.dicosmtags[osmtype][osmid][items[1]] = items[3]
-                    # If so, do we need to declare this osmid as a first catch, 
+                    # If so, do we need to declare this osmid as a first catch,
                     # not one only brought with as a child
                     if input_tags and (
                         ((items[1], "") in input_tags[osmtype])
@@ -190,9 +206,7 @@ class OSM_layer:
             elif "</relation>" in items[0]:
                 bad_rel = False
                 for role, endpt in (
-                    (r, e)
-                    for r in ["outer", "inner"]
-                    for e in dico_rel_check[r]
+                    (r, e) for r in ["outer", "inner"] for e in dico_rel_check[r]
                 ):
                     if len(dico_rel_check[role][endpt]) != 2:
                         bad_rel = True
@@ -291,8 +305,8 @@ class OSM_layer:
             UI.vprint(1, "    Could not open", filename, "for writing.")
             return 0
         fout.write(
-            '<?xml version="1.0" encoding="UTF-8"?>\n<osm version="0.6" ' + 
-            'generator="Ortho4XP">\n'
+            '<?xml version="1.0" encoding="UTF-8"?>\n<osm version="0.6" '
+            + 'generator="Ortho4XP">\n'
         )
         if not len(self.dicosmfirst["n"]):
             for nodeid, (lonp, latp) in self.dicosmn.items():
@@ -343,9 +357,7 @@ class OSM_layer:
             for nodeid in self.dicosmw[wayid]:
                 fout.write('    <nd ref="' + str(nodeid) + '"/>\n')
             for tag in (
-                self.dicosmtags["w"][wayid]
-                if wayid in self.dicosmtags["w"]
-                else []
+                self.dicosmtags["w"][wayid] if wayid in self.dicosmtags["w"] else []
             ):
                 fout.write(
                     '    <tag k="'
@@ -361,20 +373,14 @@ class OSM_layer:
             fout.write('  <relation id="' + str(relid) + '" version="1">\n')
             for wayid in self.dicosmrorig[relid]["outer"]:
                 fout.write(
-                    '    <member type="way" ref="'
-                    + str(wayid)
-                    + '" role="outer"/>\n'
+                    '    <member type="way" ref="' + str(wayid) + '" role="outer"/>\n'
                 )
             for wayid in self.dicosmrorig[relid]["inner"]:
                 fout.write(
-                    '    <member type="way" ref="'
-                    + str(wayid)
-                    + '" role="inner"/>\n'
+                    '    <member type="way" ref="' + str(wayid) + '" role="inner"/>\n'
                 )
             for tag in (
-                self.dicosmtags["r"][relid]
-                if relid in self.dicosmtags["r"]
-                else []
+                self.dicosmtags["r"][relid] if relid in self.dicosmtags["r"] else []
             ):
                 fout.write(
                     '    <tag k="'
@@ -388,17 +394,16 @@ class OSM_layer:
         fout.close()
         return 1
 
-################################################################################
+
 def OSM_queries_to_OSM_layer(
     queries,
     osm_layer,
     lat,
     lon,
     tags_of_interest=[],
-    server_code=None,
     cached_suffix="",
 ):
-    # this one is a bit complicated by a few checks of existing cached data 
+    # this one is a bit complicated by a few checks of existing cached data
     # which had different filenames is versions prior to 1.30
     target_tags = {"n": [], "w": [], "r": []}
     input_tags = {"n": [], "w": [], "r": []}
@@ -422,9 +427,7 @@ def OSM_queries_to_OSM_layer(
     cached_data_filename = FNAMES.osm_cached(lat, lon, cached_suffix)
     if cached_suffix and os.path.isfile(cached_data_filename):
         UI.vprint(1, "    * Recycling OSM data from", cached_data_filename)
-        return osm_layer.update_dicosm(
-            cached_data_filename, input_tags, target_tags
-        )
+        return osm_layer.update_dicosm(cached_data_filename, input_tags, target_tags)
     for query in queries:
         # look first for cached data (old scheme)
         if isinstance(query, str):
@@ -436,9 +439,7 @@ def OSM_queries_to_OSM_layer(
                 )
                 continue
         UI.vprint(1, "    * Downloading OSM data for", query)
-        response = get_overpass_data(
-            query, (lat, lon, lat + 1, lon + 1), server_code
-        )
+        response = get_overpass_data(query, (lat, lon, lat + 1, lon + 1))
         if UI.red_flag:
             return 0
         if not response:
@@ -461,13 +462,12 @@ def OSM_queries_to_OSM_layer(
         osm_layer.write_to_file(cached_data_filename)
     return 1
 
-################################################################################
+
 def OSM_query_to_OSM_layer(
     query,
     bbox,
     osm_layer,
     tags_of_interest=[],
-    server_code=None,
     cached_file_name="",
 ):
     # this one is simpler and does not depend on the notion of tile
@@ -491,7 +491,7 @@ def OSM_query_to_OSM_layer(
         UI.vprint(1, "    * Recycling OSM data from", cached_file_name)
         osm_layer.update_dicosm(cached_file_name, input_tags, target_tags)
     else:
-        response = get_overpass_data(query, bbox, server_code)
+        response = get_overpass_data(query, bbox)
         if UI.red_flag:
             return 0
         if not response:
@@ -509,84 +509,94 @@ def OSM_query_to_OSM_layer(
             osm_layer.write_to_file(cached_file_name)
     return 1
 
-################################################################################
-def get_overpass_data(query, bbox, server_code=None):
-    tentative = 1
-    while True:
-        s = requests.Session()
-        true_server_code = server_code
-        if not server_code:
-            true_server_code = (
-                random.choice(list(overpass_servers.keys()))
-                if overpass_server_choice == "random"
-                else overpass_server_choice
+
+def get_overpass_data(query: str, bbox: tuple) -> bytes:
+    """Fetch data from OSM overpass servers."""
+    if not overpass_servers:
+        UI.lvprint(1, "No overpass servers configured. Check overpass_servers.txt.")
+        return 0
+    s = requests.Session()
+    s.headers.update(
+        {"User-Agent": f"Ortho4XP/{O4XP_VERSION} (https://github.com/shred86/Ortho4XP)"}
+    )
+    server_keys = list(overpass_servers.keys())
+
+    if isinstance(query, str):
+        overpass_query = query + str(bbox) + ";"
+    else:
+        overpass_query = "".join(x + str(bbox) + ";" for x in query)
+
+    for tentative in range(1, max_osm_tentatives + 1):
+        if overpass_server_choice == "random":
+            if len(server_keys) == 1:
+                current_key = server_keys[0]
+            else:
+                last_used = getattr(get_overpass_data, "last_key", None)
+                other_keys = [k for k in server_keys if k != last_used]
+                current_key = random.choice(other_keys if other_keys else server_keys)
+        elif overpass_server_choice in server_keys:
+            current_key = overpass_server_choice
+        else:
+            current_key = server_keys[0]
+            UI.lvprint(
+                1,
+                "Selected overpass server not found in overpass_servers.txt, using:",
+                server_keys[0],
             )
-        base_url = overpass_servers[true_server_code]
-        if isinstance(query, str):
-            overpass_query = query + str(bbox) + ";"
-        else:  # query is a tuple
-            overpass_query = "".join([x + str(bbox) + ";" for x in query])
-        url = base_url + "?data=(" + overpass_query + ");(._;>>;);out meta;"
+
+        get_overpass_data.last_key = current_key
+
+        UI.vprint(2, f"      Using OSM server {current_key}")
+        url = (
+            overpass_servers[current_key]
+            + "?data=("
+            + overpass_query
+            + ");(._;>>;);out meta;"
+        )
         UI.vprint(3, url)
+        wait = 2**tentative
         try:
             r = s.get(url, timeout=60)
-            UI.vprint(3, "OSM response status :", r)
-            if "200" in str(r):
+            if r.status_code == 200:
                 if (
                     b"</osm>" not in r.content[-10:]
                     and b"</OSM>" not in r.content[-10:]
                 ):
                     UI.vprint(
                         1,
-                        "        OSM server",
-                        true_server_code,
-                        "sent a corrupted answer (no closing </osm> tag in ",
-                        "answer), new tentative in",
-                        2 ** tentative,
-                        "sec...",
+                        f"      OSM server {current_key} sent a corrupted answer ",
+                        f"(no closing </osm> tag in answer), "
+                        f"new tentative in {wait} sec...",
                     )
                 elif len(r.content) <= 1000 and b"error" in r.content:
                     UI.vprint(
                         1,
-                        "        OSM server",
-                        true_server_code,
-                        "sent us an error code for the data (data too big ?), ",
-                        "new tentative in",
-                        2 ** tentative,
-                        "sec...",
+                        f"      OSM server {current_key} sent us an error code "
+                        f"(data too big ?), new tentative in {wait} sec...",
                     )
                 else:
-                    break
+                    return r.content
             else:
+                if r.status_code == 429:  # 429 is overpass software rate limiting us
+                    wait = max(int(r.headers.get("Retry-After", 0)), wait)
                 UI.vprint(
                     1,
-                    "        OSM server",
-                    true_server_code,
-                    "rejected our query, new tentative in",
-                    2 ** tentative,
-                    "sec...",
+                    f"      OSM server {current_key} rejected our query "
+                    f"(HTTP {r.status_code}), new tentative in {wait} sec...",
                 )
-        except:
+        except Exception:
             UI.vprint(
                 1,
-                "        OSM server",
-                true_server_code,
-                "was too busy, new tentative in",
-                2 ** tentative,
-                "sec...",
+                f"      OSM server {current_key} was too busy, new tentative in ",
+                f"{wait} sec...",
             )
-        if tentative >= max_osm_tentatives:
-            return 0
         if UI.red_flag:
             return 0
-        time.sleep(2 ** tentative)
-        tentative += 1
-    return r.content
+        time.sleep(wait)
+    return 0
 
-################################################################################
-def OSM_to_MultiLineString(
-    osm_layer, lat, lon, tags_for_exclusion=set(), filter=None
-):
+
+def OSM_to_MultiLineString(osm_layer, lat, lon, tags_for_exclusion=set(), filter=None):
     multiline = []
     multiline_reject = []
     todo = len(osm_layer.dicosmfirst["w"])
@@ -607,10 +617,7 @@ def OSM_to_MultiLineString(
             continue
         way = numpy.round(
             numpy.array(
-                [
-                    osm_layer.dicosmn[nodeid]
-                    for nodeid in osm_layer.dicosmw[wayid]
-                ],
+                [osm_layer.dicosmn[nodeid] for nodeid in osm_layer.dicosmw[wayid]],
                 dtype=numpy.float64,
             )
             - numpy.array([[lon, lat]], dtype=numpy.float64),
@@ -639,7 +646,7 @@ def OSM_to_MultiLineString(
             geometry.MultiLineString(multiline_reject),
         )
 
-################################################################################
+
 def OSM_to_MultiPolygon(osm_layer, lat, lon, filter=None):
     multilist = []
     excludelist = []
@@ -659,10 +666,7 @@ def OSM_to_MultiPolygon(osm_layer, lat, lon, filter=None):
             continue
         way = numpy.round(
             numpy.array(
-                [
-                    osm_layer.dicosmn[nodeid]
-                    for nodeid in osm_layer.dicosmw[wayid]
-                ],
+                [osm_layer.dicosmn[nodeid] for nodeid in osm_layer.dicosmw[wayid]],
                 dtype=numpy.float64,
             )
             - numpy.array([[lon, lat]], dtype=numpy.float64),
@@ -706,9 +710,7 @@ def OSM_to_MultiPolygon(osm_layer, lat, lon, filter=None):
                 )
                 for nodelist in osm_layer.dicosmr[relid]["outer"]
             ]
-            multiout = ops.unary_union(
-                [geom for geom in multiout if geom.is_valid]
-            )
+            multiout = ops.unary_union([geom for geom in multiout if geom.is_valid])
             multiin = [
                 geometry.Polygon(
                     numpy.round(
@@ -722,9 +724,7 @@ def OSM_to_MultiPolygon(osm_layer, lat, lon, filter=None):
                 )
                 for nodelist in osm_layer.dicosmr[relid]["inner"]
             ]
-            multiin = ops.unary_union(
-                [geom for geom in multiin if geom.is_valid]
-            )
+            multiin = ops.unary_union([geom for geom in multiin if geom.is_valid])
         except Exception as e:
             UI.logprint(e)
             done += 1
@@ -736,10 +736,7 @@ def OSM_to_MultiPolygon(osm_layer, lat, lon, filter=None):
             targetlist = multilist
         for pol in (
             multipol.geoms
-            if (
-                "Multi" in multipol.geom_type
-                or "Collection" in multipol.geom_type
-            )
+            if ("Multi" in multipol.geom_type or "Collection" in multipol.geom_type)
             else [multipol]
         ):
             if not pol.area:

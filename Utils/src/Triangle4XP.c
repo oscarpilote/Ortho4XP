@@ -3335,7 +3335,7 @@ void parsecommandline(int argc, char **argv, struct behavior *b)
 			}
 			if (i == STARTINDEX + 2) {
 				scaly = atof(argv[i]);
-				scaly2 = scalx * scalx;
+				scaly2 = scaly * scaly;
 			}
 			if (i == STARTINDEX + 3) {
 				nxdem = atoi(argv[i]);

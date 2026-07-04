@@ -1,0 +1,6 @@
+# Overpass API servers used to download OSM vector data.
+# Format: IDENTIFIER = URL
+# One entry per line. At least one entry is required.
+
+DE = https://overpass-api.de/api/interpreter
+KU = https://overpass.private.coffee/api/interpreter

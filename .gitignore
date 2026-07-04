@@ -1,4 +1,6 @@
 Binary/
+build/
+dist/
 Elevation_data/
 Geotiffs/
 Masks/
@@ -9,9 +11,11 @@ Previews/
 Extents/Auto
 tmp/
 Tiles/
+venv*/
 **/Ortho4XP.log
 **/__pycache__
 **/Thumbs.db
 **/*.bak
 **/*.swp
 .last_gui_params.txt
+.DS_Store
