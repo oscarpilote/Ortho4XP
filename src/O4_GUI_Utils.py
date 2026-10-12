@@ -373,6 +373,12 @@ class Ortho4XP_GUI(tk.Tk):
             self.default_website.set("BI")
             self.default_zl.set(16)
             self.custom_build_dir.set("")
+            
+        # global init tile config
+        self.config_window = CFG.Ortho4XP_Config(self)
+        self.config_window.load_tile_cfg()
+        self.config_window.apply_changes()
+        self.config_window.destroy()
 
     # GUI methods
     def write(self, line):
